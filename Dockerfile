@@ -103,8 +103,8 @@ ENV PYTHONUNBUFFERED=1 \
     BACKUP_RETENTION_DAYS=7 \
     \
     # Docker-specific settings
-    PUID=1000 \
-    PGID=1000
+    PUID=1004 \
+    PGID=1004
 
 # Create application user and group
 RUN sudo groupadd --gid ${PGID} palworld && \
