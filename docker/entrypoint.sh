@@ -138,7 +138,7 @@ initialize_backup_system() {
         print_info "Initializing backup system..."
         
         # Create backup directory structure
-        mkdir -p /backups/automatic /backups/manual
+        mkdir -p $HOME/backups/automatic $HOME/backups/manual
         
         # Set up backup retention policy
         local retention_days=${BACKUP_RETENTION_DAYS:-7}
