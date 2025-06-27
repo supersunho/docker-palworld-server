@@ -60,6 +60,8 @@ LABEL maintainer="supersunho" \
       architecture="arm64" \
       base-image="supersunho/steamcmd-arm64:latest"
 
+USER root
+
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
