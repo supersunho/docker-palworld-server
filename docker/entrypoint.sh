@@ -70,12 +70,12 @@ setup_permissions() {
     print_info "Setting up file permissions..."
     
     local directories=(
-        "/palworld_server"
-        "/backups"
-        "/var/log/palworld"
-        "/palworld_server/Pal/Saved"
-        "/palworld_server/Pal/Saved/Config"
-        "/palworld_server/Pal/Saved/Config/LinuxServer"
+        "$HOME/palworld_server"
+        "$HOME/backups"
+        "$HOME/logs/palworld"
+        "$HOME/palworld_server/Pal/Saved"
+        "$HOME/palworld_server/Pal/Saved/Config"
+        "$HOME/palworld_server/Pal/Saved/Config/LinuxServer"
     )
     
     for dir in "${directories[@]}"; do
@@ -113,32 +113,6 @@ optimize_fex_environment() {
     # Memory management for Palworld
     export FEX_ENABLE_LAZY_MEMORY_DELETION=1
     export FEX_ENABLE_STATIC_REGISTER_ALLOCATION=1
-    
-    # Check FEX installation with fallback
-    if [[ ! -d "$FEX_ROOTFS" ]]; then
-        print_warn "FEX RootFS not found at $FEX_ROOTFS"
-        print_warn "Attempting to use fallback paths..."
-        
-        local alt_paths=(
-            "/opt/fex-emu/RootFS/Ubuntu_22_04"
-            "/usr/share/fex-emu/RootFS/Ubuntu_22_04"
-            "/root/.fex-emu/RootFS/Ubuntu_22_04"
-        )
-        
-        for alt_path in "${alt_paths[@]}"; do
-            if [[ -d "$alt_path" ]]; then
-                export FEX_ROOTFS="$alt_path"
-                print_success "Found FEX RootFS at $alt_path"
-                break
-            fi
-        done
-        
-        if [[ ! -d "$FEX_ROOTFS" ]]; then
-            print_warn "No FEX RootFS found. Some features may not work correctly."
-        fi
-    else
-        print_success "FEX RootFS validated at $FEX_ROOTFS"
-    fi
     
     print_success "FEX environment optimization completed"
 }
