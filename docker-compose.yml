@@ -1,0 +1,116 @@
+version: "3.8"
+
+services:
+    palworld-server:
+        image: supersunho/palworld-server:latest
+        container_name: palworld-server
+        hostname: palworld-server
+        restart: unless-stopped
+
+        # Network configuration
+        ports:
+            - "${SERVER_PORT:-8211}:8211/udp" # Game server port
+            - "27015:27015/udp" # Steam query port
+            - "${REST_API_PORT:-8212}:8212/tcp" # REST API port (internal only)
+
+        # Environment configuration
+        environment:
+            # Server configuration
+            - SERVER_NAME=${SERVER_NAME:-Palworld Server}
+            - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+            - SERVER_PASSWORD=${SERVER_PASSWORD:-}
+            - MAX_PLAYERS=${MAX_PLAYERS:-32}
+            - SERVER_PORT=${SERVER_PORT:-8211}
+            - REST_API_PORT=${REST_API_PORT:-8212}
+
+            # Feature toggles
+            - BACKUP_ENABLED=${BACKUP_ENABLED:-true}
+            - AUTO_UPDATE=${AUTO_UPDATE:-true}
+            - REST_API_ENABLED=${REST_API_ENABLED:-true}
+            - MONITORING_MODE=${MONITORING_MODE:-both}
+            - DISCORD_ENABLED=${DISCORD_ENABLED:-false}
+
+            # Discord integration
+            - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+            - DISCORD_MENTION_ROLE=${DISCORD_MENTION_ROLE:-}
+
+            # Backup configuration
+            - BACKUP_INTERVAL=${BACKUP_INTERVAL:-3600}
+            - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-7}
+
+            # Operational settings
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - TZ=${TZ:-UTC}
+
+            # User/Group IDs
+            - PUID=${PUID:-1000}
+            - PGID=${PGID:-1000}
+
+        # Volume mounts
+        volumes:
+            - palworld_data:/palworld_server/Pal/Saved # Game save data
+            - palworld_backups:/backups # Backup storage
+            - palworld_logs:/var/log/palworld # Application logs
+            - /etc/localtime:/etc/localtime:ro # Timezone sync
+
+        # Health check
+        healthcheck:
+            test: ["CMD", "/usr/local/bin/healthcheck"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 5m
+
+        # Resource limits (adjust based on your system)
+        deploy:
+            resources:
+                limits:
+                    memory: 8G
+                    cpus: "4"
+                reservations:
+                    memory: 4G
+                    cpus: "2"
+
+        # Security settings
+        security_opt:
+            - no-new-privileges:true
+
+        # Logging configuration
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m"
+                max-file: "5"
+
+        # Network configuration
+        networks:
+            - palworld-network
+
+# Named volumes for data persistence
+volumes:
+    palworld_data:
+        driver: local
+        driver_opts:
+            type: none
+            device: ${DATA_DIR:-./data}
+            o: bind
+
+    palworld_backups:
+        driver: local
+        driver_opts:
+            type: none
+            device: ${BACKUP_DIR:-./backups}
+            o: bind
+
+    palworld_logs:
+        driver: local
+        driver_opts:
+            type: none
+            device: ${LOG_DIR:-./logs}
+            o: bind
+
+# Network configuration
+networks:
+    palworld-network:
+        driver: bridge
+        name: palworld-network

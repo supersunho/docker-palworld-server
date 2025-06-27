@@ -1,0 +1,35 @@
+# Prometheus server configuration
+global:
+    scrape_interval: 60s
+    evaluation_interval: 60s
+    external_labels:
+        palworld_server: "My Palworld Server"
+
+# Rule files
+rule_files:
+    - "palworld_alerts.yml"
+
+# Scraping job configuration
+scrape_configs:
+    # Palworld server metrics
+    - job_name: "palworld-server"
+      static_configs:
+          - targets: ["palworld-server:8080"] # 또는 host.docker.internal:8080
+      scrape_interval: 60s
+      metrics_path: "/metrics/palworld"
+      scrape_timeout: 10s
+
+    # aiohttp default metrics
+    - job_name: "palworld-aiohttp"
+      static_configs:
+          - targets: ["palworld-server:8080"]
+      scrape_interval: 60s
+      metrics_path: "/metrics"
+      scrape_timeout: 10s
+
+# Alertmanager configuration
+alerting:
+    alertmanagers:
+        - static_configs:
+              - targets:
+                    - alertmanager:9093

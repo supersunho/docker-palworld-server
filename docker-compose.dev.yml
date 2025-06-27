@@ -1,0 +1,85 @@
+version: "3.8"
+
+services:
+    palworld-dev:
+        build:
+            context: .
+            dockerfile: Dockerfile.dev
+            args:
+                - PYTHON_VERSION=3.12
+        container_name: palworld-server-dev
+        hostname: palworld-dev
+
+        # Development ports (external exposure)
+        ports:
+            - "8211:8211/udp" # Palworld game port
+            - "27015:27015/udp" # Steam query port
+            - "8212:8212/tcp" # REST API port
+            - "8080:8080/tcp" # Monitoring dashboard
+
+        # Development volume mounts
+        volumes:
+            # Real-time source code mounting
+            - ./src:/app/src:ro
+            - ./config:/app/config:ro
+            - ./templates:/app/templates:ro
+            - ./scripts:/app/scripts:ro
+
+            # Persistent data storage
+            - palworld_dev_data:/palworld_server/Pal/Saved
+            - palworld_dev_backups:/backups
+            - palworld_dev_logs:/var/log
+
+        # Development environment variables
+        environment:
+            # Server configuration
+            - SERVER_NAME=Palworld Development Server
+            - ADMIN_PASSWORD=dev123
+            - MAX_PLAYERS=4
+
+            # Development mode settings
+            - LOG_LEVEL=DEBUG
+            - MONITORING_MODE=both
+            - ENABLE_DASHBOARD=true
+
+            # Discord (optional)
+            - DISCORD_ENABLED=false
+            - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+
+            # Backup settings (short interval for development)
+            - BACKUP_ENABLED=true
+            - BACKUP_INTERVAL=900 # 15 minutes
+            - BACKUP_RETENTION_DAYS=1
+
+            # Python development settings
+            - PYTHONPATH=/app/src
+            - PYTHONUNBUFFERED=1
+            - PYTHONDONTWRITEBYTECODE=1
+
+        # Development convenience settings
+        stdin_open: true
+        tty: true
+
+        # Health check (simplified for development)
+        healthcheck:
+            test: ["CMD", "python3", "/app/scripts/healthcheck.py"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+        # Restart policy (for development issues)
+        restart: unless-stopped
+
+# Development volumes
+volumes:
+    palworld_dev_data:
+        driver: local
+    palworld_dev_backups:
+        driver: local
+    palworld_dev_logs:
+        driver: local
+
+# Development network (optional)
+networks:
+    default:
+        name: palworld-dev-network

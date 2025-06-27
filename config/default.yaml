@@ -1,0 +1,56 @@
+# Palworld server default configuration
+server:
+    name: "${SERVER_NAME:Palworld Server}"
+    password: "${SERVER_PASSWORD:}"
+    admin_password: "${ADMIN_PASSWORD:admin123}"
+    max_players: ${MAX_PLAYERS:32}
+    port: ${SERVER_PORT:8211}
+    description: "${SERVER_DESCRIPTION:A Palworld dedicated server}"
+
+# REST API configuration
+rest_api:
+    enabled: ${REST_API_ENABLED:true}
+    port: ${REST_API_PORT:8212}
+    host: "${REST_API_HOST:0.0.0.0}"
+
+# Monitoring configuration
+monitoring:
+    mode: "${MONITORING_MODE:both}" # logs, prometheus, both
+    log_level: "${LOG_LEVEL:INFO}"
+    metrics_interval: ${METRICS_INTERVAL:60}
+    enable_dashboard: ${ENABLE_DASHBOARD:true}
+    dashboard_port: ${DASHBOARD_PORT:8080}
+
+# Backup configuration
+backup:
+    enabled: ${BACKUP_ENABLED:true}
+    interval_seconds: ${BACKUP_INTERVAL:3600}
+    retention_days: ${BACKUP_RETENTION_DAYS:7}
+    compress: ${BACKUP_COMPRESS:true}
+
+# Discord notification configuration
+discord:
+    webhook_url: "${DISCORD_WEBHOOK_URL:}"
+    enabled: ${DISCORD_ENABLED:false}
+    mention_role: "${DISCORD_MENTION_ROLE:}"
+    events:
+        server_start: ${DISCORD_EVENT_START:true}
+        server_stop: ${DISCORD_EVENT_STOP:true}
+        player_join: ${DISCORD_EVENT_JOIN:true}
+        player_leave: ${DISCORD_EVENT_LEAVE:true}
+        backup_complete: ${DISCORD_EVENT_BACKUP:true}
+        errors: ${DISCORD_EVENT_ERRORS:true}
+
+# Path configuration
+paths:
+    server_dir: "${SERVER_DIR:/palworld_server}"
+    backup_dir: "${BACKUP_DIR:/backups}"
+    log_dir: "${LOG_DIR:/var/log}"
+    steamcmd_dir: "${STEAMCMD_DIR:/steamcmd}"
+
+# SteamCMD configuration
+steamcmd:
+    app_id: 2394010
+    validate: ${STEAMCMD_VALIDATE:true}
+    auto_update: ${AUTO_UPDATE:true}
+    update_on_start: ${UPDATE_ON_START:true}

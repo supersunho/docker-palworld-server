@@ -1,0 +1,84 @@
+name: 🛡️ Security Checks
+
+on:
+    schedule:
+        - cron: "0 2 * * 1" # Weekly on Monday at 2 AM UTC
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    dependency-check:
+        name: 🔍 Dependency Vulnerability Check
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: 📥 Checkout repository
+              uses: actions/checkout@v4
+
+            - name: 🐍 Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: 🔍 Run pip-audit
+              run: |
+                  pip install pip-audit
+                  pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json
+              continue-on-error: true
+
+            - name: 📊 Upload vulnerability report
+              uses: actions/upload-artifact@v4
+              with:
+                  name: pip-audit-report
+                  path: pip-audit-report.json
+
+    secret-scan:
+        name: 🕵️ Secret Detection
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: 📥 Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: 🔍 Run TruffleHog
+              uses: trufflesecurity/trufflehog@main
+              with:
+                  path: ./
+                  base: main
+                  head: HEAD
+                  extra_args: --debug --only-verified
+
+    license-check:
+        name: 📄 License Compliance
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: 📥 Checkout repository
+              uses: actions/checkout@v4
+
+            - name: 🐍 Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: 📦 Install dependencies
+              run: |
+                  pip install pip-licenses
+                  pip install -r requirements.txt
+
+            - name: 📄 Check licenses
+              run: |
+                  pip-licenses --format=json --output-file=licenses.json
+                  pip-licenses --format=markdown --output-file=licenses.md
+
+            - name: 📊 Upload license report
+              uses: actions/upload-artifact@v4
+              with:
+                  name: license-report
+                  path: |
+                      licenses.json
+                      licenses.md

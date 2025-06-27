@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docker-palworld-server"
+version = "0.1.0"
+description = "Palworld Dedicated Server with FEX emulation for ARM64"
+authors = [{name = "supersunho"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.11"
+
+[project.urls]
+Repository = "https://github.com/supersunho/docker-palworld-server"
+Issues = "https://github.com/supersunho/docker-palworld-server/issues"
+
+[tool.black]
+line-length = 88
+target-version = ['py311', 'py312']
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
