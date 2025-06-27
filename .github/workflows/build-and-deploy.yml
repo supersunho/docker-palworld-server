@@ -16,6 +16,7 @@ on:
 env:
     REGISTRY_DOCKERHUB: docker.io
     REGISTRY_GHCR: ghcr.io
+    IMAGE_NAME: supersunho/palworld-server
     IMAGE_NAME_GHCR: ${{ github.repository }}/palworld-server
     IMAGE_NAME_DOCKERHUB: supersunho/palworld-server
 
@@ -39,8 +40,8 @@ jobs:
               uses: docker/metadata-action@v5
               with:
                   images: |
-                      ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME_GHCR }}
-                      ${{ env.REGISTRY_GHCR }}/${{ env.REPOSITORY_NAME }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}
+                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}
                   tags: |
                       type=ref,event=branch
                       type=ref,event=pr
@@ -111,10 +112,10 @@ jobs:
                   cache-from: type=gha,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   cache-to: type=gha,mode=max,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   tags: |
-                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:latest-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:latest-${{ matrix.arch }}
+                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
 
                   build-args: |
                       BUILDKIT_INLINE_CACHE=1
@@ -218,9 +219,9 @@ jobs:
                   # Rest of the manifest creation logic...
                   for registry in ghcr dockerhub; do
                     if [ "$registry" = "ghcr" ]; then
-                      PREFIX="${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}"
+                      PREFIX="${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}"
                     else
-                      PREFIX="${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}"
+                      PREFIX="${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}"
                     fi
                     
                     ARCH_IMAGES=""
@@ -262,12 +263,12 @@ jobs:
                   echo "" >> release_notes.md
                   echo "### Docker Hub" >> release_notes.md
                   echo "\`\`\`bash" >> release_notes.md
-                  echo "docker pull ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
+                  echo "docker pull ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
                   echo "\`\`\`" >> release_notes.md
                   echo "" >> release_notes.md
                   echo "### GitHub Container Registry" >> release_notes.md
                   echo "\`\`\`bash" >> release_notes.md
-                  echo "docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
+                  echo "docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
                   echo "\`\`\`" >> release_notes.md
                   echo "" >> release_notes.md
                   echo "## 🏗️ Supported Architectures" >> release_notes.md
@@ -306,13 +307,12 @@ jobs:
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### 🐳 Docker Images" >> $GITHUB_STEP_SUMMARY
                   echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-                  echo "${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-                  echo "${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+                  echo "${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+                  echo "${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
                   echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### ✅ Status" >> $GITHUB_STEP_SUMMARY
                   echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
                   echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
                   echo "| Build | ${{ needs.merge.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Release | ${{ needs.release.result == 'success' && '✅ Success' || (needs.release.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }} |" >> $GITHUB_STEP_SUMMARY
