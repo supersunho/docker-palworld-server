@@ -106,6 +106,7 @@ jobs:
               with:
                   context: .
                   platforms: ${{ matrix.platform }}
+                  push: ${{ github.event_name != 'pull_request' }}
                   labels: ${{ needs.metadata.outputs.labels }}
                   cache-from: type=gha,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   cache-to: type=gha,mode=max,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
