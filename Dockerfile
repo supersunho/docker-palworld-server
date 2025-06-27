@@ -107,10 +107,10 @@ ENV PYTHONUNBUFFERED=1 \
     BACKUP_INTERVAL=3600 \
     BACKUP_RETENTION_DAYS=7  
 
-RUN useradd -m -s /bin/bash palworld && \
-    usermod -aG sudo palworld && \
-    echo "palworld ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-    echo "✅ palworld user created with sudo privileges"
+RUN sudo useradd -m -s /bin/bash palworld && \
+    sudo usermod -aG sudo palworld && \
+    sudo echo "palworld ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    sudo echo "✅ palworld user created with sudo privileges"
 
 # Create application directory structure
 RUN sudo mkdir -p \
@@ -150,7 +150,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5m \
 USER palworld
 
 # Set working directory
-WORKDIR /app
+WORKDIR /home/palworld
 
 # Entry point
 ENTRYPOINT ["/entrypoint.sh"]
