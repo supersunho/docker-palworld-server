@@ -109,11 +109,11 @@ jobs:
                   labels: ${{ needs.metadata.outputs.labels }}
                   cache-from: type=gha,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   cache-to: type=gha,mode=max,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
-                  tags: |
-                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:latest-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:latest-${{ matrix.arch }}
+                  outputs: |
+                      type=image,name=${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ github.event.inputs.version }}-${{ matrix.arch }},push-by-digest=true,name-canonical=true,push=true
+                      type=image,name=${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:latest-${{ matrix.arch }},push-by-digest=true,name-canonical=true,push=true
+                      type=image,name=${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ github.event.inputs.version }}-${{ matrix.arch }},push-by-digest=true,name-canonical=true,push=true
+                      type=image,name=${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:latest-${{ matrix.arch }},push-by-digest=true,name-canonical=true,push=true
                   build-args: |
                       BUILDKIT_INLINE_CACHE=1
 
