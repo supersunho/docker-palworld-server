@@ -1,1 +1,8 @@
-/docker-palworld-server.zip
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+*.bak
+*.backup
