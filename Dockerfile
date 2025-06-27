@@ -135,7 +135,7 @@ RUN sudo chown -R palworld:palworld \
     /palworld_server \
     /backups \
     /var/log/palworld && \
-    chmod +x /entrypoint.sh
+    sudo chmod +x /entrypoint.sh
 
 # Create volume mount points
 VOLUME ["/palworld_server/Pal/Saved", "/backups", "/var/log/palworld"]
