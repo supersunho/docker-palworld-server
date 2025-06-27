@@ -110,10 +110,10 @@ jobs:
                   cache-from: type=gha,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   cache-to: type=gha,mode=max,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   tags: |
-                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}:latest-${{ matrix.arch }}
+                      ${{ env.REGISTRY_GHCR }}/supersunho/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_GHCR }}/supersunho/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
                   build-args: |
                       BUILDKIT_INLINE_CACHE=1
 
@@ -216,7 +216,7 @@ jobs:
                   # Rest of the manifest creation logic...
                   for registry in ghcr dockerhub; do
                     if [ "$registry" = "ghcr" ]; then
-                      PREFIX="${{ env.REGISTRY_GHCR }}/supersunho/docker-${{ env.IMAGE_NAME }}"
+                      PREFIX="${{ env.REGISTRY_GHCR }}/supersunho/${{ env.IMAGE_NAME }}"
                     else
                       PREFIX="${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}"
                     fi
@@ -254,7 +254,7 @@ jobs:
             - name: 🔍 Run Trivy vulnerability scanner
               uses: aquasecurity/trivy-action@master
               with:
-                  image-ref: ${{ matrix.registry }}/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}
+                  image-ref: ${{ matrix.registry }}/supersunho/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}
                   format: "sarif"
                   output: "trivy-${{ matrix.registry }}-results.sarif"
 
