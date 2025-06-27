@@ -1,12 +1,13 @@
 apiVersion: 1
 
 providers:
-    - name: "palworld-dashboards"
+    - name: "Palworld Dashboards"
       orgId: 1
       folder: "Palworld"
       type: file
       disableDeletion: false
+      editable: true
       updateIntervalSeconds: 10
       allowUiUpdates: true
       options:
-          path: /var/lib/grafana/dashboards
+          path: /etc/grafana/provisioning/dashboards

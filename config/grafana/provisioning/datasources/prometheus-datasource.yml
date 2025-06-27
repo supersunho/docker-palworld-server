@@ -1,5 +1,3 @@
-# yaml-language-server: $schema=https://json.schemastore.org/grafana-datasource.json
-# Grafana datasource configuration
 apiVersion: 1
 
 datasources:
@@ -13,3 +11,5 @@ datasources:
       jsonData:
           timeInterval: "60s"
           queryTimeout: "300s"
+          httpMethod: GET
+      version: 1
