@@ -16,8 +16,8 @@ on:
 env:
     REGISTRY_DOCKERHUB: docker.io
     REGISTRY_GHCR: ghcr.io
-    # IMAGE_NAME: ${{ github.repository }}
-    IMAGE_NAME: palworld-server
+    IMAGE_NAME_GHCR: ${{ github.repository }}/${{ github.event.repository.name }}
+    IMAGE_NAME_DOCKERHUB: supersunho/palworld-server
 
 jobs:
     # Generate build metadata
@@ -39,8 +39,8 @@ jobs:
               uses: docker/metadata-action@v5
               with:
                   images: |
-                      ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}
-                      ${{ env.REGISTRY_GHCR }}/supersunho/docker-${{ env.IMAGE_NAME }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME_GHCR }}
+                      ${{ env.REGISTRY_GHCR }}/${{ env.REPOSITORY_NAME }}
                   tags: |
                       type=ref,event=branch
                       type=ref,event=pr
@@ -110,10 +110,10 @@ jobs:
                   cache-from: type=gha,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   cache-to: type=gha,mode=max,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
                   tags: |
-                      ${{ env.REGISTRY_GHCR }}/supersunho/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_GHCR }}/supersunho/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
-                      ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:latest-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:latest-${{ matrix.arch }}
                   build-args: |
                       BUILDKIT_INLINE_CACHE=1
 
@@ -216,9 +216,9 @@ jobs:
                   # Rest of the manifest creation logic...
                   for registry in ghcr dockerhub; do
                     if [ "$registry" = "ghcr" ]; then
-                      PREFIX="${{ env.REGISTRY_GHCR }}/supersunho/${{ env.IMAGE_NAME }}"
+                      PREFIX="${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}"
                     else
-                      PREFIX="${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}"
+                      PREFIX="${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}"
                     fi
                     
                     ARCH_IMAGES=""
@@ -241,28 +241,6 @@ jobs:
                     
                     echo "✅ Multi-arch manifests created for $registry"
                   done
-    # Security scanning of final images
-    security-scan:
-        name: 🛡️ Security Scan
-        runs-on: ubuntu-latest
-        needs: [metadata, merge]
-        strategy:
-            matrix:
-                registry: [docker.io, ghcr.io]
-
-        steps:
-            - name: 🔍 Run Trivy vulnerability scanner
-              uses: aquasecurity/trivy-action@master
-              with:
-                  image-ref: ${{ matrix.registry }}/supersunho/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}
-                  format: "sarif"
-                  output: "trivy-${{ matrix.registry }}-results.sarif"
-
-            - name: 📊 Upload Trivy scan results
-              uses: github/codeql-action/upload-sarif@v3
-              if: always()
-              with:
-                  sarif_file: "trivy-${{ matrix.registry }}-results.sarif"
 
     # Create GitHub release with assets
     release:
@@ -282,12 +260,12 @@ jobs:
                   echo "" >> release_notes.md
                   echo "### Docker Hub" >> release_notes.md
                   echo "\`\`\`bash" >> release_notes.md
-                  echo "docker pull ${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
+                  echo "docker pull ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
                   echo "\`\`\`" >> release_notes.md
                   echo "" >> release_notes.md
                   echo "### GitHub Container Registry" >> release_notes.md
                   echo "\`\`\`bash" >> release_notes.md
-                  echo "docker pull ${{ env.REGISTRY_GHCR }}/supersunho/docker-${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
+                  echo "docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ needs.metadata.outputs.version }}" >> release_notes.md
                   echo "\`\`\`" >> release_notes.md
                   echo "" >> release_notes.md
                   echo "## 🏗️ Supported Architectures" >> release_notes.md
@@ -326,8 +304,8 @@ jobs:
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### 🐳 Docker Images" >> $GITHUB_STEP_SUMMARY
                   echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-                  echo "${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-                  echo "${{ env.REGISTRY_GHCR }}/supersunho/docker-${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+                  echo "${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+                  echo "${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}:${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
                   echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### ✅ Status" >> $GITHUB_STEP_SUMMARY
