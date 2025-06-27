@@ -33,7 +33,7 @@ jobs:
               uses: docker/metadata-action@v5
               with:
                   images: |
-                      ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}
+                      ${{ env.REGISTRY_DOCKERHUB }}/${{ github.repository }}
                       ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}
                   tags: |
                       type=ref,event=branch
@@ -103,7 +103,7 @@ jobs:
                   cache-to: type=gha,mode=max,scope=build-${{ env.PLATFORM_PAIR }}
                   outputs: |
                       type=image,name=${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-                      type=image,name=${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+                      type=image,name=${{ env.REGISTRY_GHCR }}/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
                   build-args: |
                       BUILDKIT_INLINE_CACHE=1
 
