@@ -6,6 +6,12 @@ on:
     # release:
     #     types: [published]
     workflow_dispatch:
+        inputs:
+            version:
+                description: "Version (e.g., v1.2.3)"
+                required: false
+                default: "v0.1.0"
+                type: string
 
 env:
     REGISTRY_DOCKERHUB: docker.io
@@ -101,11 +107,13 @@ jobs:
                   context: .
                   platforms: ${{ matrix.platform }}
                   labels: ${{ needs.metadata.outputs.labels }}
-                  cache-from: type=gha,scope=build-${{ matrix.arch }}
-                  cache-to: type=gha,mode=max,scope=build-${{ matrix.arch }}
-                  outputs: |
-                      type=image,name=${{ env.REGISTRY_DOCKERHUB }}/supersunho/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-                      type=image,name=${{ env.REGISTRY_GHCR }}/supersunho/docker-${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+                  cache-from: type=gha,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
+                  cache-to: type=gha,mode=max,scope=build-${{ github.event.inputs.version }}-${{ matrix.arch }}
+                  tags: |
+                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}:${{ github.event.inputs.version }}-${{ matrix.arch }}
+                      ${{ env.REGISTRY_DOCKERHUB }}:latest-${{ matrix.arch }}
                   build-args: |
                       BUILDKIT_INLINE_CACHE=1
 
@@ -178,7 +186,7 @@ jobs:
 
             - name: 🏷️ Create multi-arch manifests with auto-detection
               run: |
-                  VERSION="${{ needs.metadata.outputs.version }}"
+                  VERSION="${{ github.event.inputs.version }}"
                   echo "📦 Creating multi-arch manifests for automatic architecture detection..."
                   echo "🎯 Target version: $VERSION"
 
