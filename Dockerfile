@@ -105,45 +105,36 @@ ENV PYTHONUNBUFFERED=1 \
     # Operational settings
     LOG_LEVEL=INFO \
     BACKUP_INTERVAL=3600 \
-    BACKUP_RETENTION_DAYS=7 \
-    \
-    # Docker-specific settings
-    PUID=1004 \
-    PGID=1004
+    BACKUP_RETENTION_DAYS=7  
 
-# Create application user and group
-RUN sudo groupadd --gid ${PGID} palworld && \
-    sudo useradd --uid ${PUID} --gid palworld --shell /bin/bash --create-home palworld
+RUN useradd -m -s /bin/bash palworld && \
+    usermod -aG sudo palworld && \
+    echo "palworld ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    echo "✅ palworld user created with sudo privileges"
 
 # Create application directory structure
 RUN sudo mkdir -p \
-    /app \
-    /palworld_server \
-    /backups \
-    /var/log/palworld \
+    /home/palworld/app \
+    /home/palworld/palworld_server \
+    /home/palworld/backups \
+    /home/palworld/logs/palworld \
     /etc/supervisor/conf.d
 
 # Copy Python virtual environment from builder stage
 COPY --from=python-deps /opt/venv /opt/venv
-
-# Copy application files from builder stage
-COPY --from=app-builder --chown=palworld:palworld /app /app
 
 # Copy additional configuration files
 COPY --chown=palworld:palworld docker/supervisor/ /etc/supervisor/conf.d/
 COPY --chown=palworld:palworld docker/entrypoint.sh /entrypoint.sh
 COPY --chmod=755 scripts/healthcheck.py /usr/local/bin/healthcheck
 
+# Copy application files from builder stage
+COPY --from=app-builder --chown=palworld:palworld /app /home/palworld/app
+
 # Set proper permissions
 RUN sudo chown -R palworld:palworld \
-    /app \
-    /palworld_server \
-    /backups \
-    /var/log/palworld && \
+    /home/palworld && \
     sudo chmod +x /entrypoint.sh
-
-# Create volume mount points
-VOLUME ["/palworld_server/Pal/Saved", "/backups", "/var/log/palworld"]
 
 # Expose ports
 EXPOSE ${SERVER_PORT}/udp \
@@ -156,7 +147,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5m \
     CMD /usr/local/bin/healthcheck || exit 1
 
 # Switch to application user
-USER palworld:palworld
+USER palworld
 
 # Set working directory
 WORKDIR /app

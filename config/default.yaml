@@ -43,10 +43,10 @@ discord:
 
 # Path configuration
 paths:
-    server_dir: "${SERVER_DIR:/palworld_server}"
-    backup_dir: "${BACKUP_DIR:/backups}"
-    log_dir: "${LOG_DIR:/var/log}"
-    steamcmd_dir: "${STEAMCMD_DIR:/steamcmd}"
+    server_dir: "${SERVER_DIR:$HOME/palworld_server}"
+    backup_dir: "${BACKUP_DIR:$HOME/backups}"
+    log_dir: "${LOG_DIR:$HOME/logs}"
+    steamcmd_dir: "${STEAMCMD_DIR:$HOME/steamcmd}"
 
 # SteamCMD configuration
 steamcmd:

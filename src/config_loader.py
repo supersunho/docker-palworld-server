@@ -15,10 +15,10 @@ from dataclasses import dataclass, field
 @dataclass
 class ConfigPaths:
     """Configuration paths data class"""
-    server_dir: Path = field(default_factory=lambda: Path("/palworld_server"))
-    backup_dir: Path = field(default_factory=lambda: Path("/backups"))
-    log_dir: Path = field(default_factory=lambda: Path("/var/log"))
-    steamcmd_dir: Path = field(default_factory=lambda: Path("/steamcmd"))
+    server_dir: Path = field(default_factory=lambda: Path("$HOME/palworld_server"))
+    backup_dir: Path = field(default_factory=lambda: Path("$HOME/backups"))
+    log_dir: Path = field(default_factory=lambda: Path("$HOME/logs"))
+    steamcmd_dir: Path = field(default_factory=lambda: Path("$HOME/steamcmd"))
 
 
 @dataclass
@@ -270,10 +270,10 @@ class ConfigLoader:
         
         # Path configuration
         paths_config = ConfigPaths(
-            server_dir=Path(config_dict.get('paths', {}).get('server_dir', '/palworld_server')),
-            backup_dir=Path(config_dict.get('paths', {}).get('backup_dir', '/backups')),
-            log_dir=Path(config_dict.get('paths', {}).get('log_dir', '/var/log')),
-            steamcmd_dir=Path(config_dict.get('paths', {}).get('steamcmd_dir', '/steamcmd')),
+            server_dir=Path(config_dict.get('paths', {}).get('server_dir', '$HOME/palworld_server')),
+            backup_dir=Path(config_dict.get('paths', {}).get('backup_dir', '$HOME/backups')),
+            log_dir=Path(config_dict.get('paths', {}).get('log_dir', '$HOME/logs')),
+            steamcmd_dir=Path(config_dict.get('paths', {}).get('steamcmd_dir', '$HOME/steamcmd')),
         )
         
         # SteamCMD configuration
