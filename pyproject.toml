@@ -4,22 +4,163 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docker-palworld-server"
-version = "0.1.0"
+version = "1.0.0"
 description = "Palworld Dedicated Server with FEX emulation for ARM64"
-authors = [{name = "supersunho"}]
+authors = [
+    {name = "supersunho", email = "supersunho@example.com"}
+]
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.11"
+keywords = ["palworld", "docker", "arm64", "fex", "game-server", "monitoring"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+    "Topic :: System :: Systems Administration",
+]
+
+dependencies = [
+    "aiohttp>=3.9.0",
+    "structlog>=23.2.0",
+    "PyYAML>=6.0.1",
+    "psutil>=5.9.0",
+    "prometheus-client>=0.19.0",
+    "aiohttp-prometheus-exporter>=0.2.4",
+    "colorama>=0.4.6",
+    "click>=8.1.0",
+]
+
+[project.optional-dependencies]
+discord = ["discord-webhook>=1.3.0"]
+grafana = ["grafana-api>=1.0.3"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+]
+all = ["docker-palworld-server[discord,grafana,dev]"]
 
 [project.urls]
+Homepage = "https://github.com/supersunho/docker-palworld-server"
 Repository = "https://github.com/supersunho/docker-palworld-server"
 Issues = "https://github.com/supersunho/docker-palworld-server/issues"
+Documentation = "https://github.com/supersunho/docker-palworld-server#readme"
+Changelog = "https://github.com/supersunho/docker-palworld-server/releases"
 
+[project.scripts]
+palworld-server = "src.server_manager:main"
+palworld-backup = "src.backup.backup_manager:main"
+palworld-health = "scripts.healthcheck:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+exclude = ["tests*"]
+
+# Black configuration
 [tool.black]
 line-length = 88
 target-version = ['py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
 
+# MyPy configuration
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "prometheus_client.*",
+    "aiohttp_prometheus_exporter.*",
+    "psutil.*",
+    "colorama.*",
+]
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# Flake8 configuration
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    ".tox",
+]

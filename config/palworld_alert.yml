@@ -1,0 +1,38 @@
+groups:
+    - name: palworld_server_alerts
+      rules:
+          - alert: PalworldServerDown
+            expr: up{job="palworld-server"} == 0
+            for: 1m
+            labels:
+                severity: critical
+            annotations:
+                summary: "Palworld server is down"
+                description: "Palworld server has been down for more than 1 minute"
+
+          - alert: HighCPUUsage
+            expr: palworld_cpu_usage_percent > 80
+            for: 5m
+            labels:
+                severity: warning
+            annotations:
+                summary: "High CPU usage detected"
+                description: "CPU usage is {{ $value }}% for more than 5 minutes"
+
+          - alert: HighMemoryUsage
+            expr: palworld_memory_usage_percent > 90
+            for: 2m
+            labels:
+                severity: critical
+            annotations:
+                summary: "High memory usage detected"
+                description: "Memory usage is {{ $value }}% exceeding 90%"
+
+          - alert: LowDiskSpace
+            expr: palworld_disk_usage_percent > 85
+            for: 1m
+            labels:
+                severity: warning
+            annotations:
+                summary: "Low disk space"
+                description: "Disk usage is {{ $value }}% exceeding 85%"

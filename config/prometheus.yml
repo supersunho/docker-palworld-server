@@ -14,7 +14,7 @@ scrape_configs:
     # Palworld server metrics
     - job_name: "palworld-server"
       static_configs:
-          - targets: ["palworld-server:8080"] # 또는 host.docker.internal:8080
+          - targets: ["palworld-server:8080"]
       scrape_interval: 60s
       metrics_path: "/metrics/palworld"
       scrape_timeout: 10s
@@ -32,4 +32,4 @@ alerting:
     alertmanagers:
         - static_configs:
               - targets:
-                    - alertmanager:9093
+                    - "alertmanager:9093" # 문자열로 감싸기

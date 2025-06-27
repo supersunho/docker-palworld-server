@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import subprocess
 
-from config_loader import PalworldConfig
-from logging_setup import get_logger, log_backup_event, log_server_event
+from ..config_loader import PalworldConfig
+from ..logging_setup import get_logger, log_backup_event, log_server_event
 
 
 class BackupManager:
@@ -92,7 +92,7 @@ class BackupManager:
                     
                     # Record metrics if available
                     try:
-                        from monitoring.metrics_collector import get_metrics_collector
+                        from ..monitoring.metrics_collector import get_metrics_collector
                         collector = get_metrics_collector()
                         collector.record_backup_event(
                             backup_result["duration"], 
@@ -356,7 +356,7 @@ def get_backup_manager(config: Optional[PalworldConfig] = None) -> BackupManager
     global _backup_manager
     
     if _backup_manager is None:
-        from config_loader import get_config
+        from ..config_loader import get_config
         _backup_manager = BackupManager(config or get_config())
     
     return _backup_manager
@@ -364,7 +364,7 @@ def get_backup_manager(config: Optional[PalworldConfig] = None) -> BackupManager
 
 async def main():
     """Test run"""
-    from config_loader import get_config
+    from ..config_loader import get_config
     
     config = get_config()
     backup_manager = BackupManager(config)

@@ -17,8 +17,8 @@ from datetime import datetime, timedelta
 from dataclasses import asdict
 
 # Local module imports
-from config_loader import PalworldConfig, get_config
-from logging_setup import get_logger, log_server_event, log_player_event, log_api_call, log_backup_event
+from .config_loader import PalworldConfig, get_config
+from .logging_setup import get_logger, log_server_event, log_player_event, log_api_call, log_backup_event
 
 
 class SteamCMDManager:

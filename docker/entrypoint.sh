@@ -4,6 +4,10 @@
 
 set -euo pipefail
 
+# Global variables for process management
+declare -g SERVER_PID=""
+declare -g SHUTDOWN_INITIATED=false
+
 # Color output functions
 print_info() {
     echo -e "\033[0;36m[INFO]\033[0m $1"
@@ -61,11 +65,10 @@ validate_environment() {
     print_success "Environment validation completed"
 }
 
-# Permission setup
+# Permission setup with optimization
 setup_permissions() {
     print_info "Setting up file permissions..."
     
-    # Ensure directories exist with correct permissions
     local directories=(
         "/palworld_server"
         "/backups"
@@ -80,31 +83,61 @@ setup_permissions() {
             mkdir -p "$dir"
         fi
         
-        # Set ownership if running as root (startup phase)
+        # Set ownership only if needed and running as root
         if [[ $EUID -eq 0 ]]; then
-            chown -R ${PUID}:${PGID} "$dir"
+            local current_owner=$(stat -c "%u:%g" "$dir" 2>/dev/null || echo "0:0")
+            if [[ "$current_owner" != "${PUID}:${PGID}" ]]; then
+                chown "${PUID}:${PGID}" "$dir"
+                print_info "Set ownership for $dir"
+            fi
         fi
     done
     
     print_success "Permissions setup completed"
 }
 
-# FEX environment optimization
+# Enhanced FEX environment optimization
 optimize_fex_environment() {
     print_info "Optimizing FEX-Emu environment for ARM64..."
     
-    # Set FEX-specific environment variables for better performance
+    # FEX environment variables for better performance
     export FEX_ROOTFS="/home/steam/.fex-emu/RootFS/Ubuntu_22_04"
     export FEX_APP_CONFIG_LOCATION="/home/steam/.fex-emu"
     
-    # Optimize memory usage for game servers
+    # Performance optimizations
     export FEX_ENABLE_JIT_CACHE=1
-    export FEX_JIT_CACHE_SIZE=512
+    export FEX_JIT_CACHE_SIZE=1024  # Increased from 512
+    export FEX_ENABLE_VIXL_SIMULATOR=0
+    export FEX_ENABLE_VIXL_DISASSEMBLER=0
     
-    # Check if FEX is properly configured
+    # Memory management for Palworld
+    export FEX_ENABLE_LAZY_MEMORY_DELETION=1
+    export FEX_ENABLE_STATIC_REGISTER_ALLOCATION=1
+    
+    # Check FEX installation with fallback
     if [[ ! -d "$FEX_ROOTFS" ]]; then
         print_warn "FEX RootFS not found at $FEX_ROOTFS"
-        print_warn "Some features may not work correctly"
+        print_warn "Attempting to use fallback paths..."
+        
+        local alt_paths=(
+            "/opt/fex-emu/RootFS/Ubuntu_22_04"
+            "/usr/share/fex-emu/RootFS/Ubuntu_22_04"
+            "/root/.fex-emu/RootFS/Ubuntu_22_04"
+        )
+        
+        for alt_path in "${alt_paths[@]}"; do
+            if [[ -d "$alt_path" ]]; then
+                export FEX_ROOTFS="$alt_path"
+                print_success "Found FEX RootFS at $alt_path"
+                break
+            fi
+        done
+        
+        if [[ ! -d "$FEX_ROOTFS" ]]; then
+            print_warn "No FEX RootFS found. Some features may not work correctly."
+        fi
+    else
+        print_success "FEX RootFS validated at $FEX_ROOTFS"
     fi
     
     print_success "FEX environment optimization completed"
@@ -114,7 +147,6 @@ optimize_fex_environment() {
 manage_server_files() {
     print_info "Managing Palworld server files..."
     
-    # Check if server files need to be downloaded/updated
     local server_executable="/palworld_server/PalServer.sh"
     
     if [[ ! -f "$server_executable" ]] || [[ "${AUTO_UPDATE:-true}" == "true" ]]; then
@@ -184,13 +216,47 @@ setup_monitoring() {
     print_success "Monitoring system setup completed"
 }
 
-# Signal handling for graceful shutdown
+# Enhanced signal handling for graceful shutdown
 setup_signal_handlers() {
     print_info "Setting up signal handlers for graceful shutdown..."
     
-    # Trap signals and forward to Python application
-    trap 'print_info "Received SIGTERM, initiating graceful shutdown..."; kill -TERM $PID; wait $PID' TERM
-    trap 'print_info "Received SIGINT, initiating graceful shutdown..."; kill -INT $PID; wait $PID' INT
+    # Graceful shutdown function
+    graceful_shutdown() {
+        if [[ "$SHUTDOWN_INITIATED" == "true" ]]; then
+            print_warn "Shutdown already in progress..."
+            return
+        fi
+        
+        SHUTDOWN_INITIATED=true
+        print_info "Initiating graceful shutdown..."
+        
+        # If we have a server PID, try to shut it down gracefully
+        if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+            print_info "Sending SIGTERM to server process (PID: $SERVER_PID)"
+            kill -TERM "$SERVER_PID" 2>/dev/null || true
+            
+            # Wait for graceful shutdown (max 30 seconds)
+            local count=0
+            while kill -0 "$SERVER_PID" 2>/dev/null && [[ $count -lt 30 ]]; do
+                sleep 1
+                ((count++))
+            done
+            
+            # Force kill if still running
+            if kill -0 "$SERVER_PID" 2>/dev/null; then
+                print_warn "Force killing server process"
+                kill -KILL "$SERVER_PID" 2>/dev/null || true
+            fi
+            
+            print_success "Server process shutdown completed"
+        fi
+        
+        print_success "Graceful shutdown completed"
+        exit 0
+    }
+    
+    # Trap signals
+    trap graceful_shutdown SIGTERM SIGINT SIGQUIT
     
     print_success "Signal handlers configured"
 }
@@ -208,7 +274,7 @@ setup_health_monitoring() {
     fi
 }
 
-# Main execution function
+# Enhanced main execution function
 run_server() {
     print_info "Starting Palworld server management system..."
     
@@ -219,11 +285,21 @@ run_server() {
     case "${1:---start-server}" in
         "--start-server")
             print_info "Starting server in normal mode"
-            exec python -m src.server_manager
+            python -m src.server_manager &
+            SERVER_PID=$!
+            print_info "Server started with PID: $SERVER_PID"
+            
+            # Wait for the process to finish
+            wait $SERVER_PID
+            local exit_code=$?
+            print_info "Server process exited with code: $exit_code"
+            exit $exit_code
             ;;
         "--backup-only")
             print_info "Running in backup-only mode"
-            exec python -m src.backup.backup_manager
+            python -m src.backup.backup_manager &
+            SERVER_PID=$!
+            wait $SERVER_PID
             ;;
         "--health-check")
             print_info "Running health check"
@@ -233,9 +309,15 @@ run_server() {
             print_info "Starting interactive shell"
             exec /bin/bash
             ;;
+        "--supervisor")
+            print_info "Starting with supervisor"
+            exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
+            ;;
         *)
             print_info "Starting server with custom arguments: $*"
-            exec python -m src.server_manager "$@"
+            python -m src.server_manager "$@" &
+            SERVER_PID=$!
+            wait $SERVER_PID
             ;;
     esac
 }

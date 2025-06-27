@@ -14,9 +14,8 @@ from aiohttp import web, WSMsgType
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 
-from config_loader import PalworldConfig
-from logging_setup import get_logger
-from monitoring.metrics_collector import get_metrics_collector
+from ..config_loader import PalworldConfig
+from ..logging_setup import get_logger
 
 
 class PalworldDashboard:
@@ -25,7 +24,9 @@ class PalworldDashboard:
     def __init__(self, config: PalworldConfig):
         self.config = config
         self.logger = get_logger("palworld.dashboard")
-        self.metrics_collector = get_metrics_collector(config)
+        
+        # Import metrics collector with lazy loading to avoid circular import
+        self.metrics_collector = None
         
         # Web app setup
         self.app = web.Application()
@@ -33,6 +34,13 @@ class PalworldDashboard:
         
         # Real-time connection management
         self.websockets = set()
+    
+    def _get_metrics_collector(self):
+        """Lazy loading of metrics collector to avoid circular import"""
+        if self.metrics_collector is None:
+            from .metrics_collector import get_metrics_collector
+            self.metrics_collector = get_metrics_collector(self.config)
+        return self.metrics_collector
     
     def _setup_routes(self):
         """Setup routes"""
@@ -228,10 +236,11 @@ class PalworldDashboard:
         """Metrics API"""
         try:
             # Collect system metrics
-            system_metrics = await self.metrics_collector._collect_system_metrics()
+            collector = self._get_metrics_collector()
+            system_metrics = await collector._collect_system_metrics()
             
             # Game metrics (dummy data, actual implementation from server_manager)
-            game_metrics = self.metrics_collector.collect_game_metrics_sync()
+            game_metrics = collector.collect_game_metrics_sync()
             
             response_data = {
                 "timestamp": datetime.now().isoformat(),
@@ -336,7 +345,7 @@ class PalworldDashboard:
 
 async def main():
     """Test run"""
-    from config_loader import get_config
+    from ..config_loader import get_config
     
     config = get_config()
     dashboard = PalworldDashboard(config)

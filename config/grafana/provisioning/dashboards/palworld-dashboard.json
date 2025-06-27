@@ -1,6 +1,7 @@
 {
     "dashboard": {
         "id": null,
+        "uid": "palworld-dashboard",
         "title": "Palworld Server Dashboard",
         "tags": ["palworld", "server", "monitoring"],
         "timezone": "browser",
@@ -53,12 +54,38 @@
                     }
                 },
                 "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+            },
+            {
+                "id": 3,
+                "title": "CPU Usage",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "palworld_cpu_usage_percent",
+                        "refId": "A"
+                    }
+                ],
+                "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+            },
+            {
+                "id": 4,
+                "title": "Memory Usage",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "palworld_memory_usage_percent",
+                        "refId": "A"
+                    }
+                ],
+                "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
             }
         ],
         "time": {
             "from": "now-1h",
             "to": "now"
         },
-        "refresh": "30s"
+        "refresh": "30s",
+        "version": 1,
+        "editable": true
     }
 }

@@ -18,8 +18,8 @@ from prometheus_client import (
     CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST
 )
 
-from config_loader import PalworldConfig
-from logging_setup import get_logger
+from ..config_loader import PalworldConfig
+from ..logging_setup import get_logger
 
 
 class PalworldPrometheusMetrics:
@@ -574,7 +574,7 @@ def get_prometheus_integration(config: Optional[PalworldConfig] = None) -> Prome
     global _prometheus_integration
     
     if _prometheus_integration is None:
-        from config_loader import get_config
+        from ..config_loader import get_config
         _prometheus_integration = PrometheusIntegration(config or get_config())
     
     return _prometheus_integration
@@ -582,7 +582,7 @@ def get_prometheus_integration(config: Optional[PalworldConfig] = None) -> Prome
 
 async def main():
     """Test run"""
-    from config_loader import get_config
+    from ..config_loader import get_config
     
     config = get_config()
     prometheus = PrometheusIntegration(config)

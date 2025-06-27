@@ -7,6 +7,7 @@ services:
             dockerfile: Dockerfile.dev
             args:
                 - PYTHON_VERSION=3.12
+                - BUILDKIT_INLINE_CACHE=1
         container_name: palworld-server-dev
         hostname: palworld-dev
 
@@ -16,19 +17,26 @@ services:
             - "27015:27015/udp" # Steam query port
             - "8212:8212/tcp" # REST API port
             - "8080:8080/tcp" # Monitoring dashboard
+            - "9090:9090/tcp" # Prometheus metrics
 
         # Development volume mounts
         volumes:
-            # Real-time source code mounting
-            - ./src:/app/src:ro
-            - ./config:/app/config:ro
-            - ./templates:/app/templates:ro
-            - ./scripts:/app/scripts:ro
+            # Real-time source code mounting for hot reload
+            - ./src:/app/src:rw
+            - ./config:/app/config:rw
+            - ./templates:/app/templates:rw
+            - ./scripts:/app/scripts:rw
+            - ./tests:/app/tests:rw
 
             # Persistent data storage
             - palworld_dev_data:/palworld_server/Pal/Saved
             - palworld_dev_backups:/backups
             - palworld_dev_logs:/var/log
+
+            # Development tools
+            - ./.vscode:/app/.vscode:rw
+            - ./pyproject.toml:/app/pyproject.toml:ro
+            - ./requirements-dev.txt:/app/requirements-dev.txt:ro
 
         # Development environment variables
         environment:
@@ -36,13 +44,16 @@ services:
             - SERVER_NAME=Palworld Development Server
             - ADMIN_PASSWORD=dev123
             - MAX_PLAYERS=4
+            - SERVER_PORT=8211
+            - REST_API_PORT=8212
 
             # Development mode settings
             - LOG_LEVEL=DEBUG
             - MONITORING_MODE=both
             - ENABLE_DASHBOARD=true
+            - DASHBOARD_PORT=8080
 
-            # Discord (optional)
+            # Discord (optional for development)
             - DISCORD_ENABLED=false
             - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
 
@@ -55,6 +66,13 @@ services:
             - PYTHONPATH=/app/src
             - PYTHONUNBUFFERED=1
             - PYTHONDONTWRITEBYTECODE=1
+            - PYTHONDEBUG=1
+
+            # Development convenience settings
+            - DEV_MODE=true
+            - AUTO_RELOAD=true
+            - PUID=${PUID:-1000}
+            - PGID=${PGID:-1000}
 
         # Development convenience settings
         stdin_open: true
@@ -62,24 +80,69 @@ services:
 
         # Health check (simplified for development)
         healthcheck:
-            test: ["CMD", "python3", "/app/scripts/healthcheck.py"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
+            test: ["CMD", "python3", "/app/scripts/healthcheck.py", "--json"]
+            interval: 60s
+            timeout: 30s
+            retries: 2
+            start_period: 2m
 
         # Restart policy (for development issues)
+        restart: unless-stopped
+
+        # Development networks
+        networks:
+            - palworld-dev-network
+
+        # Enable debugging
+        cap_add:
+            - SYS_PTRACE
+
+        # Command override for development
+        command: ["--dev"]
+
+    # Development database (optional)
+    palworld-dev-redis:
+        image: redis:7-alpine
+        container_name: palworld-redis-dev
+        ports:
+            - "6379:6379"
+        volumes:
+            - palworld_dev_redis:/data
+        networks:
+            - palworld-dev-network
         restart: unless-stopped
 
 # Development volumes
 volumes:
     palworld_dev_data:
         driver: local
+        driver_opts:
+            type: none
+            device: ${DEV_DATA_DIR:-./dev-data}
+            o: bind
+
     palworld_dev_backups:
         driver: local
+        driver_opts:
+            type: none
+            device: ${DEV_BACKUP_DIR:-./dev-backups}
+            o: bind
+
     palworld_dev_logs:
         driver: local
+        driver_opts:
+            type: none
+            device: ${DEV_LOG_DIR:-./dev-logs}
+            o: bind
 
-# Development network (optional)
+    palworld_dev_redis:
+        driver: local
+
+# Development network
 networks:
-    default:
+    palworld-dev-network:
+        driver: bridge
         name: palworld-dev-network
+        ipam:
+            config:
+                - subnet: 172.21.0.0/16

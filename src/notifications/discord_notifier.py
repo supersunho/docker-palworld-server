@@ -11,8 +11,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
 
-from config_loader import PalworldConfig
-from logging_setup import get_logger, log_server_event
+from ..config_loader import PalworldConfig
+from ..logging_setup import get_logger, log_server_event
 
 
 class NotificationLevel(Enum):
@@ -323,7 +323,7 @@ def get_discord_notifier(config: Optional[PalworldConfig] = None) -> DiscordNoti
     global _discord_notifier
     
     if _discord_notifier is None:
-        from config_loader import get_config
+        from ..config_loader import get_config
         _discord_notifier = DiscordNotifier(config or get_config())
     
     return _discord_notifier
@@ -331,7 +331,7 @@ def get_discord_notifier(config: Optional[PalworldConfig] = None) -> DiscordNoti
 
 async def main():
     """Test run"""
-    from config_loader import get_config
+    from ..config_loader import get_config
     
     config = get_config()
     

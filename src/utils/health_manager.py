@@ -11,8 +11,8 @@ from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass
 import subprocess
 
-from config_loader import PalworldConfig
-from logging_setup import get_logger, log_server_event
+from ..config_loader import PalworldConfig
+from ..logging_setup import get_logger, log_server_event
 
 
 @dataclass
@@ -226,7 +226,7 @@ class HealthManager:
         if should_notify:
             try:
                 # Try to send Discord notification
-                from notifications.discord_notifier import get_discord_notifier
+                from ..notifications.discord_notifier import get_discord_notifier
                 notifier = get_discord_notifier(self.config)
                 
                 if notifier.enabled:
@@ -326,7 +326,7 @@ def get_health_manager(config: Optional[PalworldConfig] = None) -> HealthManager
     global _health_manager
     
     if _health_manager is None:
-        from config_loader import get_config
+        from ..config_loader import get_config
         _health_manager = HealthManager(config or get_config())
         
         # Register default recovery callbacks
@@ -338,7 +338,7 @@ def get_health_manager(config: Optional[PalworldConfig] = None) -> HealthManager
 
 async def main():
     """Test run"""
-    from config_loader import get_config
+    from ..config_loader import get_config
     
     config = get_config()
     health_manager = HealthManager(config)

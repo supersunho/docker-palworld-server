@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from pathlib import Path
-from monitoring.prometheus_integration import get_prometheus_integration
 
 # Prometheus metrics (optional import)
 try:
@@ -20,8 +19,8 @@ try:
 except ImportError:
     PROMETHEUS_AVAILABLE = False
 
-from config_loader import PalworldConfig
-from logging_setup import get_logger, log_server_event
+from ..config_loader import PalworldConfig
+from ..logging_setup import get_logger, log_server_event
 
 
 @dataclass
@@ -56,7 +55,7 @@ class PrometheusMetrics:
     def __init__(self):
         if not PROMETHEUS_AVAILABLE:
             return
-        
+            
         # System metrics
         self.cpu_usage = Gauge('palworld_cpu_usage_percent', 'CPU usage percent')
         self.memory_usage = Gauge('palworld_memory_usage_bytes', 'Memory usage bytes')
@@ -81,6 +80,7 @@ class PrometheusMetrics:
             'API response time',
             buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
         )
+        
         self.api_requests_total = Counter(
             'palworld_api_requests_total',
             'Total API requests',
@@ -93,6 +93,7 @@ class PrometheusMetrics:
             'Backup duration seconds',
             buckets=[10, 30, 60, 120, 300, 600]
         )
+        
         self.backup_size = Gauge('palworld_backup_size_bytes', 'Backup file size')
         self.last_backup_timestamp = Gauge('palworld_last_backup_timestamp', 'Last backup time')
         
@@ -103,7 +104,7 @@ class PrometheusMetrics:
         """Update system metrics"""
         if not PROMETHEUS_AVAILABLE:
             return
-        
+            
         self.cpu_usage.set(metrics.cpu_percent)
         self.memory_usage.set(metrics.memory_usage_gb * 1024**3)  # GB to bytes
         self.memory_percent.set(metrics.memory_percent)
@@ -118,7 +119,7 @@ class PrometheusMetrics:
         """Update game metrics"""
         if not PROMETHEUS_AVAILABLE:
             return
-        
+            
         self.players_online.set(metrics.players_online)
         self.max_players.set(metrics.max_players)
         self.server_uptime.set(metrics.server_uptime_seconds)
@@ -152,8 +153,16 @@ class MetricsCollector:
         self.last_network_stats = psutil.net_io_counters()
         self._collection_task: Optional[asyncio.Task] = None
         self._running = False
-
         
+        # Lazy import for prometheus integration to avoid circular import
+        self._prometheus_integration = None
+    
+    def _get_prometheus_integration(self):
+        """Lazy loading of prometheus integration to avoid circular import"""
+        if self._prometheus_integration is None:
+            from .prometheus_integration import get_prometheus_integration
+            self._prometheus_integration = get_prometheus_integration(self.config)
+        return self._prometheus_integration
     
     async def start_collection(self):
         """Start metrics collection"""
@@ -168,7 +177,7 @@ class MetricsCollector:
             try:
                 start_http_server(self.config.monitoring.dashboard_port)
                 log_server_event(
-                    self.logger, "metrics_start", 
+                    self.logger, "metrics_start",
                     f"Prometheus metrics server started",
                     port=self.config.monitoring.dashboard_port
                 )
@@ -270,8 +279,8 @@ class MetricsCollector:
         if self.enable_prometheus and self.prometheus_metrics:
             self.prometheus_metrics.update_system_metrics(metrics)
     
-    def collect_game_metrics_sync(self, players_data: Optional[List[Dict]] = None, 
-                                  server_info: Optional[Dict] = None) -> GameMetrics:
+    def collect_game_metrics_sync(self, players_data: Optional[List[Dict]] = None,
+                                 server_info: Optional[Dict] = None) -> GameMetrics:
         """Collect game metrics (sync, external data provided)"""
         players_online = len(players_data) if players_data else 0
         uptime = time.time() - self.server_start_time
@@ -306,7 +315,6 @@ class MetricsCollector:
         # Log-based monitoring
         if self.enable_logs:
             uptime_hours = metrics.server_uptime_seconds / 3600
-            
             self.logger.info(
                 "🎮 Game metrics",
                 event_type="metrics",
@@ -330,7 +338,7 @@ class MetricsCollector:
             # Increment request counter
             status_category = "success" if 200 <= status_code < 300 else "error"
             self.prometheus_metrics.api_requests_total.labels(
-                endpoint=endpoint, 
+                endpoint=endpoint,
                 status=status_category
             ).inc()
     
@@ -351,7 +359,7 @@ def get_metrics_collector(config: Optional[PalworldConfig] = None) -> MetricsCol
     global _metrics_collector
     
     if _metrics_collector is None:
-        from config_loader import get_config
+        from ..config_loader import get_config
         _metrics_collector = MetricsCollector(config or get_config())
     
     return _metrics_collector
@@ -359,7 +367,7 @@ def get_metrics_collector(config: Optional[PalworldConfig] = None) -> MetricsCol
 
 async def main():
     """Test run"""
-    from config_loader import get_config
+    from ..config_loader import get_config
     
     config = get_config()
     collector = MetricsCollector(config)
