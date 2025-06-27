@@ -60,10 +60,8 @@ LABEL maintainer="supersunho" \
       architecture="arm64" \
       base-image="supersunho/steamcmd-arm64:latest"
 
-USER root
-
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
     ca-certificates \
@@ -75,7 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gzip \
     cron \
     supervisor \
-    && rm -rf /var/lib/apt/lists/*
+    && sudo rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -109,11 +107,11 @@ ENV PYTHONUNBUFFERED=1 \
     PGID=1000
 
 # Create application user and group
-RUN groupadd --gid ${PGID} palworld && \
-    useradd --uid ${PUID} --gid palworld --shell /bin/bash --create-home palworld
+RUN sudo groupadd --gid ${PGID} palworld && \
+    sudo useradd --uid ${PUID} --gid palworld --shell /bin/bash --create-home palworld
 
 # Create application directory structure
-RUN mkdir -p \
+RUN sudo mkdir -p \
     /app \
     /palworld_server \
     /backups \
@@ -132,7 +130,7 @@ COPY --chown=palworld:palworld docker/entrypoint.sh /entrypoint.sh
 COPY --chmod=755 scripts/healthcheck.py /usr/local/bin/healthcheck
 
 # Set proper permissions
-RUN chown -R palworld:palworld \
+RUN sudo chown -R palworld:palworld \
     /app \
     /palworld_server \
     /backups \
