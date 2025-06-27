@@ -241,7 +241,7 @@ setup_health_monitoring() {
     
     # Ensure health check script is executable
     if [[ -f "/usr/local/bin/healthcheck" ]]; then
-        chmod +x /usr/local/bin/healthcheck
+        sudo chmod +x /usr/local/bin/healthcheck
         print_success "Health check system ready"
     else
         print_warn "Health check script not found"
