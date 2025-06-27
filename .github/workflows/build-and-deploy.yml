@@ -109,19 +109,16 @@ jobs:
 
             - name: 📄 Export digest
               run: |
-                  mkdir -p ${{ runner.temp }}/digests
-                  digest="${{ steps.build.outputs.digest }}"
-                  touch "${{ runner.temp }}/digests/${digest#sha256:}"
-                  echo "Digest: $digest"
+                  mkdir -p /tmp/digests/${{ env.PLATFORM_PAIR }}
+                  echo "${{ steps.build.outputs.digest }}" > /tmp/digests/${{ env.PLATFORM_PAIR }}/digest.txt
+                  echo "📝 Digest saved for ${{ env.PLATFORM_PAIR }}"
 
-            - name: 📤 Upload digest
+            - name: 📤 Upload digest artifact
               uses: actions/upload-artifact@v4
               with:
                   name: digests-${{ env.PLATFORM_PAIR }}
-                  path: ${{ runner.temp }}/digests/*
-                  if-no-files-found: error
+                  path: /tmp/digests/${{ env.PLATFORM_PAIR }}/digest.txt
                   retention-days: 1
-
     # Merge all platform builds into manifest lists
     merge:
         name: 🔗 Merge Multi-Platform Images
