@@ -16,7 +16,7 @@ on:
 env:
     REGISTRY_DOCKERHUB: docker.io
     REGISTRY_GHCR: ghcr.io
-    IMAGE_NAME_GHCR: ${{ github.repository }}/${{ github.event.repository.name }}
+    IMAGE_NAME_GHCR: ${{ github.event.repository.name }}
     IMAGE_NAME_DOCKERHUB: supersunho/palworld-server
 
 jobs:
