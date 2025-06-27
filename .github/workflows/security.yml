@@ -1,12 +1,13 @@
 name: 🛡️ Security Checks
 
 on:
-    schedule:
-        - cron: "0 2 * * 1" # Weekly on Monday at 2 AM UTC
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
+    # schedule:
+    #     - cron: "0 2 * * 1" # Weekly on Monday at 2 AM UTC
+    # push:
+    #     branches: [main]
+    # pull_request:
+    #     branches: [main]
+    workflow_dispatch:
 
 jobs:
     dependency-check:

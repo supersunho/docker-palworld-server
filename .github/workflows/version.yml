@@ -1,17 +1,17 @@
 name: 🏷️ Version Management
 
 on:
-    push:
-        branches: [main]
-        paths-ignore:
-            - "docs/**"
-            - "*.md"
+    # push:
+    #     branches: [main]
+    #     paths-ignore:
+    #         - "docs/**"
+    #         - "*.md"
+    workflow_dispatch:
 
 jobs:
     version:
         name: 🏷️ Auto Version & Tag
         runs-on: ubuntu-latest
-        if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
 
         steps:
             - name: 📥 Checkout repository
