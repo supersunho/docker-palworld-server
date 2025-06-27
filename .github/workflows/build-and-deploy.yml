@@ -19,6 +19,7 @@ env:
     IMAGE_NAME: supersunho/palworld-server
     IMAGE_NAME_GHCR: ${{ github.repository }}/palworld-server
     IMAGE_NAME_DOCKERHUB: supersunho/palworld-server
+    CACHE_VERSION: v1
 
 jobs:
     # Generate build metadata
@@ -100,6 +101,33 @@ jobs:
                   registry: ${{ env.REGISTRY_GHCR }}
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Initialize Ubuntu-specific package cache directories
+              run: |
+                  mkdir -p /tmp/apt-cache /tmp/apt-lib
+                  echo "📁 Ubuntu cache directories initialized"
+
+            # Ubuntu-specific caching
+            - name: Cache Ubuntu packages with version isolation
+              uses: actions/cache@v4
+              id: system-cache
+              with:
+                  path: |
+                      /tmp/apt-cache  
+                      /tmp/apt-lib
+                  key: ${{ env.CACHE_VERSION }}-ubuntu-cache-${{ runner.os }}-${{ runner.arch }}-
+                  restore-keys: |
+                      ${{ env.CACHE_VERSION }}-ubuntu-cache-${{ runner.os }}-${{ runner.arch }}-
+
+            - name: Inject Ubuntu caches into Docker build context
+              uses: reproducible-containers/buildkit-cache-dance@v3.1.2
+              with:
+                  cache-map: |
+                      {
+                          "apt-cache": "/var/cache/apt", 
+                          "apt-lib": "/var/lib/apt"
+                      }
+                  skip-extraction: ${{ steps.system-cache.outputs.cache-hit }}
 
             - name: 🔨 Build and push by digest
               id: build

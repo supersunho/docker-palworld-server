@@ -10,14 +10,16 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV DEBIAN_FRONTEND=noninteractive 
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \ 
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update -qq >/dev/null 2>&1 && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    curl -qq >/dev/null 2>&1
 
 # Copy dependency files
 COPY requirements.txt requirements-dev.txt ./
@@ -60,8 +62,12 @@ LABEL maintainer="supersunho" \
       architecture="arm64" \
       base-image="supersunho/steamcmd-arm64:latest"
 
+ENV DEBIAN_FRONTEND=noninteractive 
+
 # Install runtime dependencies
-RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \ 
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sudo apt-get update -qq >/dev/null 2>&1 && sudo apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
     ca-certificates \
@@ -72,8 +78,7 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     tar \
     gzip \
     cron \
-    supervisor \
-    && sudo rm -rf /var/lib/apt/lists/*
+    supervisor -qq >/dev/null 2>&1 
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
