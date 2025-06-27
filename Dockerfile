@@ -109,8 +109,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 RUN sudo useradd -m -s /bin/bash palworld && \
     sudo usermod -aG sudo palworld && \
-    sudo echo "palworld ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-    sudo echo "✅ palworld user created with sudo privileges"
+    echo "palworld ALL=(ALL) NOPASSWD: ALL" >> sudo /etc/sudoers && \
+    echo "✅ palworld user created with sudo privileges"
 
 # Create application directory structure
 RUN sudo mkdir -p \
