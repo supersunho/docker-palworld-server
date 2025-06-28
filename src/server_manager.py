@@ -524,6 +524,8 @@ OptionSettings=(
         
         server_executable = self.server_path / "PalServer.sh"
         
+        full_cmd = ["FEXBash", "-c", server_executable]
+
         if not server_executable.exists():
             log_server_event(self.logger, "server_start_fail", 
                            f"Server executable not found: {server_executable}")
@@ -535,7 +537,7 @@ OptionSettings=(
             
             # Start server process
             self.server_process = subprocess.Popen(
-                [str(server_executable)],
+                full_cmd,
                 cwd=str(self.server_path),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
