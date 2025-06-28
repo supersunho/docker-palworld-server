@@ -70,6 +70,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     sudo apt-get update -qq >/dev/null 2>&1 && sudo apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
+    python-is-python3 \
     ca-certificates \
     procps \
     htop \
