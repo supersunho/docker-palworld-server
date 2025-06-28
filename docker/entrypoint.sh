@@ -101,7 +101,7 @@ optimize_fex_environment() {
     print_info "Optimizing FEX-Emu environment for ARM64..."
     
     # FEX environment variables for better performance
-    export FEX_ROOTFS="/home/steam/.fex-emu/RootFS/Ubuntu_22_04"
+    export FEX_ROOTFS="/home/steam/.fex-emu/RootFS/Ubuntu_24_04"
     export FEX_APP_CONFIG_LOCATION="/home/steam/.fex-emu"
     
     # Performance optimizations
