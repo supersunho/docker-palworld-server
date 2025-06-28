@@ -86,8 +86,8 @@ setup_permissions() {
         # Set ownership only if needed and running as root
         if [[ $EUID -eq 0 ]]; then
             local current_owner=$(stat -c "%u:%g" "$dir" 2>/dev/null || echo "0:0")
-            if [[ "$current_owner" != "${PUID}:${PGID}" ]]; then
-                chown "${PUID}:${PGID}" "$dir"
+            if [[ "$current_owner" != "steam:steam" ]]; then
+                chown -R "steam:steam" "$dir"
                 print_info "Set ownership for $dir"
             fi
         fi
