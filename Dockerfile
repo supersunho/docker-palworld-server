@@ -89,7 +89,7 @@ WORKDIR /app
 COPY requirements.txt requirements-dev.txt ./
 
 # ✅ Install Python packages directly to system (no virtual environment!)
-RUN pip install --upgrade pip setuptools wheel && \ 
+RUN pip install --upgrade --break-system-packages pip setuptools wheel && \ 
     pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # ✅ Verify installation immediately
