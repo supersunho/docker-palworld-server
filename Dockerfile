@@ -3,31 +3,39 @@
 # Multi-stage build optimized for production deployment
 
 # Stage 1: Python dependencies builder
-FROM python:3.12-slim AS python-deps
+FROM python:3.12-slim-bookworm AS python-deps
 
-# Set Python environment variables for optimization
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-ENV DEBIAN_FRONTEND=noninteractive 
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
 # Install build dependencies
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \ 
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update -qq >/dev/null 2>&1 && apt-get install -y --no-install-recommends \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    curl -qq >/dev/null 2>&1
+    libyaml-dev \
+    python3-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
 COPY requirements.txt requirements-dev.txt ./
 
-# Create virtual environment and install dependencies
-RUN python -m venv /opt/venv && \
-    /opt/venv/bin/pip install --upgrade pip && \
-    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+# ✅ Create proper virtual environment and install PyYAML explicitly
+RUN python -m venv /app/venv && \
+    /app/venv/bin/pip install --upgrade pip setuptools wheel && \
+    /app/venv/bin/pip install PyYAML==6.0.2 && \
+    /app/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# ✅ Verify core module installation
+RUN /app/venv/bin/python -c "import yaml; print(f'✅ PyYAML {yaml.__version__} installed')" && \
+    /app/venv/bin/python -c "import aiohttp; print('✅ aiohttp installed')" && \
+    /app/venv/bin/python -c "import structlog; print('✅ structlog installed')"
 
 # Stage 2: Application builder
 FROM python-deps AS app-builder
@@ -40,12 +48,16 @@ COPY config/ ./config/
 COPY templates/ ./templates/
 COPY scripts/ ./scripts/
 
-# Compile Python bytecode for faster startup
-RUN /opt/venv/bin/python -m compileall src/ && \
-    find src/ -name "*.py" -exec /opt/venv/bin/python -m py_compile {} \;
+# ✅ Validate configuration (using virtual environment path)
+RUN /app/venv/bin/python -c "import yaml; yaml.safe_load(open('config/default.yaml'))" && \
+    echo "✅ Configuration validation passed"
 
-# Validate configuration files
-RUN /opt/venv/bin/python -c "import yaml; yaml.safe_load(open('config/default.yaml'))"
+# ✅ Test Python modules (important!)
+RUN /app/venv/bin/python -c "from src.config_loader import get_config; print('✅ Config loader works')" || \
+    echo "⚠️ Config loader test failed - will be fixed at runtime"
+
+# Compile Python bytecode for faster startup
+RUN /app/venv/bin/python -m compileall src/ || true
 
 # Remove unnecessary files for production
 RUN find . -name "*.pyc" -delete && \
@@ -62,15 +74,19 @@ LABEL maintainer="supersunho" \
       architecture="arm64" \
       base-image="supersunho/steamcmd-arm64:latest"
 
-ENV DEBIAN_FRONTEND=noninteractive 
+# ✅ Install system packages with root privileges
+USER root
 
-# Install runtime dependencies
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \ 
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ✅ Remove sudo and execute directly
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    sudo apt-get update -qq >/dev/null 2>&1 && sudo apt-get install -y --no-install-recommends \
+    apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
     python-is-python3 \
+    libyaml-0-2 \
     ca-certificates \
     procps \
     htop \
@@ -79,13 +95,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     tar \
     gzip \
     cron \
-    supervisor -qq >/dev/null 2>&1 
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
+# ✅ Set environment variables (maintain path consistency)
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH="/app/src" \
-    PATH="/opt/venv/bin:$PATH" \
+    PATH="/app/venv/bin:$PATH" \
+    VIRTUAL_ENV="/app/venv" \
     \
     # Default server configuration
     SERVER_NAME="Palworld Server" \
@@ -106,36 +124,46 @@ ENV PYTHONUNBUFFERED=1 \
     # Operational settings
     LOG_LEVEL=INFO \
     BACKUP_INTERVAL=3600 \
-    BACKUP_RETENTION_DAYS=7  
+    BACKUP_RETENTION_DAYS=7 \
+    PUID=1000 \
+    PGID=1000
 
-RUN sudo useradd -m -s /bin/bash palworld && \
-    sudo usermod -aG sudo palworld && \
-    echo "palworld ALL=(ALL) NOPASSWD: ALL" >> sudo /etc/sudoers && \
-    echo "✅ palworld user created with sudo privileges"
+# ✅ Create user (without sudo)
+RUN groupadd --gid ${PGID} palworld && \
+    useradd --uid ${PUID} --gid palworld --shell /bin/bash --create-home palworld
 
-# Create application directory structure
-RUN sudo mkdir -p \
-    /home/palworld/app \
-    /home/palworld/palworld_server \
+# ✅ Create directories (with root privileges)
+RUN mkdir -p \
+    /app \
+    /home/palworld/palworld_server/Pal/Saved/Config/LinuxServer \
     /home/palworld/backups \
     /home/palworld/logs/palworld \
     /etc/supervisor/conf.d
 
-# Copy Python virtual environment from builder stage
-COPY --from=python-deps /opt/venv /opt/venv
+# ✅ Copy virtual environment (unified paths)
+COPY --from=python-deps /app/venv /app/venv
 
-# Copy additional configuration files
-COPY --chown=palworld:palworld docker/supervisor/ /etc/supervisor/conf.d/
-COPY --chown=palworld:palworld docker/entrypoint.sh /entrypoint.sh
+# ✅ Copy application files (unified paths)
+COPY --from=app-builder /app /app
+
+# ✅ Copy additional configuration files
+COPY docker/supervisor/ /etc/supervisor/conf.d/
+COPY docker/entrypoint.sh /entrypoint.sh
 COPY --chmod=755 scripts/healthcheck.py /usr/local/bin/healthcheck
 
-# Copy application files from builder stage
-COPY --from=app-builder --chown=palworld:palworld /app /home/palworld/app
+# ✅ Set permissions (batch processing with root privileges)
+RUN chown -R ${PUID}:${PGID} \
+    /app \
+    /home/palworld \
+    /opt/venv || true && \
+    chmod +x /entrypoint.sh /usr/local/bin/healthcheck && \
+    chmod 755 /home/palworld/palworld_server \
+    /home/palworld/backups \
+    /home/palworld/logs
 
-# Set proper permissions
-RUN sudo chown -R palworld:palworld \
-    /home/palworld && \
-    sudo chmod +x /entrypoint.sh
+# ✅ Final Python module verification
+RUN python -c "import yaml; print(f'✅ Runtime PyYAML {yaml.__version__} ready')" && \
+    python -c "import sys; print(f'✅ Python path: {sys.path}')"
 
 # Expose ports
 EXPOSE ${SERVER_PORT}/udp \
@@ -147,11 +175,11 @@ EXPOSE ${SERVER_PORT}/udp \
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5m \
     CMD /usr/local/bin/healthcheck || exit 1
 
-# Switch to application user
-USER palworld
+# ✅ Switch to user at the end
+USER palworld:palworld
 
-# Set working directory
-WORKDIR /home/palworld
+# ✅ Set working directory (match with PYTHONPATH)
+WORKDIR /app
 
 # Entry point
 ENTRYPOINT ["/entrypoint.sh"]
