@@ -258,7 +258,7 @@ run_server() {
     case "${1:---start-server}" in
         "--start-server")
             print_info "Starting server in normal mode"
-            python -m src.server_manager &
+            python3 -m src.server_manager &
             SERVER_PID=$!
             print_info "Server started with PID: $SERVER_PID"
             
@@ -270,13 +270,13 @@ run_server() {
             ;;
         "--backup-only")
             print_info "Running in backup-only mode"
-            python -m src.backup.backup_manager &
+            python3 -m src.backup.backup_manager &
             SERVER_PID=$!
             wait $SERVER_PID
             ;;
         "--health-check")
             print_info "Running health check"
-            exec python /usr/local/bin/healthcheck
+            exec python3 /usr/local/bin/healthcheck
             ;;
         "--shell")
             print_info "Starting interactive shell"
@@ -288,7 +288,7 @@ run_server() {
             ;;
         *)
             print_info "Starting server with custom arguments: $*"
-            python -m src.server_manager "$@" &
+            python3 -m src.server_manager "$@" &
             SERVER_PID=$!
             wait $SERVER_PID
             ;;
