@@ -67,16 +67,16 @@ class SteamCMDManager:
         """
         if not self.validate_steamcmd():
             return False
-        
-        full_cmd = [
-            "FEXBash", 
+         
+        steamcmd_command = " ".join([
             str(self.steamcmd_script),
-            "+login", 
-            "anonymous"
-        ] + commands + ["+quit"]
+            "+login", "anonymous"
+        ] + commands + ["+quit"])
+         
+        full_cmd = ["FEXBash", "-c", steamcmd_command]
         
         log_server_event(self.logger, "steamcmd_start", 
-                        f"Running SteamCMD commands: {' '.join(commands)}")
+                        f"Executing: FEXBash -c '{steamcmd_command}'")
         
         try:
             # Environment variables for FEX optimization
