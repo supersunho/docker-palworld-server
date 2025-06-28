@@ -397,6 +397,9 @@ class PalworldServerManager:
         
         if self.config.steamcmd.validate:
             commands.append("validate")
+            commands.append("+anonymous")
+            commands.append("+login")
+            commands.append("+quit")
         
         success = self.steamcmd_manager.run_command(commands, timeout=1800)  # 30 minutes
         
