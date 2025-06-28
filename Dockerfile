@@ -113,7 +113,7 @@ RUN python -c "from src.config_loader import get_config; print('✅ Config loade
     python -c "import yaml; yaml.safe_load(open('config/default.yaml')); print('✅ Config validation passed')"
 
 # Set permissions
-RUN chown -R ${PUID}:${PGID} \
+RUN chown -R palworld:palworld \
     /app \
     /home/palworld && \
     chmod +x /entrypoint.sh /usr/local/bin/healthcheck && \
