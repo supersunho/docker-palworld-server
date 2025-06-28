@@ -240,8 +240,7 @@ setup_health_monitoring() {
     print_info "Setting up health monitoring..."
     
     # Ensure health check script is executable
-    if [[ -f "/usr/local/bin/healthcheck" ]]; then
-        sudo chmod +x /usr/local/bin/healthcheck
+    if [[ -f "/usr/local/bin/healthcheck" ]]; then 
         print_success "Health check system ready"
     else
         print_warn "Health check script not found"
@@ -253,7 +252,7 @@ run_server() {
     print_info "Starting Palworld server management system..."
     
     # Change to application directory
-    cd /app
+    cd $HOME/app
     
     # Determine execution mode
     case "${1:---start-server}" in
