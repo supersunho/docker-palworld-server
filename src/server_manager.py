@@ -71,7 +71,8 @@ class SteamCMDManager:
         full_cmd = [
             "FEXBash", 
             str(self.steamcmd_script),
-            "+login", "anonymous"
+            "+login", 
+            "anonymous"
         ] + commands + ["+quit"]
         
         log_server_event(self.logger, "steamcmd_start", 
@@ -397,9 +398,6 @@ class PalworldServerManager:
         
         if self.config.steamcmd.validate:
             commands.append("validate")
-            commands.append("+anonymous")
-            commands.append("+login")
-            commands.append("+quit")
         
         success = self.steamcmd_manager.run_command(commands, timeout=1800)  # 30 minutes
         
