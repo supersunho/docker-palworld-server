@@ -69,6 +69,7 @@ class SteamCMDManager:
             return False
         
         full_cmd = [
+            "FEXBash", 
             str(self.steamcmd_script),
             "+login", "anonymous"
         ] + commands + ["+quit"]
