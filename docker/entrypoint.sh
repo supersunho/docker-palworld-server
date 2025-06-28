@@ -70,12 +70,12 @@ setup_permissions() {
     print_info "Setting up file permissions..."
     
     local directories=(
-        "$HOME/palworld_server"
-        "$HOME/backups"
-        "$HOME/logs/palworld"
-        "$HOME/palworld_server/Pal/Saved"
-        "$HOME/palworld_server/Pal/Saved/Config"
-        "$HOME/palworld_server/Pal/Saved/Config/LinuxServer"
+        "/home/steam/palworld_server"
+        "/home/steam/backups"
+        "/home/steam/logs/palworld"
+        "/home/steam/palworld_server/Pal/Saved"
+        "/home/steam/palworld_server/Pal/Saved/Config"
+        "/home/steam/palworld_server/Pal/Saved/Config/LinuxServer"
     )
     
     for dir in "${directories[@]}"; do
@@ -138,7 +138,7 @@ initialize_backup_system() {
         print_info "Initializing backup system..."
         
         # Create backup directory structure
-        mkdir -p $HOME/backups/automatic $HOME/backups/manual
+        mkdir -p /home/steam/backups/automatic /home/steam/backups/manual
         
         # Set up backup retention policy
         local retention_days=${BACKUP_RETENTION_DAYS:-7}
