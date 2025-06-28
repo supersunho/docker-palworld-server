@@ -70,18 +70,12 @@ ENV PYTHONUNBUFFERED=1 \
     PUID=1001 \
     PGID=1001
 
-RUN echo "👤 Creating palworld user..." && \
-    useradd -m -s /bin/bash palworld && \
-    usermod -aG sudo palworld && \
-    echo "palworld ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-    echo "✅ palworld user created with sudo privileges"
-
 # Create directories
 RUN mkdir -p \
     /app \
-    /home/palworld/palworld_server/Pal/Saved/Config/LinuxServer \
-    /home/palworld/backups \
-    /home/palworld/logs/palworld \
+    /home/steam/palworld_server/Pal/Saved/Config/LinuxServer \
+    /home/steam/backups \
+    /home/steam/logs/palworld \
     /etc/supervisor/conf.d
 
 # Copy requirements and install Python packages DIRECTLY
@@ -113,13 +107,13 @@ RUN python -c "from src.config_loader import get_config; print('✅ Config loade
     python -c "import yaml; yaml.safe_load(open('config/default.yaml')); print('✅ Config validation passed')"
 
 # Set permissions
-RUN chown -R palworld:palworld \
+RUN chown -R steam:steam \
     /app \
-    /home/palworld && \
+    /home/steam && \
     chmod +x /entrypoint.sh /usr/local/bin/healthcheck && \
-    chmod 755 /home/palworld/palworld_server \
-    /home/palworld/backups \
-    /home/palworld/logs
+    chmod 755 /home/steam/palworld_server \
+    /home/steam/backups \
+    /home/steam/logs
 
 # Final verification
 RUN echo "=== Final System Check ===" && \
@@ -138,7 +132,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5m \
     CMD /usr/local/bin/healthcheck || exit 1
 
 # Switch to user
-USER palworld:palworld
+USER steam
 WORKDIR /app
 
 # Entry point
