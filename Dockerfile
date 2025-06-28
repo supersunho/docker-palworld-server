@@ -128,9 +128,11 @@ ENV PYTHONUNBUFFERED=1 \
     PUID=1001 \
     PGID=1001
 
-# ✅ Create user (without sudo)
-RUN groupadd --gid ${PGID} palworld && \
-    useradd --uid ${PUID} --gid palworld --shell /bin/bash --create-home palworld
+RUN echo "👤 Creating palworld user..." && \
+    useradd -m -s /bin/bash palworld && \
+    usermod -aG sudo palworld && \
+    echo "palworld ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    echo "✅ palworld user created with sudo privileges"
 
 # ✅ Create directories (with root privileges)
 RUN mkdir -p \
