@@ -99,11 +99,7 @@ setup_permissions() {
 # Enhanced FEX environment optimization
 optimize_fex_environment() {
     print_info "Optimizing FEX-Emu environment for ARM64..."
-    
-    # FEX environment variables for better performance
-    export FEX_ROOTFS="/home/steam/.fex-emu/RootFS/Ubuntu_24_04"
-    export FEX_APP_CONFIG_LOCATION="/home/steam/.fex-emu"
-    
+      
     # Performance optimizations
     export FEX_ENABLE_JIT_CACHE=1
     export FEX_JIT_CACHE_SIZE=1024  # Increased from 512
