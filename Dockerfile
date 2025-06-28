@@ -67,8 +67,8 @@ ENV PYTHONUNBUFFERED=1 \
     LOG_LEVEL=INFO \
     BACKUP_INTERVAL=3600 \
     BACKUP_RETENTION_DAYS=7 \
-    PUID=1001 \
-    PGID=1001
+    PUID=1000 \
+    PGID=1000
 
 # Create directories
 RUN mkdir -p \
