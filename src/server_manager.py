@@ -604,26 +604,47 @@ OptionSettings=(
                            f"Server stop error: {e}")
             return False
 
-
-# Convenience function for testing
 async def main():
-    """Main test function"""
+    """Main production server function"""
     config = get_config()
     
+    print("🚀 Starting Palworld Dedicated Server")
+    print(f"   Server: {config.server.name}")
+    print(f"   Port: {config.server.port}")
+    print(f"   Max Players: {config.server.max_players}")
+    
     async with PalworldServerManager(config) as manager:
-        print("🚀 Starting Palworld server manager test")
-        
         # Optional server file download
         if config.steamcmd.update_on_start:
-            print("📥 Downloading server files...")
+            print("📥 Downloading/updating server files...")
             await manager.download_server_files()
         
         # Generate server settings
         print("⚙️ Generating server settings...")
         manager.generate_server_settings()
-        
-        print("✅ Stage 2 test complete!")
+         
+        print("🎮 Starting Palworld server...")
+        if manager.start_server():
+            print("✅ Palworld server started successfully!")
+            print(f"🌐 Server running on port {config.server.port}")
+            print(f"🔧 REST API available on port {config.rest_api.port}")
+             
+            try:
+                while manager.is_server_running():
+                    await asyncio.sleep(30)   
+                    print(f"📊 Server status: Running (Players: checking...)")
+            except KeyboardInterrupt:
+                print("🛑 Received shutdown signal...")
+                await manager.stop_server("Server shutdown requested")
+        else:
+            print("❌ Failed to start Palworld server")
+            return 1
+    
+    return 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import sys
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)
+ 
