@@ -67,8 +67,8 @@ validate_environment() {
 
 # Permission setup with optimization
 setup_permissions() {
-    print_info "Setting up file permissions..."
-    chown -R "steam:steam" "/home/steam"
+    print_info "Setting up file permissions..." 
+    id steam
     local directories=(
         "/home/steam/palworld_server"
         "/home/steam/backups"
