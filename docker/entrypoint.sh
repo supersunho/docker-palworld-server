@@ -252,7 +252,7 @@ run_server() {
     print_info "Starting Palworld server management system..."
     
     # Change to application directory
-    cd $HOME/app
+    cd /app
     
     # Determine execution mode
     case "${1:---start-server}" in
