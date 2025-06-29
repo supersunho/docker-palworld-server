@@ -80,7 +80,7 @@ RUN mkdir -p \
 
 # Copy requirements and install Python packages DIRECTLY
 WORKDIR /app
-COPY requirements.txt requirements-dev.txt ./
+COPY requirements.txt ./
 
 # ✅ Install Python packages directly to system (no virtual environment!)
 RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
@@ -93,8 +93,7 @@ RUN python3 -c "import yaml; print(f'✅ PyYAML {yaml.__version__} installed')" 
 
 # Copy application files
 COPY src/ ./src/
-COPY config/ ./config/
-COPY templates/ ./templates/
+COPY config/ ./config/ 
 COPY scripts/ ./scripts/
 
 # Copy configuration files
