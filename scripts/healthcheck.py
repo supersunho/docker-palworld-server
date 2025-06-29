@@ -40,7 +40,6 @@ class HealthChecker:
     def __init__(self):
         self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
         self.server_port = int(os.getenv('SERVER_PORT', '8211'))
-        self.dashboard_port = int(os.getenv('DASHBOARD_PORT', '8080'))
         self.timeout = 10  # seconds
         
         # Health check results
@@ -304,60 +303,12 @@ class HealthChecker:
                 timestamp=time.time()
             )
     
-    async def check_dashboard(self) -> HealthCheckResult:
-        """Check monitoring dashboard availability"""
-        start_time = time.time()
-        component = "dashboard"
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                url = f'http://localhost:{self.dashboard_port}/'
-                
-                async with session.get(url, timeout=5) as resp:
-                    response_time = (time.time() - start_time) * 1000
-                    
-                    if resp.status == 200:
-                        return HealthCheckResult(
-                            component=component,
-                            status=HealthStatus.HEALTHY,
-                            message="Dashboard accessible",
-                            details={
-                                "url": url,
-                                "status_code": resp.status
-                            },
-                            response_time_ms=response_time,
-                            timestamp=time.time()
-                        )
-                    else:
-                        return HealthCheckResult(
-                            component=component,
-                            status=HealthStatus.WARNING,
-                            message=f"Dashboard returned status {resp.status}",
-                            details={
-                                "url": url,
-                                "status_code": resp.status
-                            },
-                            response_time_ms=response_time,
-                            timestamp=time.time()
-                        )
-                        
-        except Exception as e:
-            return HealthCheckResult(
-                component=component,
-                status=HealthStatus.WARNING,
-                message="Dashboard not accessible",
-                details={"error": str(e)},
-                response_time_ms=(time.time() - start_time) * 1000,
-                timestamp=time.time()
-            )
-    
     async def run_all_checks(self) -> List[HealthCheckResult]:
         """Run all health checks concurrently"""
         checks = [
             self.check_rest_api_health(),
             self.check_server_process(),
-            self.check_system_resources(),
-            self.check_dashboard()
+            self.check_system_resources() 
         ]
         
         self.results = await asyncio.gather(*checks, return_exceptions=True)
