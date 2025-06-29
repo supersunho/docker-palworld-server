@@ -74,7 +74,7 @@ RUN echo "Installing latest rcon-cli for ARM64..." && \
     rcon-cli --help > /dev/null && \
     echo "✅ rcon-cli installed successfully" || \
     (echo "❌ rcon-cli installation verification failed" && exit 1)
-    
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -88,7 +88,7 @@ ENV PYTHONUNBUFFERED=1 \
     MAX_PLAYERS=32 \
     SERVER_PORT=8211 \
     REST_API_PORT=8212 \
-    DASHBOARD_PORT=8080 \
+    RCON_PORT=25575 \
     \
     # Feature toggles
     BACKUP_ENABLED=true \
@@ -158,7 +158,7 @@ RUN echo "=== Final System Check ===" && \
 EXPOSE ${SERVER_PORT}/udp \
        27015/udp \
        ${REST_API_PORT}/tcp \
-       ${DASHBOARD_PORT}/tcp
+       ${RCON_PORT}/tcp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5m \
