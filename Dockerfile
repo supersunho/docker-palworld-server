@@ -166,7 +166,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=5m \
 
 # Switch to user
 USER steam
-WORKDIR /app
+WORKDIR /home/steam
 
 # Entry point
 ENTRYPOINT ["/entrypoint.sh"]
