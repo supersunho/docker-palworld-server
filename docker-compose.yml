@@ -2,7 +2,8 @@ version: "3.8"
 
 services:
     palworld-server:
-        image: supersunho/palworld-server:latest
+        #image: supersunho/palworld-server:latest
+        image: docker.io/library/docker-palworld-shk:0.1
         container_name: palworld-server
         hostname: palworld-server
         restart: unless-stopped
@@ -48,9 +49,9 @@ services:
 
         # Volume mounts
         volumes:
-            - palworld_data:/palworld_server/Pal/Saved # Game save data
-            - palworld_backups:/backups # Backup storage
-            - palworld_logs:/var/log/palworld # Application logs
+            - ./palworld_data:/home/steam/palworld_server/Pal/Saved # Game save data
+            - ./palworld_backups:/home/steam/backups # Backup storage
+            - ./palworld_logs:/home/steam/logs # Application logs
             - /etc/localtime:/etc/localtime:ro # Timezone sync
 
         # Health check
@@ -81,59 +82,3 @@ services:
             options:
                 max-size: "50m"
                 max-file: "5"
-
-        # Network configuration
-        networks:
-            - palworld-network
-
-        # Dependency ordering
-        depends_on:
-            - palworld-init
-
-    # Initialization service for directory setup
-    palworld-init:
-        image: alpine:latest
-        container_name: palworld-init
-        volumes:
-            - palworld_data:/data
-            - palworld_backups:/backups
-            - palworld_logs:/logs
-        command: >
-            sh -c "
-              mkdir -p /data /backups /logs &&
-              chown -R ${PUID:-1000}:${PGID:-1000} /data /backups /logs &&
-              echo 'Initialization completed'
-            "
-        restart: "no"
-
-# Named volumes for data persistence
-volumes:
-    palworld_data:
-        driver: local
-        driver_opts:
-            type: none
-            device: ${DATA_DIR:-./data}
-            o: bind
-
-    palworld_backups:
-        driver: local
-        driver_opts:
-            type: none
-            device: ${BACKUP_DIR:-./backups}
-            o: bind
-
-    palworld_logs:
-        driver: local
-        driver_opts:
-            type: none
-            device: ${LOG_DIR:-./logs}
-            o: bind
-
-# Network configuration
-networks:
-    palworld-network:
-        driver: bridge
-        name: palworld-network
-        ipam:
-            config:
-                - subnet: 172.20.0.0/16
