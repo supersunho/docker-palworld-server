@@ -10,6 +10,7 @@ import aiohttp
 import os
 import time
 import json
+import subprocess  # Added for RCON support
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
@@ -40,6 +41,8 @@ class HealthChecker:
     def __init__(self):
         self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
         self.server_port = int(os.getenv('SERVER_PORT', '8211'))
+        self.rcon_port = int(os.getenv('RCON_PORT', '25575'))  # RCON port configuration
+        self.rcon_password = os.getenv('ADMIN_PASSWORD', 'admin123')  # RCON password
         self.timeout = 10  # seconds
         
         # Health check results
@@ -303,12 +306,158 @@ class HealthChecker:
                 timestamp=time.time()
             )
     
+    async def check_rcon_health(self) -> HealthCheckResult:
+        """Check RCON server health with comprehensive testing"""
+        start_time = time.time()
+        component = "rcon"
+        
+        try:
+            # Step 1: Check if RCON port is listening
+            port_check = await self._check_rcon_port()
+            if not port_check['success']:
+                return HealthCheckResult(
+                    component=component,
+                    status=HealthStatus.UNHEALTHY,
+                    message=f"RCON port {self.rcon_port} not accessible",
+                    details={
+                        "port": self.rcon_port,
+                        "error": port_check['error']
+                    },
+                    response_time_ms=(time.time() - start_time) * 1000,
+                    timestamp=time.time()
+                )
+            
+            # Step 2: Test RCON command execution
+            rcon_test = await self._test_rcon_command()
+            
+            response_time = (time.time() - start_time) * 1000
+            
+            if rcon_test['success']:
+                return HealthCheckResult(
+                    component=component,
+                    status=HealthStatus.HEALTHY,
+                    message="RCON responding normally",
+                    details={
+                        "port": self.rcon_port,
+                        "test_command": "Info",
+                        "response_preview": rcon_test['response'][:100] if rcon_test['response'] else "OK"
+                    },
+                    response_time_ms=response_time,
+                    timestamp=time.time()
+                )
+            else:
+                return HealthCheckResult(
+                    component=component,
+                    status=HealthStatus.WARNING,
+                    message="RCON port open but command failed",
+                    details={
+                        "port": self.rcon_port,
+                        "error": rcon_test['error']
+                    },
+                    response_time_ms=response_time,
+                    timestamp=time.time()
+                )
+                
+        except Exception as e:
+            return HealthCheckResult(
+                component=component,
+                status=HealthStatus.CRITICAL,
+                message=f"RCON check failed: {str(e)}",
+                details={"error": str(e)},
+                response_time_ms=(time.time() - start_time) * 1000,
+                timestamp=time.time()
+            )
+    
+    async def _check_rcon_port(self) -> Dict[str, Any]:
+        """Check if RCON port is listening"""
+        try:
+            # TCP connection test for RCON port
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection('localhost', self.rcon_port),
+                timeout=5
+            )
+            writer.close()
+            await writer.wait_closed()
+            
+            return {"success": True, "error": None}
+            
+        except asyncio.TimeoutError:
+            return {"success": False, "error": "Connection timeout"}
+        except ConnectionRefusedError:
+            return {"success": False, "error": "Connection refused"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _test_rcon_command(self) -> Dict[str, Any]:
+        """Test RCON command execution using rcon-cli"""
+        try:
+            # Execute RCON command using rcon-cli
+            cmd = [
+                'rcon-cli',
+                '--host', 'localhost',
+                '--port', str(self.rcon_port),
+                '--password', self.rcon_password,
+                'Info'  # Simple info command for testing
+            ]
+            
+            # Run command with timeout
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), 
+                    timeout=10
+                )
+                
+                if process.returncode == 0:
+                    response = stdout.decode('utf-8').strip()
+                    return {
+                        "success": True, 
+                        "response": response,
+                        "error": None
+                    }
+                else:
+                    error_msg = stderr.decode('utf-8').strip()
+                    return {
+                        "success": False,
+                        "response": None,
+                        "error": f"Command failed: {error_msg}"
+                    }
+                    
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return {
+                    "success": False,
+                    "response": None,
+                    "error": "RCON command timeout"
+                }
+                
+        except FileNotFoundError:
+            # rcon-cli not found, fallback to port-only check
+            return {
+                "success": True,
+                "response": "rcon-cli not available, port check only",
+                "error": None
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "response": None,
+                "error": f"RCON test error: {str(e)}"
+            }
+    
     async def run_all_checks(self) -> List[HealthCheckResult]:
         """Run all health checks concurrently"""
         checks = [
             self.check_rest_api_health(),
             self.check_server_process(),
-            self.check_system_resources() 
+            self.check_system_resources(),
+            self.check_rcon_health()  # RCON health check added
         ]
         
         self.results = await asyncio.gather(*checks, return_exceptions=True)

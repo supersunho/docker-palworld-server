@@ -116,6 +116,205 @@ class SteamCMDManager:
                            f"SteamCMD execution error: {e}")
             return False
 
+class RconClient:
+    """Palworld RCON client class (similar to RestAPIClient pattern)"""
+    
+    def __init__(self, config: PalworldConfig, logger):
+        self.config = config
+        self.logger = logger
+        self.rcon_client: Optional[RconSourceClient] = None
+        self.host = "127.0.0.1"  # RCON은 localhost만 지원
+        self.port = config.rcon.port
+        self.password = config.server.admin_password
+        self._retry_count = 3
+        self._retry_delay = 2.0
+        self._is_connected = False
+    
+    async def __aenter__(self):
+        """Async context manager enter"""
+        if not RCON_AVAILABLE:
+            self.logger.error("RCON library not available. Install with: pip install rcon")
+            return self
+        
+        if not self.config.rcon.enabled:
+            self.logger.warning("RCON is not enabled in configuration")
+            return self
+        
+        await self._connect()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self._disconnect()
+    
+    async def _connect(self) -> bool:
+        """Establish RCON connection"""
+        if not RCON_AVAILABLE:
+            return False
+        
+        try:
+            # Create RCON client
+            self.rcon_client = RconSourceClient(
+                host=self.host,
+                port=self.port,
+                passwd=self.password,
+                timeout=10.0
+            )
+            
+            # Test connection with info command
+            test_response = await self._execute_command_direct("Info")
+            if test_response:
+                self._is_connected = True
+                log_server_event(self.logger, "rcon_connect", 
+                               "RCON connection established",
+                               host=self.host, port=self.port)
+                return True
+            else:
+                await self._disconnect()
+                return False
+                
+        except Exception as e:
+            log_server_event(self.logger, "rcon_connect_fail", 
+                           f"RCON connection failed: {e}")
+            await self._disconnect()
+            return False
+    
+    async def _disconnect(self) -> None:
+        """Close RCON connection"""
+        if self.rcon_client:
+            try:
+                self.rcon_client.close()
+                self._is_connected = False
+                log_server_event(self.logger, "rcon_disconnect", 
+                               "RCON connection closed")
+            except Exception as e:
+                self.logger.warning("RCON disconnect error", error=str(e))
+            finally:
+                self.rcon_client = None
+    
+    async def _execute_command_with_retry(
+        self, 
+        command: str, 
+        *args: str,
+        retry_count: Optional[int] = None
+    ) -> Optional[str]:
+        """
+        Execute RCON command with retry logic (similar to REST API pattern)
+        
+        Args:
+            command: RCON command
+            *args: Command arguments
+            retry_count: Number of retries (default if None)
+            
+        Returns:
+            Command response or None
+        """
+        if not self._is_connected:
+            self.logger.error("RCON not connected")
+            return None
+        
+        if retry_count is None:
+            retry_count = self._retry_count
+        
+        full_command = f"{command} {' '.join(args)}".strip()
+        last_exception = None
+        
+        for attempt in range(retry_count + 1):
+            try:
+                start_time = time.time()
+                result = await self._execute_command_direct(full_command)
+                duration_ms = (time.time() - start_time) * 1000
+                
+                if result is not None:
+                    log_api_call(self.logger, f"rcon:{command}", 200, duration_ms, 
+                               attempt=attempt + 1)
+                    return result
+                
+            except Exception as e:
+                last_exception = e
+                duration_ms = (time.time() - start_time) * 1000
+                
+                log_api_call(self.logger, f"rcon:{command}", 0, duration_ms, 
+                           attempt=attempt + 1, error=str(e))
+                
+                if attempt < retry_count:
+                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                    # Reconnect on failure
+                    await self._connect()
+        
+        # All retries failed
+        self.logger.error("RCON command final failure", 
+                         command=full_command, 
+                         attempts=retry_count + 1,
+                         last_error=str(last_exception))
+        return None
+    
+    async def _execute_command_direct(self, command: str) -> Optional[str]:
+        """
+        Execute single RCON command
+        """
+        if not self.rcon_client or not self._is_connected:
+            return None
+        
+        try:
+            # Execute command (rcon library is sync, but we wrap it)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            
+            response = await loop.run_in_executor(
+                None, 
+                self.rcon_client.run, 
+                command
+            )
+            
+            return response if response else ""
+            
+        except Exception as e:
+            self.logger.error("RCON command execution error", 
+                            command=command, error=str(e))
+            return None
+    
+    # RCON commands (similar to REST API methods)
+    async def get_server_info(self) -> Optional[str]:
+        """Get server information via RCON"""
+        return await self._execute_command_with_retry("Info")
+    
+    async def get_players(self) -> Optional[str]:
+        """Get online player list via RCON"""
+        return await self._execute_command_with_retry("ShowPlayers")
+    
+    async def announce_message(self, message: str) -> bool:
+        """Announce message to all players via RCON"""
+        result = await self._execute_command_with_retry("Broadcast", message)
+        return result is not None
+    
+    async def kick_player(self, player_name: str) -> bool:
+        """Kick player from server via RCON"""
+        result = await self._execute_command_with_retry("KickPlayer", player_name)
+        return result is not None
+    
+    async def ban_player(self, player_name: str) -> bool:
+        """Ban player from server via RCON"""
+        result = await self._execute_command_with_retry("BanPlayer", player_name)
+        return result is not None
+    
+    async def save_world(self) -> bool:
+        """Save world data via RCON"""
+        result = await self._execute_command_with_retry("Save")
+        return result is not None
+    
+    async def shutdown_server(self, waittime: int = 1, message: str = "Server shutdown") -> bool:
+        """Shutdown server gracefully via RCON"""
+        result = await self._execute_command_with_retry("Shutdown", str(waittime), message)
+        return result is not None
+    
+    async def get_server_settings(self) -> Optional[str]:
+        """Get server settings via RCON"""
+        return await self._execute_command_with_retry("GetServerSettings")
+    
+    async def execute_custom_command(self, command: str, *args: str) -> Optional[str]:
+        """Execute custom RCON command"""
+        return await self._execute_command_with_retry(command, *args)
 
 class RestAPIClient:
     """Palworld REST API client class"""
@@ -342,13 +541,18 @@ class PalworldServerManager:
         
         # API client created on demand
         self._api_client: Optional[RestAPIClient] = None
-    
+        self._rcon_client: Optional[RconClient] = None 
+
     async def __aenter__(self):
         """Async context manager enter"""
         # Initialize API client
         self._api_client = RestAPIClient(self.config, self.logger)
         await self._api_client.__aenter__()
         
+        # Initialize RCON client
+        self._rcon_client = RconClient(self.config, self.logger)
+        await self._rcon_client.__aenter__()
+
         # Create directories
         self._ensure_directories()
         
@@ -371,7 +575,11 @@ class PalworldServerManager:
         # Cleanup API client
         if self._api_client:
             await self._api_client.__aexit__(exc_type, exc_val, exc_tb)
-    
+
+        # Cleanup RCON client
+        if self._rcon_client:
+            await self._rcon_client.__aexit__(exc_type, exc_val, exc_tb)
+
     def _ensure_directories(self) -> None:
         """Create necessary directories"""
         directories = [
@@ -410,6 +618,161 @@ class PalworldServerManager:
         
         return success
     
+    # REST API related methods
+    async def api_get_server_info(self) -> Optional[Dict]:
+        """Get server information via REST API"""
+        if self._api_client:
+            return await self._api_client.get_server_info()
+        return None
+    
+    async def api_get_players(self) -> Optional[List[Dict]]:
+        """Get online player list via REST API"""
+        if self._api_client:
+            return await self._api_client.get_players()
+        return None
+    
+    async def api_get_server_settings(self) -> Optional[Dict]:
+        """Get server settings via REST API"""
+        if self._api_client:
+            return await self._api_client.get_server_settings()
+        return None
+    
+    async def api_get_server_metrics(self) -> Optional[Dict]:
+        """Get server metrics via REST API"""
+        if self._api_client:
+            return await self._api_client.get_server_metrics()
+        return None
+    
+    async def api_announce_message(self, message: str) -> bool:
+        """Announce message to all players via REST API"""
+        if self._api_client:
+            return await self._api_client.announce_message(message)
+        return False
+    
+    async def api_kick_player(self, player_uid: str, message: str = "") -> bool:
+        """Kick player from server via REST API"""
+        if self._api_client:
+            return await self._api_client.kick_player(player_uid, message)
+        return False
+    
+    async def api_ban_player(self, player_uid: str, message: str = "") -> bool:
+        """Ban player from server via REST API"""
+        if self._api_client:
+            return await self._api_client.ban_player(player_uid, message)
+        return False
+    
+    async def api_unban_player(self, player_uid: str) -> bool:
+        """Unban player from server via REST API"""
+        if self._api_client:
+            return await self._api_client.unban_player(player_uid)
+        return False
+    
+    async def api_save_world(self) -> bool:
+        """Save world data via REST API"""
+        if self._api_client:
+            return await self._api_client.save_world()
+        return False
+    
+    async def api_shutdown_server(self, waittime: int = 1, message: str = "Server shutdown") -> bool:
+        """Shutdown server gracefully via REST API"""
+        if self._api_client:
+            return await self._api_client.shutdown_server(waittime, message)
+        return False
+
+    # RCON related methods
+    async def rcon_get_server_info(self) -> Optional[str]:
+        """Get server information via RCON"""
+        if self._rcon_client:
+            return await self._rcon_client.get_server_info()
+        return None
+    
+    async def rcon_get_players(self) -> Optional[str]:
+        """Get online player list via RCON"""
+        if self._rcon_client:
+            return await self._rcon_client.get_players()
+        return None
+    
+    async def rcon_announce_message(self, message: str) -> bool:
+        """Announce message to all players via RCON"""
+        if self._rcon_client:
+            return await self._rcon_client.announce_message(message)
+        return False
+    
+    async def rcon_kick_player(self, player_name: str) -> bool:
+        """Kick player from server via RCON"""
+        if self._rcon_client:
+            return await self._rcon_client.kick_player(player_name)
+        return False
+    
+    async def rcon_ban_player(self, player_name: str) -> bool:
+        """Ban player from server via RCON"""
+        if self._rcon_client:
+            return await self._rcon_client.ban_player(player_name)
+        return False
+    
+    async def rcon_save_world(self) -> bool:
+        """Save world data via RCON"""
+        if self._rcon_client:
+            return await self._rcon_client.save_world()
+        return False
+    
+    async def rcon_shutdown_server(self, waittime: int = 1, message: str = "Server shutdown") -> bool:
+        """Shutdown server gracefully via RCON"""
+        if self._rcon_client:
+            return await self._rcon_client.shutdown_server(waittime, message)
+        return False
+    
+    async def rcon_execute_command(self, command: str, *args: str) -> Optional[str]:
+        """Execute custom RCON command"""
+        if self._rcon_client:
+            return await self._rcon_client.execute_custom_command(command, *args)
+        return None
+    
+    # Integrated management method (REST API or RCON auto-select)
+    async def get_server_info_any(self) -> Optional[Dict]:
+        """Get server info using available API (REST first, then RCON)"""
+        # Try REST API first
+        if self._api_client:
+            result = await self._api_client.get_server_info()
+            if result:
+                return result
+        
+        # Fallback to RCON
+        if self._rcon_client:
+            rcon_result = await self._rcon_client.get_server_info()
+            if rcon_result:
+                return {"source": "rcon", "info": rcon_result}
+        
+        return None
+    
+    async def announce_message_any(self, message: str) -> bool:
+        """Announce message using available API"""
+        # Try REST API first
+        if self._api_client:
+            success = await self._api_client.announce_message(message)
+            if success:
+                return True
+        
+        # Fallback to RCON
+        if self._rcon_client:
+            return await self._rcon_client.announce_message(message)
+        
+        return False
+    
+    async def save_world_any(self) -> bool:
+        """Save world using available API"""
+        # Try REST API first
+        if self._api_client:
+            success = await self._api_client.save_world()
+            if success:
+                return True
+        
+        # Fallback to RCON
+        if self._rcon_client:
+            return await self._rcon_client.save_world()
+        
+        return False
+
     def generate_server_settings(self) -> bool:
         """Generate Palworld server settings file"""
         try:

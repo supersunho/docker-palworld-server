@@ -39,8 +39,42 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     gzip \
     cron \
     supervisor \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
+# ✅ Install latest rcon-cli (ARM64)
+RUN echo "Installing latest rcon-cli for ARM64..." && \
+    DOWNLOAD_URL=$(curl -s https://api.github.com/repos/itzg/rcon-cli/releases/latest | \
+                   jq -r '.assets[] | select(.name | contains("linux_arm64.tar.gz")) | .browser_download_url') && \
+    \
+    if [ -z "$DOWNLOAD_URL" ]; then \
+        echo "❌ Failed to get rcon-cli download URL"; \
+        exit 1; \
+    fi && \
+    \
+    echo "Downloading rcon-cli from: $DOWNLOAD_URL" && \
+    curl -L "$DOWNLOAD_URL" -o /tmp/rcon-cli.tar.gz && \
+    \
+    # Extract and install
+    cd /tmp && \
+    tar -xzf rcon-cli.tar.gz && \
+    \
+    # Find and install binary (handle different archive structures)
+    if [ -f rcon-cli ]; then \
+        chmod +x rcon-cli && mv rcon-cli /usr/local/bin/rcon-cli; \
+    else \
+        find . -name "rcon-cli" -type f -exec chmod +x {} \; && \
+        find . -name "rcon-cli" -type f -exec mv {} /usr/local/bin/rcon-cli \; ; \
+    fi && \
+    \
+    # Cleanup
+    rm -rf /tmp/rcon-cli* /tmp/LICENSE /tmp/README.md && \
+    \
+    # Verify installation
+    rcon-cli --help > /dev/null && \
+    echo "✅ rcon-cli installed successfully" || \
+    (echo "❌ rcon-cli installation verification failed" && exit 1)
+    
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
