@@ -74,6 +74,92 @@ class DiscordConfig:
         "errors": True,
     })
 
+@dataclass
+class RconConfig:
+    """RCON configuration data class"""
+    enabled: bool = False
+    port: int = 25575
+
+@dataclass  
+class GameplayConfig:
+    """Gameplay configuration data class"""
+    region: str = ""
+    banlist_url: str = "https://api.palworldgame.com/api/banlist.txt"
+    enable_player_to_player_damage: bool = False
+    enable_friendly_fire: bool = False
+    enable_invader_enemy: bool = True
+    is_multiplay: bool = True
+    is_pvp: bool = False
+    coop_player_max_num: int = 4
+    enable_non_login_penalty: bool = True
+    enable_fast_travel: bool = True
+    is_start_location_select_by_map: bool = True
+    exist_player_after_logout: bool = False
+    enable_defense_other_guild_player: bool = False
+    can_pickup_other_guild_death_penalty_drop: bool = False
+    enable_aim_assist_pad: bool = True
+    enable_aim_assist_keyboard: bool = False
+    active_unko: bool = False
+    use_auth: bool = True
+
+@dataclass
+class ItemsConfig:
+    """Items and drops configuration data class"""
+    drop_item_max_num: int = 3000
+    drop_item_max_num_unko: int = 100
+    drop_item_alive_max_hours: float = 1.0
+
+@dataclass
+class BaseCampConfig:
+    """Base camp configuration data class"""
+    max_num: int = 128
+    worker_max_num: int = 15
+
+@dataclass
+class GuildConfig:
+    """Guild configuration data class"""
+    player_max_num: int = 20
+    auto_reset_guild_no_online_players: bool = False
+    auto_reset_guild_time_no_online_players: float = 72.0
+
+@dataclass
+class PalSettingsConfig:
+    """Pal and gameplay rate configuration data class"""
+    egg_default_hatching_time: float = 72.0
+    work_speed_rate: float = 1.0
+    day_time_speed_rate: float = 1.0
+    night_time_speed_rate: float = 1.0
+    exp_rate: float = 1.0
+    pal_capture_rate: float = 1.0
+    pal_spawn_num_rate: float = 1.0
+    pal_damage_rate_attack: float = 1.0
+    pal_damage_rate_defense: float = 1.0
+    pal_stomach_decrease_rate: float = 1.0
+    pal_stamina_decrease_rate: float = 1.0
+    pal_auto_hp_regene_rate: float = 1.0
+    pal_auto_hp_regene_rate_in_sleep: float = 1.0
+    player_damage_rate_attack: float = 1.0
+    player_damage_rate_defense: float = 1.0
+    player_stomach_decrease_rate: float = 1.0
+    player_stamina_decrease_rate: float = 1.0
+    player_auto_hp_regene_rate: float = 1.0
+    player_auto_hp_regene_rate_in_sleep: float = 1.0
+
+@dataclass
+class BuildingConfig:
+    """Building and collection configuration data class"""
+    build_object_damage_rate: float = 1.0
+    build_object_deterioration_damage_rate: float = 1.0
+    collection_drop_rate: float = 1.0
+    collection_object_hp_rate: float = 1.0
+    collection_object_respawn_speed_rate: float = 1.0
+    enemy_drop_item_rate: float = 1.0
+
+@dataclass
+class DifficultyConfig:
+    """Difficulty configuration data class"""
+    level: str = "None"
+    death_penalty: str = "All"
 
 @dataclass
 class SteamCMDConfig:
@@ -83,17 +169,24 @@ class SteamCMDConfig:
     auto_update: bool = True
     update_on_start: bool = True
 
-
 @dataclass
 class PalworldConfig:
-    """Main data class containing all configurations"""
+    """Complete Palworld configuration"""
     server: ServerConfig = field(default_factory=ServerConfig)
     rest_api: RestAPIConfig = field(default_factory=RestAPIConfig)
+    rcon: RconConfig = field(default_factory=RconConfig)  # RCON configuration
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     backup: BackupConfig = field(default_factory=BackupConfig)
     discord: DiscordConfig = field(default_factory=DiscordConfig)
     paths: ConfigPaths = field(default_factory=ConfigPaths)
     steamcmd: SteamCMDConfig = field(default_factory=SteamCMDConfig)
+    gameplay: GameplayConfig = field(default_factory=GameplayConfig)  # Gameplay behavior settings
+    items: ItemsConfig = field(default_factory=ItemsConfig)  # Item and drop settings
+    base_camp: BaseCampConfig = field(default_factory=BaseCampConfig)  # Base camp settings
+    guild: GuildConfig = field(default_factory=GuildConfig)  # Guild system settings
+    pal_settings: PalSettingsConfig = field(default_factory=PalSettingsConfig)  # Pal and rate settings
+    building: BuildingConfig = field(default_factory=BuildingConfig)  # Building and collection settings
+    difficulty: DifficultyConfig = field(default_factory=DifficultyConfig)  # Difficulty settings
 
 
 class ConfigLoader:
@@ -235,6 +328,12 @@ class ConfigLoader:
             host=config_dict.get('rest_api', {}).get('host', '0.0.0.0'),
         )
         
+        # RCON configuration
+        rcon_config = RconConfig(
+            enabled=config_dict.get('rcon', {}).get('enabled', False),
+            port=config_dict.get('rcon', {}).get('port', 25575),
+        )
+        
         # Monitoring configuration
         monitoring_config = MonitoringConfig(
             mode=config_dict.get('monitoring', {}).get('mode', 'both'),
@@ -284,15 +383,106 @@ class ConfigLoader:
             update_on_start=config_dict.get('steamcmd', {}).get('update_on_start', True),
         )
         
+        # Gameplay configuration
+        gameplay_config = GameplayConfig(
+            region=config_dict.get('gameplay', {}).get('region', ''),
+            banlist_url=config_dict.get('gameplay', {}).get('banlist_url', 'https://api.palworldgame.com/api/banlist.txt'),
+            enable_player_to_player_damage=config_dict.get('gameplay', {}).get('enable_player_to_player_damage', False),
+            enable_friendly_fire=config_dict.get('gameplay', {}).get('enable_friendly_fire', False),
+            enable_invader_enemy=config_dict.get('gameplay', {}).get('enable_invader_enemy', True),
+            is_multiplay=config_dict.get('gameplay', {}).get('is_multiplay', True),
+            is_pvp=config_dict.get('gameplay', {}).get('is_pvp', False),
+            coop_player_max_num=config_dict.get('gameplay', {}).get('coop_player_max_num', 4),
+            enable_non_login_penalty=config_dict.get('gameplay', {}).get('enable_non_login_penalty', True),
+            enable_fast_travel=config_dict.get('gameplay', {}).get('enable_fast_travel', True),
+            is_start_location_select_by_map=config_dict.get('gameplay', {}).get('is_start_location_select_by_map', True),
+            exist_player_after_logout=config_dict.get('gameplay', {}).get('exist_player_after_logout', False),
+            enable_defense_other_guild_player=config_dict.get('gameplay', {}).get('enable_defense_other_guild_player', False),
+            can_pickup_other_guild_death_penalty_drop=config_dict.get('gameplay', {}).get('can_pickup_other_guild_death_penalty_drop', False),
+            enable_aim_assist_pad=config_dict.get('gameplay', {}).get('enable_aim_assist_pad', True),
+            enable_aim_assist_keyboard=config_dict.get('gameplay', {}).get('enable_aim_assist_keyboard', False),
+            active_unko=config_dict.get('gameplay', {}).get('active_unko', False),
+            use_auth=config_dict.get('gameplay', {}).get('use_auth', True),
+        )
+        
+        # Items configuration
+        items_config = ItemsConfig(
+            drop_item_max_num=config_dict.get('items', {}).get('drop_item_max_num', 3000),
+            drop_item_max_num_unko=config_dict.get('items', {}).get('drop_item_max_num_unko', 100),
+            drop_item_alive_max_hours=config_dict.get('items', {}).get('drop_item_alive_max_hours', 1.0),
+        )
+        
+        # Base camp configuration
+        base_camp_config = BaseCampConfig(
+            max_num=config_dict.get('base_camp', {}).get('max_num', 128),
+            worker_max_num=config_dict.get('base_camp', {}).get('worker_max_num', 15),
+        )
+        
+        # Guild configuration
+        guild_config = GuildConfig(
+            player_max_num=config_dict.get('guild', {}).get('player_max_num', 20),
+            auto_reset_guild_no_online_players=config_dict.get('guild', {}).get('auto_reset_guild_no_online_players', False),
+            auto_reset_guild_time_no_online_players=config_dict.get('guild', {}).get('auto_reset_guild_time_no_online_players', 72.0),
+        )
+        
+        # Pal settings configuration
+        pal_settings_config = PalSettingsConfig(
+            egg_default_hatching_time=config_dict.get('pal_settings', {}).get('egg_default_hatching_time', 72.0),
+            work_speed_rate=config_dict.get('pal_settings', {}).get('work_speed_rate', 1.0),
+            day_time_speed_rate=config_dict.get('pal_settings', {}).get('day_time_speed_rate', 1.0),
+            night_time_speed_rate=config_dict.get('pal_settings', {}).get('night_time_speed_rate', 1.0),
+            exp_rate=config_dict.get('pal_settings', {}).get('exp_rate', 1.0),
+            pal_capture_rate=config_dict.get('pal_settings', {}).get('pal_capture_rate', 1.0),
+            pal_spawn_num_rate=config_dict.get('pal_settings', {}).get('pal_spawn_num_rate', 1.0),
+            pal_damage_rate_attack=config_dict.get('pal_settings', {}).get('pal_damage_rate_attack', 1.0),
+            pal_damage_rate_defense=config_dict.get('pal_settings', {}).get('pal_damage_rate_defense', 1.0),
+            pal_stomach_decrease_rate=config_dict.get('pal_settings', {}).get('pal_stomach_decrease_rate', 1.0),
+            pal_stamina_decrease_rate=config_dict.get('pal_settings', {}).get('pal_stamina_decrease_rate', 1.0),
+            pal_auto_hp_regene_rate=config_dict.get('pal_settings', {}).get('pal_auto_hp_regene_rate', 1.0),
+            pal_auto_hp_regene_rate_in_sleep=config_dict.get('pal_settings', {}).get('pal_auto_hp_regene_rate_in_sleep', 1.0),
+            player_damage_rate_attack=config_dict.get('pal_settings', {}).get('player_damage_rate_attack', 1.0),
+            player_damage_rate_defense=config_dict.get('pal_settings', {}).get('player_damage_rate_defense', 1.0),
+            player_stomach_decrease_rate=config_dict.get('pal_settings', {}).get('player_stomach_decrease_rate', 1.0),
+            player_stamina_decrease_rate=config_dict.get('pal_settings', {}).get('player_stamina_decrease_rate', 1.0),
+            player_auto_hp_regene_rate=config_dict.get('pal_settings', {}).get('player_auto_hp_regene_rate', 1.0),
+            player_auto_hp_regene_rate_in_sleep=config_dict.get('pal_settings', {}).get('player_auto_hp_regene_rate_in_sleep', 1.0),
+        )
+        
+        # Building configuration
+        building_config = BuildingConfig(
+            build_object_damage_rate=config_dict.get('building', {}).get('build_object_damage_rate', 1.0),
+            build_object_deterioration_damage_rate=config_dict.get('building', {}).get('build_object_deterioration_damage_rate', 1.0),
+            collection_drop_rate=config_dict.get('building', {}).get('collection_drop_rate', 1.0),
+            collection_object_hp_rate=config_dict.get('building', {}).get('collection_object_hp_rate', 1.0),
+            collection_object_respawn_speed_rate=config_dict.get('building', {}).get('collection_object_respawn_speed_rate', 1.0),
+            enemy_drop_item_rate=config_dict.get('building', {}).get('enemy_drop_item_rate', 1.0),
+        )
+        
+        # Difficulty configuration
+        difficulty_config = DifficultyConfig(
+            level=config_dict.get('difficulty', {}).get('level', 'None'),
+            death_penalty=config_dict.get('difficulty', {}).get('death_penalty', 'All'),
+        )
+        
+        # Return complete PalworldConfig with all configurations
         return PalworldConfig(
             server=server_config,
             rest_api=rest_api_config,
+            rcon=rcon_config,
             monitoring=monitoring_config,
             backup=backup_config,
             discord=discord_config,
             paths=paths_config,
             steamcmd=steamcmd_config,
+            gameplay=gameplay_config,
+            items=items_config,
+            base_camp=base_camp_config,
+            guild=guild_config,
+            pal_settings=pal_settings_config,
+            building=building_config,
+            difficulty=difficulty_config,
         )
+
     
     def validate_config(self, config: PalworldConfig) -> bool:
         """

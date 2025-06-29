@@ -432,79 +432,87 @@ class PalworldServerManager:
             return False
     
     def _generate_settings_content(self) -> str:
-        """Generate settings file content"""
+        """Generate complete settings file content using all config values"""
         server_cfg = self.config.server
         api_cfg = self.config.rest_api
-        
-        # Reflect user's YAML + environment variable hybrid approach
+        rcon_cfg = self.config.rcon
+        gameplay_cfg = self.config.gameplay
+        items_cfg = self.config.items
+        base_camp_cfg = self.config.base_camp
+        guild_cfg = self.config.guild
+        pal_cfg = self.config.pal_settings
+        building_cfg = self.config.building
+        difficulty_cfg = self.config.difficulty
+         
         settings = f"""[/Script/Pal.PalGameWorldSettings]
-OptionSettings=(
-    Difficulty=None,
-    DayTimeSpeedRate=1.000000,
-    NightTimeSpeedRate=1.000000,
-    ExpRate=1.000000,
-    PalCaptureRate=1.000000,
-    PalSpawnNumRate=1.000000,
-    PalDamageRateAttack=1.000000,
-    PalDamageRateDefense=1.000000,
-    PlayerDamageRateAttack=1.000000,
-    PlayerDamageRateDefense=1.000000,
-    PlayerStomachDecreaseRate=1.000000,
-    PlayerStaminaDecreaseRate=1.000000,
-    PlayerAutoHPRegeneRate=1.000000,
-    PlayerAutoHpRegeneRateInSleep=1.000000,
-    PalStomachDecreaseRate=1.000000,
-    PalStaminaDecreaseRate=1.000000,
-    PalAutoHPRegeneRate=1.000000,
-    PalAutoHpRegeneRateInSleep=1.000000,
-    BuildObjectDamageRate=1.000000,
-    BuildObjectDeteriorationDamageRate=1.000000,
-    CollectionDropRate=1.000000,
-    CollectionObjectHpRate=1.000000,
-    CollectionObjectRespawnSpeedRate=1.000000,
-    EnemyDropItemRate=1.000000,
-    DeathPenalty=All,
-    bEnablePlayerToPlayerDamage=False,
-    bEnableFriendlyFire=False,
-    bEnableInvaderEnemy=True,
-    bActiveUNKO=False,
-    bEnableAimAssistPad=True,
-    bEnableAimAssistKeyboard=False,
-    DropItemMaxNum=3000,
-    DropItemMaxNum_UNKO=100,
-    BaseCampMaxNum=128,
-    BaseCampWorkerMaxNum=15,
-    DropItemAliveMaxHours=1.000000,
-    bAutoResetGuildNoOnlinePlayers=False,
-    AutoResetGuildTimeNoOnlinePlayers=72.000000,
-    GuildPlayerMaxNum=20,
-    PalEggDefaultHatchingTime=72.000000,
-    WorkSpeedRate=1.000000,
-    bIsMultiplay=True,
-    bIsPvP=False,
-    bCanPickupOtherGuildDeathPenaltyDrop=False,
-    bEnableNonLoginPenalty=True,
-    bEnableFastTravel=True,
-    bIsStartLocationSelectByMap=True,
-    bExistPlayerAfterLogout=False,
-    bEnableDefenseOtherGuildPlayer=False,
-    CoopPlayerMaxNum=4,
-    ServerPlayerMaxNum={server_cfg.max_players},
-    ServerName="{server_cfg.name}",
-    ServerDescription="{server_cfg.description}",
-    AdminPassword="{server_cfg.admin_password}",
-    ServerPassword="{server_cfg.password}",
-    PublicPort={server_cfg.port},
-    PublicIP="",
-    RCONEnabled=False,
-    RCONPort=25575,
-    Region="",
-    bUseAuth=True,
-    BanListURL="https://api.palworldgame.com/api/banlist.txt",
-    RESTAPIEnabled={str(api_cfg.enabled).lower()},
-    RESTAPIPort={api_cfg.port}
-)"""
+    OptionSettings=(
+        Difficulty={difficulty_cfg.level},
+        DayTimeSpeedRate={pal_cfg.day_time_speed_rate},
+        NightTimeSpeedRate={pal_cfg.night_time_speed_rate},
+        ExpRate={pal_cfg.exp_rate},
+        PalCaptureRate={pal_cfg.pal_capture_rate},
+        PalSpawnNumRate={pal_cfg.pal_spawn_num_rate},
+        PalDamageRateAttack={pal_cfg.pal_damage_rate_attack},
+        PalDamageRateDefense={pal_cfg.pal_damage_rate_defense},
+        PlayerDamageRateAttack={pal_cfg.player_damage_rate_attack},
+        PlayerDamageRateDefense={pal_cfg.player_damage_rate_defense},
+        PlayerStomachDecreaseRate={pal_cfg.player_stomach_decrease_rate},
+        PlayerStaminaDecreaseRate={pal_cfg.player_stamina_decrease_rate},
+        PlayerAutoHPRegeneRate={pal_cfg.player_auto_hp_regene_rate},
+        PlayerAutoHpRegeneRateInSleep={pal_cfg.player_auto_hp_regene_rate_in_sleep},
+        PalStomachDecreaseRate={pal_cfg.pal_stomach_decrease_rate},
+        PalStaminaDecreaseRate={pal_cfg.pal_stamina_decrease_rate},
+        PalAutoHPRegeneRate={pal_cfg.pal_auto_hp_regene_rate},
+        PalAutoHpRegeneRateInSleep={pal_cfg.pal_auto_hp_regene_rate_in_sleep},
+        BuildObjectDamageRate={building_cfg.build_object_damage_rate},
+        BuildObjectDeteriorationDamageRate={building_cfg.build_object_deterioration_damage_rate},
+        CollectionDropRate={building_cfg.collection_drop_rate},
+        CollectionObjectHpRate={building_cfg.collection_object_hp_rate},
+        CollectionObjectRespawnSpeedRate={building_cfg.collection_object_respawn_speed_rate},
+        EnemyDropItemRate={building_cfg.enemy_drop_item_rate},
+        DeathPenalty={difficulty_cfg.death_penalty},
+        bEnablePlayerToPlayerDamage={str(gameplay_cfg.enable_player_to_player_damage).capitalize()},
+        bEnableFriendlyFire={str(gameplay_cfg.enable_friendly_fire).capitalize()},
+        bEnableInvaderEnemy={str(gameplay_cfg.enable_invader_enemy).capitalize()},
+        bActiveUNKO={str(gameplay_cfg.active_unko).capitalize()},
+        bEnableAimAssistPad={str(gameplay_cfg.enable_aim_assist_pad).capitalize()},
+        bEnableAimAssistKeyboard={str(gameplay_cfg.enable_aim_assist_keyboard).capitalize()},
+        DropItemMaxNum={items_cfg.drop_item_max_num},
+        DropItemMaxNum_UNKO={items_cfg.drop_item_max_num_unko},
+        BaseCampMaxNum={base_camp_cfg.max_num},
+        BaseCampWorkerMaxNum={base_camp_cfg.worker_max_num},
+        DropItemAliveMaxHours={items_cfg.drop_item_alive_max_hours},
+        bAutoResetGuildNoOnlinePlayers={str(guild_cfg.auto_reset_guild_no_online_players).capitalize()},
+        AutoResetGuildTimeNoOnlinePlayers={guild_cfg.auto_reset_guild_time_no_online_players},
+        GuildPlayerMaxNum={guild_cfg.player_max_num},
+        PalEggDefaultHatchingTime={pal_cfg.egg_default_hatching_time},
+        WorkSpeedRate={pal_cfg.work_speed_rate},
+        bIsMultiplay={str(gameplay_cfg.is_multiplay).capitalize()},
+        bIsPvP={str(gameplay_cfg.is_pvp).capitalize()},
+        bCanPickupOtherGuildDeathPenaltyDrop={str(gameplay_cfg.can_pickup_other_guild_death_penalty_drop).capitalize()},
+        bEnableNonLoginPenalty={str(gameplay_cfg.enable_non_login_penalty).capitalize()},
+        bEnableFastTravel={str(gameplay_cfg.enable_fast_travel).capitalize()},
+        bIsStartLocationSelectByMap={str(gameplay_cfg.is_start_location_select_by_map).capitalize()},
+        bExistPlayerAfterLogout={str(gameplay_cfg.exist_player_after_logout).capitalize()},
+        bEnableDefenseOtherGuildPlayer={str(gameplay_cfg.enable_defense_other_guild_player).capitalize()},
+        CoopPlayerMaxNum={gameplay_cfg.coop_player_max_num},
+        ServerPlayerMaxNum={server_cfg.max_players},
+        ServerName="{server_cfg.name}",
+        ServerDescription="{server_cfg.description}",
+        AdminPassword="{server_cfg.admin_password}",
+        ServerPassword="{server_cfg.password}",
+        PublicPort={server_cfg.port},
+        PublicIP="",
+        RCONEnabled={str(rcon_cfg.enabled).capitalize()},
+        RCONPort={rcon_cfg.port},
+        Region="{gameplay_cfg.region}",
+        bUseAuth={str(gameplay_cfg.use_auth).capitalize()},
+        BanListURL="{gameplay_cfg.banlist_url}",
+        RESTAPIEnabled={str(api_cfg.enabled).capitalize()},
+        RESTAPIPort={api_cfg.port}
+    )"""
         return settings
+
     
     # Server control methods
     def is_server_running(self) -> bool:
