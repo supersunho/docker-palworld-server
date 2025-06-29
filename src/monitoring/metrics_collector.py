@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Metrics collection system
-Reflecting user's dual monitoring requirements (logs + prometheus)
+Log-based monitoring for Palworld server performance tracking
 """
 
 import asyncio
@@ -11,13 +11,6 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from pathlib import Path
-
-# Prometheus metrics (optional import)
-try:
-    from prometheus_client import Counter, Gauge, Histogram, Info, start_http_server
-    PROMETHEUS_AVAILABLE = True
-except ImportError:
-    PROMETHEUS_AVAILABLE = False
 
 from ..config_loader import PalworldConfig
 from ..logging_setup import get_logger, log_server_event
@@ -49,120 +42,21 @@ class GameMetrics:
     api_response_time_ms: float = 0.0
 
 
-class PrometheusMetrics:
-    """Prometheus metrics definition class"""
-    
-    def __init__(self):
-        if not PROMETHEUS_AVAILABLE:
-            return
-            
-        # System metrics
-        self.cpu_usage = Gauge('palworld_cpu_usage_percent', 'CPU usage percent')
-        self.memory_usage = Gauge('palworld_memory_usage_bytes', 'Memory usage bytes')
-        self.memory_percent = Gauge('palworld_memory_usage_percent', 'Memory usage percent')
-        self.disk_usage = Gauge('palworld_disk_usage_bytes', 'Disk usage bytes')
-        self.disk_percent = Gauge('palworld_disk_usage_percent', 'Disk usage percent')
-        
-        # Network metrics
-        self.network_sent = Counter('palworld_network_bytes_sent_total', 'Bytes sent')
-        self.network_recv = Counter('palworld_network_bytes_received_total', 'Bytes received')
-        
-        # Game metrics
-        self.players_online = Gauge('palworld_players_online', 'Online player count')
-        self.max_players = Gauge('palworld_max_players', 'Max player count')
-        self.server_uptime = Gauge('palworld_uptime_seconds', 'Server uptime')
-        self.tps = Gauge('palworld_tps', 'Ticks Per Second')
-        self.world_size = Gauge('palworld_world_size_bytes', 'World size')
-        
-        # API metrics
-        self.api_response_time = Histogram(
-            'palworld_api_response_time_seconds',
-            'API response time',
-            buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
-        )
-        
-        self.api_requests_total = Counter(
-            'palworld_api_requests_total',
-            'Total API requests',
-            ['endpoint', 'status']
-        )
-        
-        # Backup metrics
-        self.backup_duration = Histogram(
-            'palworld_backup_duration_seconds',
-            'Backup duration seconds',
-            buckets=[10, 30, 60, 120, 300, 600]
-        )
-        
-        self.backup_size = Gauge('palworld_backup_size_bytes', 'Backup file size')
-        self.last_backup_timestamp = Gauge('palworld_last_backup_timestamp', 'Last backup time')
-        
-        # Server info
-        self.server_info = Info('palworld_server_info', 'Server info')
-    
-    def update_system_metrics(self, metrics: SystemMetrics):
-        """Update system metrics"""
-        if not PROMETHEUS_AVAILABLE:
-            return
-            
-        self.cpu_usage.set(metrics.cpu_percent)
-        self.memory_usage.set(metrics.memory_usage_gb * 1024**3)  # GB to bytes
-        self.memory_percent.set(metrics.memory_percent)
-        self.disk_usage.set(metrics.disk_usage_gb * 1024**3)  # GB to bytes
-        self.disk_percent.set(metrics.disk_percent)
-        
-        # Network is cumulative, so only add difference
-        self.network_sent._value._value = metrics.network_bytes_sent
-        self.network_recv._value._value = metrics.network_bytes_recv
-    
-    def update_game_metrics(self, metrics: GameMetrics):
-        """Update game metrics"""
-        if not PROMETHEUS_AVAILABLE:
-            return
-            
-        self.players_online.set(metrics.players_online)
-        self.max_players.set(metrics.max_players)
-        self.server_uptime.set(metrics.server_uptime_seconds)
-        self.tps.set(metrics.tps)
-        self.world_size.set(metrics.world_save_size_mb * 1024**2)  # MB to bytes
-
-
 class MetricsCollector:
-    """Main metrics collector class"""
+    """Main metrics collector class (log-based monitoring only)"""
     
     def __init__(self, config: PalworldConfig):
         self.config = config
         self.logger = get_logger("palworld.metrics")
         
-        # Monitoring mode check
+        # Monitoring mode check (logs only)
         self.enable_logs = config.monitoring.mode in ['logs', 'both']
-        self.enable_prometheus = config.monitoring.mode in ['prometheus', 'both']
-        
-        # Prometheus metrics (if enabled)
-        self.prometheus_metrics: Optional[PrometheusMetrics] = None
-        if self.enable_prometheus and PROMETHEUS_AVAILABLE:
-            self.prometheus_metrics = PrometheusMetrics()
-            self.logger.info("📊 Prometheus metrics enabled")
-        elif self.enable_prometheus and not PROMETHEUS_AVAILABLE:
-            self.logger.warning("⚠️ Prometheus library not found, switching to log mode")
-            self.enable_prometheus = False
-            self.enable_logs = True
         
         # Collection state
         self.server_start_time = time.time()
         self.last_network_stats = psutil.net_io_counters()
         self._collection_task: Optional[asyncio.Task] = None
         self._running = False
-        
-        # Lazy import for prometheus integration to avoid circular import
-        self._prometheus_integration = None
-    
-    def _get_prometheus_integration(self):
-        """Lazy loading of prometheus integration to avoid circular import"""
-        if self._prometheus_integration is None:
-            from .prometheus_integration import get_prometheus_integration
-            self._prometheus_integration = get_prometheus_integration(self.config)
-        return self._prometheus_integration
     
     async def start_collection(self):
         """Start metrics collection"""
@@ -172,21 +66,9 @@ class MetricsCollector:
         
         self._running = True
         
-        # Start Prometheus HTTP server (if enabled)
-        if self.enable_prometheus and self.prometheus_metrics:
-            try:
-                start_http_server(self.config.monitoring.dashboard_port)
-                log_server_event(
-                    self.logger, "metrics_start",
-                    f"Prometheus metrics server started",
-                    port=self.config.monitoring.dashboard_port
-                )
-            except Exception as e:
-                self.logger.error("Failed to start Prometheus server", error=str(e))
-        
         # Start collection task
         self._collection_task = asyncio.create_task(self._collection_loop())
-        log_server_event(self.logger, "metrics_start", "Metrics collection started")
+        log_server_event(self.logger, "metrics_start", "Log-based metrics collection started")
     
     async def stop_collection(self):
         """Stop metrics collection"""
@@ -260,7 +142,7 @@ class MetricsCollector:
         )
     
     async def _process_system_metrics(self, metrics: SystemMetrics):
-        """Process system metrics"""
+        """Process system metrics (log-based monitoring only)"""
         # Log-based monitoring
         if self.enable_logs:
             self.logger.info(
@@ -274,10 +156,6 @@ class MetricsCollector:
                 network_sent_mb=round(metrics.network_bytes_sent / (1024**2), 1),
                 network_recv_mb=round(metrics.network_bytes_recv / (1024**2), 1)
             )
-        
-        # Prometheus metrics update
-        if self.enable_prometheus and self.prometheus_metrics:
-            self.prometheus_metrics.update_system_metrics(metrics)
     
     def collect_game_metrics_sync(self, players_data: Optional[List[Dict]] = None,
                                  server_info: Optional[Dict] = None) -> GameMetrics:
@@ -311,7 +189,7 @@ class MetricsCollector:
         )
     
     async def process_game_metrics(self, metrics: GameMetrics):
-        """Process game metrics"""
+        """Process game metrics (log-based monitoring only)"""
         # Log-based monitoring
         if self.enable_logs:
             uptime_hours = metrics.server_uptime_seconds / 3600
@@ -324,30 +202,84 @@ class MetricsCollector:
                 tps=round(metrics.tps, 1),
                 world_size_mb=round(metrics.world_save_size_mb, 1)
             )
-        
-        # Prometheus metrics update
-        if self.enable_prometheus and self.prometheus_metrics:
-            self.prometheus_metrics.update_game_metrics(metrics)
     
     def record_api_call(self, endpoint: str, status_code: int, duration_ms: float):
-        """Record API call metrics"""
-        if self.enable_prometheus and self.prometheus_metrics:
-            # Record response time (seconds)
-            self.prometheus_metrics.api_response_time.observe(duration_ms / 1000)
-            
-            # Increment request counter
+        """Record API call metrics (log-based only)"""
+        if self.enable_logs:
             status_category = "success" if 200 <= status_code < 300 else "error"
-            self.prometheus_metrics.api_requests_total.labels(
+            self.logger.info(
+                "🔌 API call",
+                event_type="api_metrics",
                 endpoint=endpoint,
-                status=status_category
-            ).inc()
+                status_code=status_code,
+                status_category=status_category,
+                duration_ms=round(duration_ms, 1)
+            )
     
     def record_backup_event(self, duration_seconds: float, size_bytes: int):
-        """Record backup event metrics"""
-        if self.enable_prometheus and self.prometheus_metrics:
-            self.prometheus_metrics.backup_duration.observe(duration_seconds)
-            self.prometheus_metrics.backup_size.set(size_bytes)
-            self.prometheus_metrics.last_backup_timestamp.set(time.time())
+        """Record backup event metrics (log-based only)"""
+        if self.enable_logs:
+            size_mb = size_bytes / (1024**2)
+            self.logger.info(
+                "💾 Backup event",
+                event_type="backup_metrics",
+                duration_seconds=round(duration_seconds, 1),
+                size_mb=round(size_mb, 1),
+                timestamp=time.time()
+            )
+    
+    def record_player_event(self, event_type: str, player_name: str, player_count: int):
+        """Record player join/leave events (log-based only)"""
+        if self.enable_logs:
+            self.logger.info(
+                f"👤 Player {event_type}",
+                event_type="player_metrics",
+                player_name=player_name,
+                current_players=player_count,
+                max_players=self.config.server.max_players
+            )
+    
+    def record_server_event(self, event_type: str, message: str, **kwargs):
+        """Record server events (log-based only)"""
+        if self.enable_logs:
+            self.logger.info(
+                f"🎮 Server {event_type}",
+                event_type="server_metrics",
+                message=message,
+                **kwargs
+            )
+    
+    def get_current_metrics_summary(self) -> Dict[str, Any]:
+        """Get current metrics summary for external use"""
+        try:
+            # Collect current system metrics
+            cpu_percent = psutil.cpu_percent()
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage(str(self.config.paths.server_dir))
+            net_io = psutil.net_io_counters()
+            
+            uptime = time.time() - self.server_start_time
+            
+            return {
+                "timestamp": time.time(),
+                "uptime_seconds": uptime,
+                "system": {
+                    "cpu_percent": round(cpu_percent, 1),
+                    "memory_percent": round(memory.percent, 1),
+                    "memory_available_gb": round(memory.available / (1024**3), 2),
+                    "disk_percent": round((disk.used / disk.total) * 100, 1),
+                    "disk_free_gb": round(disk.free / (1024**3), 2),
+                    "network_sent_mb": round(net_io.bytes_sent / (1024**2), 1),
+                    "network_recv_mb": round(net_io.bytes_recv / (1024**2), 1)
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error("Failed to get metrics summary", error=str(e))
+            return {
+                "timestamp": time.time(),
+                "error": str(e)
+            }
 
 
 # Global metrics collector instance
@@ -372,12 +304,16 @@ async def main():
     config = get_config()
     collector = MetricsCollector(config)
     
-    print("🚀 Metrics collector test start")
+    print("🚀 Log-based metrics collector test start")
     
     await collector.start_collection()
     
     # Run for 5 seconds
     await asyncio.sleep(5)
+    
+    # Test metrics summary
+    summary = collector.get_current_metrics_summary()
+    print(f"📊 Current metrics: {summary}")
     
     await collector.stop_collection()
     
