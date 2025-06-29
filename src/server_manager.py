@@ -116,14 +116,14 @@ class SteamCMDManager:
                            f"SteamCMD execution error: {e}")
             return False
 
+
 class RconClient:
-    """Palworld RCON client class (similar to RestAPIClient pattern)"""
+    """Palworld RCON client using rcon-cli binary (no Python library needed)"""
     
     def __init__(self, config: PalworldConfig, logger):
         self.config = config
         self.logger = logger
-        self.rcon_client: Optional[RconSourceClient] = None
-        self.host = "127.0.0.1"  # RCON은 localhost만 지원
+        self.host = "127.0.0.1"
         self.port = config.rcon.port
         self.password = config.server.admin_password
         self._retry_count = 3
@@ -131,66 +131,36 @@ class RconClient:
         self._is_connected = False
     
     async def __aenter__(self):
-        """Async context manager enter"""
-        if not RCON_AVAILABLE:
-            self.logger.error("RCON library not available. Install with: pip install rcon")
-            return self
-        
+        """Async context manager enter (test rcon-cli availability)"""
         if not self.config.rcon.enabled:
             self.logger.warning("RCON is not enabled in configuration")
             return self
         
-        await self._connect()
+        # Test rcon-cli availability
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'rcon-cli', '--help',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
+            if process.returncode == 0:
+                self._is_connected = True
+                log_server_event(self.logger, "rcon_connect", 
+                               "rcon-cli available and ready")
+            else:
+                self.logger.error("rcon-cli not available")
+        except FileNotFoundError:
+            self.logger.error("rcon-cli binary not found")
+        
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit"""
-        await self._disconnect()
-    
-    async def _connect(self) -> bool:
-        """Establish RCON connection"""
-        if not RCON_AVAILABLE:
-            return False
-        
-        try:
-            # Create RCON client
-            self.rcon_client = RconSourceClient(
-                host=self.host,
-                port=self.port,
-                passwd=self.password,
-                timeout=10.0
-            )
-            
-            # Test connection with info command
-            test_response = await self._execute_command_direct("Info")
-            if test_response:
-                self._is_connected = True
-                log_server_event(self.logger, "rcon_connect", 
-                               "RCON connection established",
-                               host=self.host, port=self.port)
-                return True
-            else:
-                await self._disconnect()
-                return False
-                
-        except Exception as e:
-            log_server_event(self.logger, "rcon_connect_fail", 
-                           f"RCON connection failed: {e}")
-            await self._disconnect()
-            return False
-    
-    async def _disconnect(self) -> None:
-        """Close RCON connection"""
-        if self.rcon_client:
-            try:
-                self.rcon_client.close()
-                self._is_connected = False
-                log_server_event(self.logger, "rcon_disconnect", 
-                               "RCON connection closed")
-            except Exception as e:
-                self.logger.warning("RCON disconnect error", error=str(e))
-            finally:
-                self.rcon_client = None
+        if self._is_connected:
+            log_server_event(self.logger, "rcon_disconnect", 
+                           "RCON client context closed")
+            self._is_connected = False
     
     async def _execute_command_with_retry(
         self, 
@@ -199,7 +169,7 @@ class RconClient:
         retry_count: Optional[int] = None
     ) -> Optional[str]:
         """
-        Execute RCON command with retry logic (similar to REST API pattern)
+        Execute RCON command with retry logic using rcon-cli binary
         
         Args:
             command: RCON command
@@ -216,65 +186,65 @@ class RconClient:
         if retry_count is None:
             retry_count = self._retry_count
         
-        full_command = f"{command} {' '.join(args)}".strip()
+        # Build rcon-cli command
+        cmd = [
+            'rcon-cli',
+            '--host', self.host,
+            '--port', str(self.port),
+            '--password', self.password,
+            command
+        ]
+        cmd.extend(args)
+        
         last_exception = None
         
         for attempt in range(retry_count + 1):
             try:
                 start_time = time.time()
-                result = await self._execute_command_direct(full_command)
+                
+                # Execute command
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), 
+                    timeout=10
+                )
+                
                 duration_ms = (time.time() - start_time) * 1000
                 
-                if result is not None:
+                if process.returncode == 0:
+                    response = stdout.decode('utf-8').strip()
                     log_api_call(self.logger, f"rcon:{command}", 200, duration_ms, 
                                attempt=attempt + 1)
-                    return result
-                
+                    return response
+                else:
+                    error_msg = stderr.decode('utf-8').strip()
+                    log_api_call(self.logger, f"rcon:{command}", process.returncode, 
+                               duration_ms, attempt=attempt + 1, error=error_msg)
+                    
+                    if attempt < retry_count:
+                        await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                        continue
+                    else:
+                        return None
+                        
             except Exception as e:
                 last_exception = e
-                duration_ms = (time.time() - start_time) * 1000
-                
-                log_api_call(self.logger, f"rcon:{command}", 0, duration_ms, 
-                           attempt=attempt + 1, error=str(e))
-                
                 if attempt < retry_count:
                     await asyncio.sleep(self._retry_delay * (2 ** attempt))
-                    # Reconnect on failure
-                    await self._connect()
+                    continue
+                else:
+                    self.logger.error("RCON command final failure", 
+                                     command=command, error=str(e))
+                    return None
         
-        # All retries failed
-        self.logger.error("RCON command final failure", 
-                         command=full_command, 
-                         attempts=retry_count + 1,
-                         last_error=str(last_exception))
         return None
     
-    async def _execute_command_direct(self, command: str) -> Optional[str]:
-        """
-        Execute single RCON command
-        """
-        if not self.rcon_client or not self._is_connected:
-            return None
-        
-        try:
-            # Execute command (rcon library is sync, but we wrap it)
-            import asyncio
-            loop = asyncio.get_event_loop()
-            
-            response = await loop.run_in_executor(
-                None, 
-                self.rcon_client.run, 
-                command
-            )
-            
-            return response if response else ""
-            
-        except Exception as e:
-            self.logger.error("RCON command execution error", 
-                            command=command, error=str(e))
-            return None
-    
-    # RCON commands (similar to REST API methods)
+    # RCON command methods
     async def get_server_info(self) -> Optional[str]:
         """Get server information via RCON"""
         return await self._execute_command_with_retry("Info")
@@ -315,6 +285,7 @@ class RconClient:
     async def execute_custom_command(self, command: str, *args: str) -> Optional[str]:
         """Execute custom RCON command"""
         return await self._execute_command_with_retry(command, *args)
+
 
 class RestAPIClient:
     """Palworld REST API client class"""
@@ -539,9 +510,9 @@ class PalworldServerManager:
         self._shutdown_event = asyncio.Event()
         self._monitoring_task: Optional[asyncio.Task] = None
         
-        # API client created on demand
+        # API clients created on demand
         self._api_client: Optional[RestAPIClient] = None
-        self._rcon_client: Optional[RconClient] = None 
+        self._rcon_client: Optional[RconClient] = None
 
     async def __aenter__(self):
         """Async context manager enter"""
@@ -728,50 +699,38 @@ class PalworldServerManager:
             return await self._rcon_client.execute_custom_command(command, *args)
         return None
     
-    # Integrated management method (REST API or RCON auto-select)
+    # Integrated management methods (REST API or RCON auto-select)
     async def get_server_info_any(self) -> Optional[Dict]:
         """Get server info using available API (REST first, then RCON)"""
         # Try REST API first
-        if self._api_client:
-            result = await self._api_client.get_server_info()
-            if result:
-                return result
+        info = await self.api_get_server_info()
+        if info:
+            return info
         
         # Fallback to RCON
-        if self._rcon_client:
-            rcon_result = await self._rcon_client.get_server_info()
-            if rcon_result:
-                return {"source": "rcon", "info": rcon_result}
+        rcon_result = await self.rcon_get_server_info()
+        if rcon_result:
+            return {"source": "rcon", "info": rcon_result}
         
         return None
     
     async def announce_message_any(self, message: str) -> bool:
         """Announce message using available API"""
         # Try REST API first
-        if self._api_client:
-            success = await self._api_client.announce_message(message)
-            if success:
-                return True
+        if await self.api_announce_message(message):
+            return True
         
         # Fallback to RCON
-        if self._rcon_client:
-            return await self._rcon_client.announce_message(message)
-        
-        return False
+        return await self.rcon_announce_message(message)
     
     async def save_world_any(self) -> bool:
         """Save world using available API"""
         # Try REST API first
-        if self._api_client:
-            success = await self._api_client.save_world()
-            if success:
-                return True
+        if await self.api_save_world():
+            return True
         
         # Fallback to RCON
-        if self._rcon_client:
-            return await self._rcon_client.save_world()
-        
-        return False
+        return await self.rcon_save_world()
 
     def generate_server_settings(self) -> bool:
         """Generate Palworld server settings file"""
@@ -1022,7 +981,7 @@ NetClientTicksPerSecond={engine_cfg.net_client_ticks_per_second}"""
         
         server_executable = self.server_path / "PalServer.sh"
         
-        full_cmd = ["FEXBash", "-c", server_executable]
+        full_cmd = ["FEXBash", "-c", str(server_executable)]
 
         if not server_executable.exists():
             log_server_event(self.logger, "server_start_fail", 
@@ -1071,10 +1030,10 @@ NetClientTicksPerSecond={engine_cfg.net_client_ticks_per_second}"""
         try:
             # Attempt graceful shutdown via API
             if self._api_client:
-                await self._api_client.announce_message(f"{message}. Shutting down in 30 seconds.")
+                await self.api_announce_message(f"{message}. Shutting down in 30 seconds.")
                 await asyncio.sleep(30)
                 
-                await self._api_client.shutdown_server(1, message)
+                await self.api_shutdown_server(1, message)
                 
                 # Wait for shutdown
                 for _ in range(60):  # Wait up to 60 seconds
@@ -1103,6 +1062,7 @@ NetClientTicksPerSecond={engine_cfg.net_client_ticks_per_second}"""
             log_server_event(self.logger, "server_stop_fail", 
                            f"Server stop error: {e}")
             return False
+
 
 async def main():
     """Main production server function"""
@@ -1133,7 +1093,7 @@ async def main():
             try:
                 while manager.is_server_running():
                     await asyncio.sleep(30)   
-                    print(f"📊 Server status: Running (Players: checking...)")
+                    print(f"📊 Server status: Running")
             except KeyboardInterrupt:
                 print("🛑 Received shutdown signal...")
                 await manager.stop_server("Server shutdown requested")
@@ -1148,4 +1108,3 @@ if __name__ == "__main__":
     import sys
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
- 
