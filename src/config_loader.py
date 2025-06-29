@@ -170,6 +170,32 @@ class SteamCMDConfig:
     update_on_start: bool = True
 
 @dataclass
+class EngineConfig:
+    """Engine.ini configuration data class"""
+    # Network and tick rate settings
+    lan_server_max_tick_rate: int = 120
+    net_server_max_tick_rate: int = 120
+    
+    # Player network speed settings
+    configured_internet_speed: int = 104857600
+    configured_lan_speed: int = 104857600
+    
+    # Client rate settings
+    max_client_rate: int = 104857600
+    max_internet_client_rate: int = 104857600
+    
+    # Frame rate and smoothing settings
+    smooth_frame_rate: bool = True
+    use_fixed_frame_rate: bool = False
+    min_desired_frame_rate: float = 60.0
+    fixed_frame_rate: float = 120.0
+    net_client_ticks_per_second: int = 120
+    
+    # Smoothed frame rate range settings
+    frame_rate_lower_bound: float = 30.0
+    frame_rate_upper_bound: float = 120.0
+
+@dataclass
 class PalworldConfig:
     """Complete Palworld configuration"""
     server: ServerConfig = field(default_factory=ServerConfig)
@@ -187,6 +213,7 @@ class PalworldConfig:
     pal_settings: PalSettingsConfig = field(default_factory=PalSettingsConfig)  # Pal and rate settings
     building: BuildingConfig = field(default_factory=BuildingConfig)  # Building and collection settings
     difficulty: DifficultyConfig = field(default_factory=DifficultyConfig)  # Difficulty settings
+    engine: EngineConfig = field(default_factory=EngineConfig) # Engine configuration
 
 
 class ConfigLoader:
@@ -464,6 +491,23 @@ class ConfigLoader:
             death_penalty=config_dict.get('difficulty', {}).get('death_penalty', 'All'),
         )
         
+        # Engine configuration
+        engine_config = EngineConfig(
+            lan_server_max_tick_rate=config_dict.get('engine', {}).get('lan_server_max_tick_rate', 120),
+            net_server_max_tick_rate=config_dict.get('engine', {}).get('net_server_max_tick_rate', 120),
+            configured_internet_speed=config_dict.get('engine', {}).get('configured_internet_speed', 104857600),
+            configured_lan_speed=config_dict.get('engine', {}).get('configured_lan_speed', 104857600),
+            max_client_rate=config_dict.get('engine', {}).get('max_client_rate', 104857600),
+            max_internet_client_rate=config_dict.get('engine', {}).get('max_internet_client_rate', 104857600),
+            smooth_frame_rate=config_dict.get('engine', {}).get('smooth_frame_rate', True),
+            use_fixed_frame_rate=config_dict.get('engine', {}).get('use_fixed_frame_rate', False),
+            min_desired_frame_rate=config_dict.get('engine', {}).get('min_desired_frame_rate', 60.0),
+            fixed_frame_rate=config_dict.get('engine', {}).get('fixed_frame_rate', 120.0),
+            net_client_ticks_per_second=config_dict.get('engine', {}).get('net_client_ticks_per_second', 120),
+            frame_rate_lower_bound=config_dict.get('engine', {}).get('frame_rate_lower_bound', 30.0),
+            frame_rate_upper_bound=config_dict.get('engine', {}).get('frame_rate_upper_bound', 120.0),
+        )
+
         # Return complete PalworldConfig with all configurations
         return PalworldConfig(
             server=server_config,
@@ -481,6 +525,7 @@ class ConfigLoader:
             pal_settings=pal_settings_config,
             building=building_config,
             difficulty=difficulty_config,
+            engine=engine_config,
         )
 
     

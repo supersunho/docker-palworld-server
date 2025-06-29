@@ -153,3 +153,28 @@ building:
 difficulty:
     level: "${DIFFICULTY:None}" # Options: None, Normal, Hard
     death_penalty: "${DEATH_PENALTY:All}" # Options: None, Item, ItemAndEquipment, All
+
+# Engine.ini performance configuration
+engine:
+    # Network and tick rate settings
+    lan_server_max_tick_rate: ${ENGINE_LAN_TICK_RATE:120}
+    net_server_max_tick_rate: ${ENGINE_NET_TICK_RATE:120}
+
+    # Player network speed settings
+    configured_internet_speed: ${ENGINE_INTERNET_SPEED:104857600}
+    configured_lan_speed: ${ENGINE_LAN_SPEED:104857600}
+
+    # Client rate settings
+    max_client_rate: ${ENGINE_MAX_CLIENT_RATE:104857600}
+    max_internet_client_rate: ${ENGINE_MAX_INTERNET_CLIENT_RATE:104857600}
+
+    # Frame rate and smoothing settings
+    smooth_frame_rate: ${ENGINE_SMOOTH_FRAME_RATE:true}
+    use_fixed_frame_rate: ${ENGINE_USE_FIXED_FRAME_RATE:false}
+    min_desired_frame_rate: ${ENGINE_MIN_FRAME_RATE:60.0}
+    fixed_frame_rate: ${ENGINE_FIXED_FRAME_RATE:120.0}
+    net_client_ticks_per_second: ${ENGINE_CLIENT_TICKS:120}
+
+    # Smoothed frame rate range settings
+    frame_rate_lower_bound: ${ENGINE_FRAME_RATE_LOWER:30.0}
+    frame_rate_upper_bound: ${ENGINE_FRAME_RATE_UPPER:120.0}
