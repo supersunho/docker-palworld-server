@@ -19,7 +19,7 @@ rest_api:
 
 # RCON configuration
 rcon:
-    enabled: ${RCON_ENABLED:false}
+    enabled: ${RCON_ENABLED:true}
     port: ${RCON_PORT:25575}
 
 # Monitoring and metrics configuration
