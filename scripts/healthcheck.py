@@ -14,15 +14,7 @@ import subprocess  # Added for RCON support
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
- 
-# Add project root to Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
-# Now use absolute imports
-from src.config_loader import get_config, PalworldConfig
-from src.logging_setup import get_logger
 
 class HealthStatus(Enum):
     """Health check status levels"""
@@ -46,7 +38,8 @@ class HealthCheckResult:
 class HealthChecker:
     """Advanced health checker for Palworld server"""
     
-    def __init__(self): 
+    def __init__(self):
+        from ..config_loader import get_config
         config = get_config()
         
         self.rest_api_host = config.rest_api.host
