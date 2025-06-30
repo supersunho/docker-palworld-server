@@ -26,126 +26,126 @@ rcon:
 # Direct Palworld settings (INI key names for automatic conversion)
 palworld_settings:
     # Core server settings
-    ServerName: "${SERVER_NAME:Palworld Server}"
-    ServerDescription: "${SERVER_DESCRIPTION:A Palworld dedicated server}"
-    AdminPassword: "${ADMIN_PASSWORD:admin123}"
-    ServerPassword: "${SERVER_PASSWORD:}"
-    PublicPort: ${PUBLIC_PORT:8211}
-    PublicIP: "${PUBLIC_IP:}"
-    ServerPlayerMaxNum: ${SERVER_PLAYER_MAX_NUM:32}
+    AdminPassword: "${ADMIN_PASSWORD:}"
     CoopPlayerMaxNum: ${COOP_PLAYER_MAX_NUM:4}
+    PublicIP: "${PUBLIC_IP:}"
+    PublicPort: ${PUBLIC_PORT:8211}
+    ServerDescription: "${SERVER_DESCRIPTION:}"
+    ServerName: "${SERVER_NAME:Default Palworld Server}"
+    ServerPassword: "${SERVER_PASSWORD:}"
+    ServerPlayerMaxNum: ${SERVER_PLAYER_MAX_NUM:32}
 
     # API and RCON settings
-    RESTAPIEnabled: ${REST_API_ENABLED:true}
-    RESTAPIPort: ${REST_API_PORT:8212}
-    RCONEnabled: ${RCON_ENABLED:true}
+    RCONEnabled: ${RCON_ENABLED:false}
     RCONPort: ${RCON_PORT:25575}
+    RESTAPIEnabled: ${RESTAPI_ENABLED:false}
+    RESTAPIPort: ${RESTAPI_PORT:8212}
 
     # Authentication and region
-    bUseAuth: ${B_USE_AUTH:true}
+    BanListURL: "${BAN_LIST_URL:https://api.palworldgame.com/api/banlist.txt}"
     Region: "${REGION:}"
-    BanListURL: "${BANLIST_URL:https://api.palworldgame.com/api/banlist.txt}"
+    bUseAuth: ${USE_AUTH:true}
 
     # Game difficulty and mode
-    Difficulty: "${DIFFICULTY:None}"
-    bIsMultiplay: ${B_IS_MULTIPLAY:true}
-    bIsPvP: ${B_IS_PVP:false}
-    bHardcore: ${HARDCORE:false}
     DeathPenalty: "${DEATH_PENALTY:All}"
+    Difficulty: "${DIFFICULTY:None}"
+    bHardcore: ${HARDCORE:false}
+    bIsMultiplay: ${IS_MULTIPLAY:false}
+    bIsPvP: ${IS_PV_P:false}
 
-    # Randomizer settings (new features)
-    RandomizerType: "${RANDOMIZER_TYPE:None}"
+    # Randomizer settings
     RandomizerSeed: "${RANDOMIZER_SEED:}"
+    RandomizerType: "${RANDOMIZER_TYPE:None}"
     bIsRandomizerPalLevelRandom: ${IS_RANDOMIZER_PAL_LEVEL_RANDOM:false}
 
     # Time and experience rates
     DayTimeSpeedRate: ${DAY_TIME_SPEED_RATE:1.0}
-    NightTimeSpeedRate: ${NIGHT_TIME_SPEED_RATE:1.0}
     ExpRate: ${EXP_RATE:1.0}
+    NightTimeSpeedRate: ${NIGHT_TIME_SPEED_RATE:1.0}
     WorkSpeedRate: ${WORK_SPEED_RATE:1.0}
 
     # Pal settings
-    PalCaptureRate: ${PAL_CAPTURE_RATE:1.0}
-    PalSpawnNumRate: ${PAL_SPAWN_NUM_RATE:1.0}
-    PalDamageRateAttack: ${PAL_DAMAGE_RATE_ATTACK:1.0}
-    PalDamageRateDefense: ${PAL_DAMAGE_RATE_DEFENSE:1.0}
-    PalStomachDecreaceRate: ${PAL_STOMACH_DECREASE_RATE:1.0}
-    PalStaminaDecreaceRate: ${PAL_STAMINA_DECREASE_RATE:1.0}
     PalAutoHPRegeneRate: ${PAL_AUTO_HP_REGENE_RATE:1.0}
     PalAutoHpRegeneRateInSleep: ${PAL_AUTO_HP_REGENE_RATE_IN_SLEEP:1.0}
+    PalCaptureRate: ${PAL_CAPTURE_RATE:1.0}
+    PalDamageRateAttack: ${PAL_DAMAGE_RATE_ATTACK:1.0}
+    PalDamageRateDefense: ${PAL_DAMAGE_RATE_DEFENSE:1.0}
     PalEggDefaultHatchingTime: ${PAL_EGG_DEFAULT_HATCHING_TIME:72.0}
+    PalSpawnNumRate: ${PAL_SPAWN_NUM_RATE:1.0}
+    PalStaminaDecreaceRate: ${PAL_STAMINA_DECREACE_RATE:1.0}
+    PalStomachDecreaceRate: ${PAL_STOMACH_DECREACE_RATE:1.0}
 
     # Player settings
-    PlayerDamageRateAttack: ${PLAYER_DAMAGE_RATE_ATTACK:1.0}
-    PlayerDamageRateDefense: ${PLAYER_DAMAGE_RATE_DEFENSE:1.0}
-    PlayerStomachDecreaceRate: ${PLAYER_STOMACH_DECREASE_RATE:1.0}
-    PlayerStaminaDecreaceRate: ${PLAYER_STAMINA_DECREASE_RATE:1.0}
     PlayerAutoHPRegeneRate: ${PLAYER_AUTO_HP_REGENE_RATE:1.0}
     PlayerAutoHpRegeneRateInSleep: ${PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP:1.0}
+    PlayerDamageRateAttack: ${PLAYER_DAMAGE_RATE_ATTACK:1.0}
+    PlayerDamageRateDefense: ${PLAYER_DAMAGE_RATE_DEFENSE:1.0}
+    PlayerStaminaDecreaceRate: ${PLAYER_STAMINA_DECREACE_RATE:1.0}
+    PlayerStomachDecreaceRate: ${PLAYER_STOMACH_DECREACE_RATE:1.0}
 
     # PvP and combat settings
-    bEnablePlayerToPlayerDamage: ${B_ENABLE_PLAYER_TO_PLAYER_DAMAGE:false}
-    bEnableFriendlyFire: ${B_ENABLE_FRIENDLY_FIRE:false}
-    bEnableInvaderEnemy: ${B_ENABLE_INVADER_ENEMY:true}
+    bEnableFriendlyFire: ${ENABLE_FRIENDLY_FIRE:false}
+    bEnableInvaderEnemy: ${ENABLE_INVADER_ENEMY:true}
+    bEnablePlayerToPlayerDamage: ${ENABLE_PLAYER_TO_PLAYER_DAMAGE:false}
 
     # Building and objects
-    BuildObjectHpRate: ${BUILD_OBJECT_HP_RATE:1.0}
     BuildObjectDamageRate: ${BUILD_OBJECT_DAMAGE_RATE:1.0}
     BuildObjectDeteriorationDamageRate: ${BUILD_OBJECT_DETERIORATION_DAMAGE_RATE:1.0}
+    BuildObjectHpRate: ${BUILD_OBJECT_HP_RATE:1.0}
     CollectionDropRate: ${COLLECTION_DROP_RATE:1.0}
     CollectionObjectHpRate: ${COLLECTION_OBJECT_HP_RATE:1.0}
     CollectionObjectRespawnSpeedRate: ${COLLECTION_OBJECT_RESPAWN_SPEED_RATE:1.0}
-    bBuildAreaLimit: ${BUILD_AREA_LIMIT:false}
-    MaxBuildingLimitNum: ${MAX_BUILDING_LIMIT_NUM:0}
     EnemyDropItemRate: ${ENEMY_DROP_ITEM_RATE:1.0}
+    MaxBuildingLimitNum: ${MAX_BUILDING_LIMIT_NUM:0}
+    bBuildAreaLimit: ${BUILD_AREA_LIMIT:false}
 
     # Base camp settings
     BaseCampMaxNum: ${BASE_CAMP_MAX_NUM:128}
-    BaseCampWorkerMaxNum: ${BASE_CAMP_WORKER_MAX_NUM:15}
     BaseCampMaxNumInGuild: ${BASE_CAMP_MAX_NUM_IN_GUILD:4}
+    BaseCampWorkerMaxNum: ${BASE_CAMP_WORKER_MAX_NUM:15}
 
     # Guild settings
-    GuildPlayerMaxNum: ${GUILD_PLAYER_MAX_NUM:20}
-    bAutoResetGuildNoOnlinePlayers: ${B_AUTO_RESET_GUILD_NO_ONLINE_PLAYERS:false}
     AutoResetGuildTimeNoOnlinePlayers: ${AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS:72.0}
+    GuildPlayerMaxNum: ${GUILD_PLAYER_MAX_NUM:20}
+    bAutoResetGuildNoOnlinePlayers: ${AUTO_RESET_GUILD_NO_ONLINE_PLAYERS:false}
 
     # Items and drops
+    DropItemAliveMaxHours: ${DROP_ITEM_ALIVE_MAX_HOURS:1.0}
     DropItemMaxNum: ${DROP_ITEM_MAX_NUM:3000}
     DropItemMaxNum_UNKO: ${DROP_ITEM_MAX_NUM_UNKO:100}
-    DropItemAliveMaxHours: ${DROP_ITEM_ALIVE_MAX_HOURS:1.0}
-    ItemWeightRate: ${ITEM_WEIGHT_RATE:1.0}
     EquipmentDurabilityDamageRate: ${EQUIPMENT_DURABILITY_DAMAGE_RATE:1.0}
+    ItemWeightRate: ${ITEM_WEIGHT_RATE:1.0}
 
     # Game mechanics
-    bActiveUNKO: ${B_ACTIVE_UNKO:false}
-    bEnableAimAssistPad: ${B_ENABLE_AIM_ASSIST_PAD:true}
-    bEnableAimAssistKeyboard: ${B_ENABLE_AIM_ASSIST_KEYBOARD:false}
-    bCanPickupOtherGuildDeathPenaltyDrop: ${B_CAN_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP:false}
-    bEnableNonLoginPenalty: ${B_ENABLE_NON_LOGIN_PENALTY:true}
-    bEnableFastTravel: ${B_ENABLE_FAST_TRAVEL:true}
-    bIsStartLocationSelectByMap: ${B_IS_START_LOCATION_SELECT_BY_MAP:true}
-    bExistPlayerAfterLogout: ${B_EXIST_PLAYER_AFTER_LOGOUT:false}
-    bEnableDefenseOtherGuildPlayer: ${B_ENABLE_DEFENSE_OTHER_GUILD_PLAYER:false}
+    bActiveUNKO: ${ACTIVE_UNKO:false}
+    bCanPickupOtherGuildDeathPenaltyDrop: ${CAN_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP:false}
+    bEnableAimAssistKeyboard: ${ENABLE_AIM_ASSIST_KEYBOARD:false}
+    bEnableAimAssistPad: ${ENABLE_AIM_ASSIST_PAD:true}
+    bEnableDefenseOtherGuildPlayer: ${ENABLE_DEFENSE_OTHER_GUILD_PLAYER:false}
+    bEnableFastTravel: ${ENABLE_FAST_TRAVEL:true}
+    bEnableNonLoginPenalty: ${ENABLE_NON_LOGIN_PENALTY:true}
+    bExistPlayerAfterLogout: ${EXIST_PLAYER_AFTER_LOGOUT:false}
     bInvisibleOtherGuildBaseCampAreaFX: ${INVISIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX:false}
+    bIsStartLocationSelectByMap: ${IS_START_LOCATION_SELECT_BY_MAP:true}
 
     # Save and backup
     AutoSaveSpan: ${AUTO_SAVE_SPAN:30.0}
     bIsUseBackupSaveData: ${IS_USE_BACKUP_SAVE_DATA:true}
 
     # Chat and communication
-    bShowPlayerList: ${SHOW_PLAYER_LIST:false}
     ChatPostLimitPerMinute: ${CHAT_POST_LIMIT_PER_MINUTE:30}
+    bShowPlayerList: ${SHOW_PLAYER_LIST:false}
 
     # Loss and hardcore settings
-    bPalLost: ${PAL_LOST:false}
     bCharacterRecreateInHardcore: ${CHARACTER_RECREATE_IN_HARDCORE:false}
+    bPalLost: ${PAL_LOST:false}
 
     # Logging and monitoring
     LogFormatType: "${LOG_FORMAT_TYPE:Text}"
 
     # Special events and features
-    SupplyDropSpan: ${SUPPLY_DROP_SPAN:180}
     EnablePredatorBossPal: ${ENABLE_PREDATOR_BOSS_PAL:true}
+    SupplyDropSpan: ${SUPPLY_DROP_SPAN:180}
 
     # Platform settings
     CrossplayPlatforms: "${CROSSPLAY_PLATFORMS:(Steam,Xbox,PS5,Mac)}"
@@ -155,8 +155,8 @@ palworld_settings:
     bAllowGlobalPalboxImport: ${ALLOW_GLOBAL_PALBOX_IMPORT:false}
 
     # Network settings
-    ServerReplicatePawnCullDistance: ${SERVER_REPLICATE_PAWN_CULL_DISTANCE:15000.0}
     ItemContainerForceMarkDirtyInterval: ${ITEM_CONTAINER_FORCE_MARK_DIRTY_INTERVAL:1.0}
+    ServerReplicatePawnCullDistance: ${SERVER_REPLICATE_PAWN_CULL_DISTANCE:15000.0}
 
 # Monitoring and metrics configuration
 monitoring:
