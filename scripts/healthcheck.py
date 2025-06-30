@@ -14,7 +14,13 @@ import subprocess  # Added for RCON support
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
+current_dir = Path(__file__).parent  # /app/scripts
+project_root = current_dir.parent    # /app
+src_dir = project_root / "src"       # /app/src
+
+sys.path.insert(0, str(src_dir))
 
 class HealthStatus(Enum):
     """Health check status levels"""
@@ -323,6 +329,7 @@ class HealthChecker:
                     status=HealthStatus.UNHEALTHY,
                     message=f"RCON port {self.rcon_port} not accessible",
                     details={
+                        "host": self.rcon_host,
                         "port": self.rcon_port,
                         "error": port_check['error']
                     },
@@ -341,6 +348,7 @@ class HealthChecker:
                     status=HealthStatus.HEALTHY,
                     message="RCON responding normally",
                     details={
+                        "host": self.rcon_host,
                         "port": self.rcon_port,
                         "test_command": "Info",
                         "response_preview": rcon_test['response'][:100] if rcon_test['response'] else "OK"
@@ -354,6 +362,7 @@ class HealthChecker:
                     status=HealthStatus.WARNING,
                     message="RCON port open but command failed",
                     details={
+                        "host": self.rcon_host,
                         "port": self.rcon_port,
                         "error": rcon_test['error']
                     },
