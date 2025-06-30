@@ -23,6 +23,28 @@ rcon:
     port: ${RCON_PORT:25575}
     host: ${RCON_HOST:host.docker.internal}
 
+# Server startup options for PalServer.sh execution
+server_startup:
+    # Performance optimization options (official documentation recommended)
+    use_performance_threads: ${USE_PERFORMANCE_THREADS:true}
+    disable_async_loading: ${DISABLE_ASYNC_LOADING:true}
+    use_multithread_for_ds: ${USE_MULTITHREAD_FOR_DS:true}
+
+    # Network settings
+    query_port: ${QUERY_PORT:27018} # Change from default 27015 to avoid conflicts
+
+    # Community server settings
+    enable_public_lobby: ${ENABLE_PUBLIC_LOBBY:false}
+
+    # Logging configuration
+    log_format: ${LOG_FORMAT:text} # Options: text, json
+
+    # Advanced performance settings
+    worker_threads_count: ${WORKER_THREADS_COUNT:0} # 0 = auto (CPU cores - 1)
+
+    # Custom additional options
+    additional_options: ${ADDITIONAL_SERVER_OPTIONS:""}
+
 # Direct Palworld settings (INI key names for automatic conversion)
 palworld_settings:
     # Core server settings

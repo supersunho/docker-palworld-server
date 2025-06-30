@@ -41,6 +41,38 @@ class RestAPIConfig:
 
 
 @dataclass
+class RconConfig:
+    """RCON configuration data class"""
+    enabled: bool = False
+    port: int = 25575
+    host: str = "host.docker.internal"
+
+
+@dataclass
+class ServerStartupConfig:
+    """Server startup options configuration for PalServer.sh execution"""
+    # Performance optimization options (official documentation recommended)
+    use_performance_threads: bool = True
+    disable_async_loading: bool = True
+    use_multithread_for_ds: bool = True
+    
+    # Network settings
+    query_port: int = 27018  # Change from default 27015 to avoid conflicts
+    
+    # Community server settings
+    enable_public_lobby: bool = False
+    
+    # Logging configuration
+    log_format: str = "text"  # Options: text, json
+    
+    # Advanced performance settings
+    worker_threads_count: int = 0  # 0 = auto (CPU cores - 1)
+    
+    # Custom additional options
+    additional_options: str = ""
+
+
+@dataclass
 class MonitoringConfig:
     """Monitoring configuration data class"""
     mode: str = "both"  # logs, prometheus, both
@@ -78,12 +110,6 @@ class DiscordConfig:
         "errors": True,
     })
 
-@dataclass
-class RconConfig:
-    """RCON configuration data class"""
-    enabled: bool = False
-    port: int = 25575
-    host: str = "host.docker.internal"
 
 @dataclass  
 class GameplayConfig:
@@ -107,6 +133,7 @@ class GameplayConfig:
     active_unko: bool = False
     use_auth: bool = True
 
+
 @dataclass
 class ItemsConfig:
     """Items and drops configuration data class"""
@@ -114,11 +141,13 @@ class ItemsConfig:
     drop_item_max_num_unko: int = 100
     drop_item_alive_max_hours: float = 1.0
 
+
 @dataclass
 class BaseCampConfig:
     """Base camp configuration data class"""
     max_num: int = 128
     worker_max_num: int = 15
+
 
 @dataclass
 class GuildConfig:
@@ -126,6 +155,7 @@ class GuildConfig:
     player_max_num: int = 20
     auto_reset_guild_no_online_players: bool = False
     auto_reset_guild_time_no_online_players: float = 72.0
+
 
 @dataclass
 class PalSettingsConfig:
@@ -150,6 +180,7 @@ class PalSettingsConfig:
     player_auto_hp_regene_rate: float = 1.0
     player_auto_hp_regene_rate_in_sleep: float = 1.0
 
+
 @dataclass
 class BuildingConfig:
     """Building and collection configuration data class"""
@@ -160,11 +191,13 @@ class BuildingConfig:
     collection_object_respawn_speed_rate: float = 1.0
     enemy_drop_item_rate: float = 1.0
 
+
 @dataclass
 class DifficultyConfig:
     """Difficulty configuration data class"""
     level: str = "None"
     death_penalty: str = "All"
+
 
 @dataclass
 class SteamCMDConfig:
@@ -173,6 +206,7 @@ class SteamCMDConfig:
     validate: bool = True
     auto_update: bool = True
     update_on_start: bool = True
+
 
 @dataclass
 class EngineConfig:
@@ -344,6 +378,7 @@ class PalworldConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     rest_api: RestAPIConfig = field(default_factory=RestAPIConfig)
     rcon: RconConfig = field(default_factory=RconConfig)
+    server_startup: ServerStartupConfig = field(default_factory=ServerStartupConfig)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     backup: BackupConfig = field(default_factory=BackupConfig)
     discord: DiscordConfig = field(default_factory=DiscordConfig)
@@ -504,6 +539,18 @@ class ConfigLoader:
             enabled=config_dict.get('rcon', {}).get('enabled', False),
             port=config_dict.get('rcon', {}).get('port', 25575),
             host=config_dict.get('rcon', {}).get('host', 'host.docker.internal'),
+        )
+        
+        # Server startup configuration
+        server_startup_config = ServerStartupConfig(
+            use_performance_threads=config_dict.get('server_startup', {}).get('use_performance_threads', True),
+            disable_async_loading=config_dict.get('server_startup', {}).get('disable_async_loading', True),
+            use_multithread_for_ds=config_dict.get('server_startup', {}).get('use_multithread_for_ds', True),
+            query_port=config_dict.get('server_startup', {}).get('query_port', 27018),
+            enable_public_lobby=config_dict.get('server_startup', {}).get('enable_public_lobby', False),
+            log_format=config_dict.get('server_startup', {}).get('log_format', 'text'),
+            worker_threads_count=config_dict.get('server_startup', {}).get('worker_threads_count', 0),
+            additional_options=config_dict.get('server_startup', {}).get('additional_options', ''),
         )
         
         # Monitoring configuration
@@ -799,6 +846,7 @@ class ConfigLoader:
             server=server_config,
             rest_api=rest_api_config,
             rcon=rcon_config,
+            server_startup=server_startup_config,
             monitoring=monitoring_config,
             backup=backup_config,
             discord=discord_config,
@@ -845,6 +893,17 @@ class ConfigLoader:
         # Discord webhook URL validation (if enabled)
         if config.discord.enabled and not config.discord.webhook_url:
             raise ValueError("Discord notifications enabled but webhook URL not set")
+        
+        # Server startup options validation
+        valid_log_formats = ['text', 'json']
+        if config.server_startup.log_format not in valid_log_formats:
+            raise ValueError(f"Invalid log format: {config.server_startup.log_format}")
+        
+        if not (1024 <= config.server_startup.query_port <= 65535):
+            raise ValueError(f"Invalid query port: {config.server_startup.query_port}")
+        
+        if config.server_startup.worker_threads_count < 0:
+            raise ValueError(f"Invalid worker threads count: {config.server_startup.worker_threads_count}")
         
         return True
 
@@ -903,5 +962,7 @@ if __name__ == "__main__":
         print(f"Backup enabled: {config.backup.enabled}")
         print(f"Discord enabled: {config.discord.enabled}")
         print(f"Palworld settings ServerName: {config.palworld_settings.ServerName}")
+        print(f"Server startup performance threads: {config.server_startup.use_performance_threads}")
+        print(f"Server startup query port: {config.server_startup.query_port}")
     except Exception as e:
         print(f"❌ Configuration load failed: {e}")
