@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DefaultPalWorldSettings.ini to YAML Converter
+DefaultPalWorldSettings.ini to YAML Converter (Fixed Version)
 Automatically generates palworld_settings section for default.yaml from DefaultPalWorldSettings.ini
 
 Usage:
@@ -99,7 +99,7 @@ class INIToYAMLConverter:
     
     def _extract_option_settings(self, content: str) -> Dict[str, str]:
         """
-        Extract OptionSettings values from file content
+        Extract OptionSettings values from file content with fixed parsing
         
         Args:
             content: File content as string
@@ -109,25 +109,72 @@ class INIToYAMLConverter:
         """
         settings = {}
         
-        # Find OptionSettings=(...) pattern
-        pattern = r'OptionSettings=\(([^)]+)\)'
-        match = re.search(pattern, content, re.DOTALL)
+        try:
+            # Find OptionSettings=(...) pattern
+            pattern = r'OptionSettings=\((.*)\)'
+            match = re.search(pattern, content, re.DOTALL)
+            
+            if not match:
+                raise ValueError("Could not find OptionSettings in INI file")
+            
+            options_content = match.group(1)
+            
+            # ✅ Fixed parsing using search result solution
+            pairs = self._split_outside_parentheses(options_content)
+            
+            for pair in pairs:
+                if '=' not in pair:
+                    continue
+                
+                key, value = pair.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Clean the value
+                cleaned_value = self._clean_setting_value(value)
+                settings[key] = cleaned_value
+            
+            self.log(f"Successfully extracted {len(settings)} settings from OptionSettings")
+            
+        except Exception as e:
+            self.log(f"Failed to extract OptionSettings: {e}", "ERROR")
+            raise
         
-        if not match:
-            raise ValueError("Could not find OptionSettings in INI file")
-        
-        options_content = match.group(1)
-        
-        # Parse individual settings (handle nested parentheses and complex values)
-        settings_pattern = r'(\w+)=([^,)]+(?:\([^)]*\))?[^,)]*)'
-        settings_matches = re.findall(settings_pattern, options_content)
-        
-        for setting_name, setting_value in settings_matches:
-            cleaned_value = self._clean_setting_value(setting_value.strip())
-            settings[setting_name] = cleaned_value
-        
-        self.log(f"Extracted {len(settings)} settings from OptionSettings")
         return settings
+    
+    def _split_outside_parentheses(self, content: str) -> list:
+        """
+        Split content by commas that are not inside parentheses
+        (Fixed version from search results)
+        
+        Args:
+            content: Content to split
+            
+        Returns:
+            List of split parts
+        """
+        parts = []
+        current = []
+        depth = 0
+        
+        for char in content:
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+            
+            if char == ',' and depth == 0:
+                # Found comma outside parentheses - split here
+                parts.append(''.join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        
+        # Add final part
+        if current:
+            parts.append(''.join(current).strip())
+        
+        return parts
     
     def _clean_setting_value(self, value: str) -> str:
         """Clean and normalize setting values"""
@@ -419,7 +466,7 @@ class INIToYAMLConverter:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Convert DefaultPalWorldSettings.ini to YAML palworld_settings section",
+        description="Convert DefaultPalWorldSettings.ini to YAML palworld_settings section (Fixed Version)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
