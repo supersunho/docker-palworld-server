@@ -514,6 +514,8 @@ class PalworldServerManager:
         self._api_client: Optional[RestAPIClient] = None
         self._rcon_client: Optional[RconClient] = None
 
+        self._backup_manager: Optional[Any] = None
+
     async def __aenter__(self):
         """Async context manager enter"""
         # Initialize API client
@@ -527,6 +529,12 @@ class PalworldServerManager:
         # Create directories
         self._ensure_directories()
         
+        # Initialize backup manager from config_loader
+        if self.config.backup.enabled:
+            from .backup.backup_manager import get_backup_manager
+            self._backup_manager = get_backup_manager(self.config)
+            await self._backup_manager.start_backup_scheduler()
+            print(f"✅ Backup system started with {self.config.backup.interval_seconds}s interval")
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -550,6 +558,10 @@ class PalworldServerManager:
         # Cleanup RCON client
         if self._rcon_client:
             await self._rcon_client.__aexit__(exc_type, exc_val, exc_tb)
+            
+        # Stop backup manager
+        if self._backup_manager:
+            await self._backup_manager.stop_backup_scheduler()
 
     def _ensure_directories(self) -> None:
         """Create necessary directories"""

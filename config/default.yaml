@@ -33,9 +33,13 @@ monitoring:
 # Backup system configuration
 backup:
     enabled: ${BACKUP_ENABLED:true}
-    interval_seconds: ${BACKUP_INTERVAL:3600} # Backup interval in seconds
-    retention_days: ${BACKUP_RETENTION_DAYS:7} # How many days to keep backups
-    compress: ${BACKUP_COMPRESS:true} # Enable compression for backups
+    interval_seconds: ${BACKUP_INTERVAL:3600} # 1 hour default
+    retention_days: ${BACKUP_RETENTION_DAYS:7} # Keep daily backups for 7 days
+    retention_weeks: ${BACKUP_RETENTION_WEEKS:4} # Keep weekly backups for 4 weeks
+    retention_months: ${BACKUP_RETENTION_MONTHS:6} # Keep monthly backups for 6 months
+    compress: ${BACKUP_COMPRESS:true}
+    max_backups: ${BACKUP_MAX_COUNT:100} # Maximum total backup files
+    cleanup_interval: ${BACKUP_CLEANUP_INTERVAL:86400} # Clean up every 24 hours
 
 # Discord notification configuration
 discord:
