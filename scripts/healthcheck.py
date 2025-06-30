@@ -14,13 +14,7 @@ import subprocess  # Added for RCON support
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 
-current_dir = Path(__file__).parent  # /app/scripts
-project_root = current_dir.parent    # /app
-src_dir = project_root / "src"       # /app/src
-
-sys.path.insert(0, str(src_dir))
 
 class HealthStatus(Enum):
     """Health check status levels"""
@@ -44,17 +38,16 @@ class HealthCheckResult:
 class HealthChecker:
     """Advanced health checker for Palworld server"""
     
-    def __init__(self):
-        from ..config_loader import get_config
-        config = get_config()
+    def __init__(self): 
         
-        self.rest_api_host = config.rest_api.host
-        self.rest_api_port = config.rest_api.port
-        self.rcon_host = config.rcon.host
-        self.rcon_port = config.rcon.port
-        self.rcon_password = config.server.admin_password
-        self.timeout = 10
-        
+        self.rest_api_host = os.getenv('REST_API_HOST', 'host.docker.internal')
+        self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
+        self.server_port = int(os.getenv('SERVER_PORT', '8211'))
+        self.rcon_host = os.getenv('RCON_HOST', 'host.docker.internal')
+        self.rcon_port = int(os.getenv('RCON_PORT', '25575'))  # RCON port configuration
+        self.rcon_password = os.getenv('ADMIN_PASSWORD', 'admin123')  # RCON password
+        self.timeout = 10  # seconds
+
         # Health check results
         self.results: List[HealthCheckResult] = []
     
@@ -329,7 +322,6 @@ class HealthChecker:
                     status=HealthStatus.UNHEALTHY,
                     message=f"RCON port {self.rcon_port} not accessible",
                     details={
-                        "host": self.rcon_host,
                         "port": self.rcon_port,
                         "error": port_check['error']
                     },
@@ -348,7 +340,6 @@ class HealthChecker:
                     status=HealthStatus.HEALTHY,
                     message="RCON responding normally",
                     details={
-                        "host": self.rcon_host,
                         "port": self.rcon_port,
                         "test_command": "Info",
                         "response_preview": rcon_test['response'][:100] if rcon_test['response'] else "OK"
@@ -362,7 +353,6 @@ class HealthChecker:
                     status=HealthStatus.WARNING,
                     message="RCON port open but command failed",
                     details={
-                        "host": self.rcon_host,
                         "port": self.rcon_port,
                         "error": rcon_test['error']
                     },
