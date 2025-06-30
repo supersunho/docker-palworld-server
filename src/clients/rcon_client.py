@@ -18,7 +18,7 @@ class RconClient:
     def __init__(self, config: PalworldConfig, logger):
         self.config = config
         self.logger = logger
-        self.host = "127.0.0.1"
+        self.host = config.rcon.host
         self.port = config.rcon.port
         self.password = config.server.admin_password
         self._retry_count = 3

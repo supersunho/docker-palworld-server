@@ -15,16 +15,17 @@ server:
 rest_api:
     enabled: ${REST_API_ENABLED:true}
     port: ${REST_API_PORT:8212}
-    host: "${REST_API_HOST:0.0.0.0}"
+    host: ${REST_API_HOST:host.docker.internal}
 
 # RCON configuration
 rcon:
     enabled: ${RCON_ENABLED:true}
     port: ${RCON_PORT:25575}
+    host: ${RCON_HOST:host.docker.internal
 
 # Monitoring and metrics configuration
 monitoring:
-    mode: "${MONITORING_MODE:both}" # Options: logs, prometheus, both
+    mode: "${MONITORING_MODE:logs}" # Options: logs, prometheus, both
     log_level: "${LOG_LEVEL:INFO}" # Options: DEBUG, INFO, WARNING, ERROR
     metrics_interval: ${METRICS_INTERVAL:60}
     enable_dashboard: ${ENABLE_DASHBOARD:true}

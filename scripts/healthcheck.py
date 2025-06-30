@@ -39,11 +39,15 @@ class HealthChecker:
     """Advanced health checker for Palworld server"""
     
     def __init__(self):
-        self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
-        self.server_port = int(os.getenv('SERVER_PORT', '8211'))
-        self.rcon_port = int(os.getenv('RCON_PORT', '25575'))  # RCON port configuration
-        self.rcon_password = os.getenv('ADMIN_PASSWORD', 'admin123')  # RCON password
-        self.timeout = 10  # seconds
+        from ..config_loader import get_config
+        config = get_config()
+        
+        self.rest_api_host = config.rest_api.host
+        self.rest_api_port = config.rest_api.port
+        self.rcon_host = config.rcon.host
+        self.rcon_port = config.rcon.port
+        self.rcon_password = config.server.admin_password
+        self.timeout = 10
         
         # Health check results
         self.results: List[HealthCheckResult] = []
@@ -57,10 +61,9 @@ class HealthChecker:
             async with aiohttp.ClientSession() as session:
                 # Try different endpoints
                 endpoints = [
-                    f'http://localhost:{self.rest_api_port}/v1/api/info',
-                    f'http://localhost:{self.rest_api_port}/health'
+                    f'http://{self.rest_api_host}:{self.rest_api_port}/v1/api/info',
+                    f'http://{self.rest_api_host}:{self.rest_api_port}/health'
                 ]
-                
                 for url in endpoints:
                     try:
                         async with session.get(url, timeout=self.timeout) as resp:
@@ -373,7 +376,7 @@ class HealthChecker:
         try:
             # TCP connection test for RCON port
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection('localhost', self.rcon_port),
+                asyncio.open_connection(self.rcon_host, self.rcon_port),
                 timeout=5
             )
             writer.close()
