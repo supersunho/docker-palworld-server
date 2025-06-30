@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-DefaultPalWorldSettings.ini to YAML Converter (Fixed Version)
+DefaultPalWorldSettings.ini to YAML Converter (User-Friendly Version)
 Automatically generates palworld_settings section for default.yaml from DefaultPalWorldSettings.ini
+- Removes B_ prefix from boolean environment variables for better usability
 
 Usage:
     python3 ini_to_yaml_converter.py [input_file] [output_file]
@@ -119,7 +120,7 @@ class INIToYAMLConverter:
             
             options_content = match.group(1)
             
-            # ✅ Fixed parsing using search result solution
+            # Fixed parsing using parentheses depth tracking
             pairs = self._split_outside_parentheses(options_content)
             
             for pair in pairs:
@@ -145,7 +146,7 @@ class INIToYAMLConverter:
     def _split_outside_parentheses(self, content: str) -> list:
         """
         Split content by commas that are not inside parentheses
-        (Fixed version from search results)
+        (Fixed version for CrossplayPlatforms=(Steam,Xbox,PS5,Mac) issue)
         
         Args:
             content: Content to split
@@ -190,18 +191,20 @@ class INIToYAMLConverter:
     def _convert_to_env_var_name(self, setting_name: str) -> str:
         """
         Convert camelCase setting name to SNAKE_CASE environment variable name
+        ✅ MODIFIED: Removes B_ prefix for user-friendly environment variables
         
         Args:
             setting_name: Original setting name (e.g., ServerName, bEnablePlayerToPlayerDamage)
             
         Returns:
-            Environment variable name (e.g., SERVER_NAME, B_ENABLE_PLAYER_TO_PLAYER_DAMAGE)
+            User-friendly environment variable name (e.g., SERVER_NAME, ENABLE_PLAYER_TO_PLAYER_DAMAGE)
         """
-        # Handle boolean prefix 'b' specially
+        # ✅ NEW: Handle boolean prefix 'b' by removing it instead of converting to B_
         if setting_name.startswith('b') and len(setting_name) > 1 and setting_name[1].isupper():
-            # bEnablePlayerToPlayerDamage -> B_ENABLE_PLAYER_TO_PLAYER_DAMAGE
-            remainder = setting_name[1:]
-            env_name = 'B_' + self._camel_to_snake(remainder)
+            # bEnablePlayerToPlayerDamage -> ENABLE_PLAYER_TO_PLAYER_DAMAGE (not B_ENABLE...)
+            remainder = setting_name[1:]  # Remove 'b' prefix
+            env_name = self._camel_to_snake(remainder)
+            self.log(f"Boolean setting: {setting_name} -> {env_name.upper()}", "DEBUG")
         else:
             # ServerName -> SERVER_NAME
             env_name = self._camel_to_snake(setting_name)
@@ -251,7 +254,7 @@ class INIToYAMLConverter:
     
     def generate_yaml_content(self, settings: Dict[str, str]) -> str:
         """
-        Generate YAML palworld_settings section
+        Generate YAML palworld_settings section with user-friendly environment variables
         
         Args:
             settings: Dictionary of setting name -> value
@@ -260,6 +263,7 @@ class INIToYAMLConverter:
             YAML content string
         """
         yaml_lines = ["# Direct Palworld settings (INI key names for automatic conversion)"]
+        yaml_lines.append("# ✅ User-friendly environment variables (B_ prefix removed from booleans)")
         yaml_lines.append("palworld_settings:")
         
         # Group settings by category for better organization
@@ -444,8 +448,16 @@ class INIToYAMLConverter:
                 self.log("ERROR: No settings found in INI file", "ERROR")
                 return False
             
+            # ✅ Log boolean settings conversion for user verification
+            boolean_settings = [key for key in settings.keys() if key.startswith('b') and len(key) > 1 and key[1].isupper()]
+            if boolean_settings:
+                self.log(f"Converting {len(boolean_settings)} boolean settings (removing B_ prefix)")
+                for setting in boolean_settings[:5]:  # Show first 5 as examples
+                    env_var = self._convert_to_env_var_name(setting)
+                    self.log(f"  {setting} -> {env_var}", "DEBUG")
+            
             # Generate YAML content
-            self.log("Generating YAML content...")
+            self.log("Generating user-friendly YAML content...")
             yaml_content = self.generate_yaml_content(settings)
             
             # Output result
@@ -455,7 +467,7 @@ class INIToYAMLConverter:
             else:
                 print(yaml_content)
             
-            self.log(f"SUCCESS: Converted {len(settings)} settings from INI to YAML format")
+            self.log(f"SUCCESS: Converted {len(settings)} settings from INI to user-friendly YAML format")
             return True
             
         except Exception as e:
@@ -466,7 +478,7 @@ class INIToYAMLConverter:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Convert DefaultPalWorldSettings.ini to YAML palworld_settings section (Fixed Version)",
+        description="Convert DefaultPalWorldSettings.ini to YAML palworld_settings section (User-Friendly Version)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -481,18 +493,28 @@ Examples:
     
     # Redirect stdout to file
     python3 ini_to_yaml_converter.py > palworld_settings.yaml
+
+Output format:
+    - Boolean settings: bUseAuth -> USE_AUTH (not B_USE_AUTH)
+    - Regular settings: ServerName -> SERVER_NAME
+    - User-friendly environment variable names
         """
     )
     
     parser.add_argument('input_file', nargs='?', help='Path to DefaultPalWorldSettings.ini (auto-detect if not provided)')
     parser.add_argument('output_file', nargs='?', help='Output YAML file path (stdout if not provided)')
     parser.add_argument('--quiet', '-q', action='store_true', help='Suppress log messages')
+    parser.add_argument('--debug', '-d', action='store_true', help='Show debug messages for boolean conversions')
     
     args = parser.parse_args()
     
     # Create converter
     converter = INIToYAMLConverter()
     converter.logger_enabled = not args.quiet
+    
+    # Enable debug logging if requested
+    if args.debug and not args.quiet:
+        converter.log("Debug mode enabled - showing boolean setting conversions", "DEBUG")
     
     # Convert file paths to Path objects
     input_file = Path(args.input_file) if args.input_file else None
