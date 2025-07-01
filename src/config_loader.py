@@ -37,7 +37,7 @@ class RestAPIConfig:
     """REST API configuration data class"""
     enabled: bool = True
     port: int = 8212
-    host: str = "host.docker.internal" 
+    host: str = "localhost" 
 
 
 @dataclass
@@ -45,7 +45,7 @@ class RconConfig:
     """RCON configuration data class"""
     enabled: bool = False
     port: int = 25575
-    host: str = "host.docker.internal"
+    host: str = "localhost"
 
 
 @dataclass
@@ -533,14 +533,14 @@ class ConfigLoader:
         rest_api_config = RestAPIConfig(
             enabled=config_dict.get('rest_api', {}).get('enabled', True),
             port=config_dict.get('rest_api', {}).get('port', 8212),
-            host=config_dict.get('rest_api', {}).get('host', 'host.docker.internal'),
+            host=config_dict.get('rest_api', {}).get('host', 'localhost'),
         )
         
         # RCON configuration
         rcon_config = RconConfig(
             enabled=config_dict.get('rcon', {}).get('enabled', False),
             port=config_dict.get('rcon', {}).get('port', 25575),
-            host=config_dict.get('rcon', {}).get('host', 'host.docker.internal'),
+            host=config_dict.get('rcon', {}).get('host', 'localhost'),
         )
         
         # Server startup configuration

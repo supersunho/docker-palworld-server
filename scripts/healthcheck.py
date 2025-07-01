@@ -40,10 +40,10 @@ class HealthChecker:
     
     def __init__(self): 
         
-        self.rest_api_host = os.getenv('REST_API_HOST', 'host.docker.internal')
+        self.rest_api_host = os.getenv('REST_API_HOST', 'localhost')
         self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
         self.server_port = int(os.getenv('SERVER_PORT', '8211'))
-        self.rcon_host = os.getenv('RCON_HOST', 'host.docker.internal')
+        self.rcon_host = os.getenv('RCON_HOST', 'localhost')
         self.rcon_port = int(os.getenv('RCON_PORT', '25575'))  # RCON port configuration
         self.rcon_password = os.getenv('ADMIN_PASSWORD', 'admin123')  # RCON password
         self.timeout = 10  # seconds
