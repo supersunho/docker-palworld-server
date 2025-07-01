@@ -45,19 +45,23 @@ class HealthChecker:
         self.server_port = int(os.getenv('SERVER_PORT', '8211'))
         self.rcon_host = os.getenv('RCON_HOST', 'localhost')
         self.rcon_port = int(os.getenv('RCON_PORT', '25575'))  # RCON port configuration
-        self.rcon_password = os.getenv('ADMIN_PASSWORD', 'admin123')  # RCON password
+        self.admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+        self.rcon_password = self.admin_password
         self.timeout = 10  # seconds
 
         # Health check results
         self.results: List[HealthCheckResult] = []
     
     async def check_rest_api_health(self) -> HealthCheckResult:
-        """Check REST API health with detailed response"""
+        """Check REST API health with Basic Authentication"""
         start_time = time.time()
         component = "rest_api"
         
         try:
-            async with aiohttp.ClientSession() as session:
+            # Create Basic Authentication for REST API
+            auth = aiohttp.BasicAuth("admin", self.rcon_password)  # Using admin password for auth
+            
+            async with aiohttp.ClientSession(auth=auth) as session:   
                 # Try different endpoints
                 endpoints = [
                     f'http://{self.rest_api_host}:{self.rest_api_port}/v1/api/info',
@@ -78,7 +82,8 @@ class HealthChecker:
                                         details={
                                             "endpoint": url,
                                             "status_code": resp.status,
-                                            "response_data": data
+                                            "response_data": data,
+                                            "authenticated": True   
                                         },
                                         response_time_ms=response_time,
                                         timestamp=time.time()
@@ -91,11 +96,26 @@ class HealthChecker:
                                         message="REST API responding but invalid JSON",
                                         details={
                                             "endpoint": url,
-                                            "status_code": resp.status
+                                            "status_code": resp.status,
+                                            "authenticated": True
                                         },
                                         response_time_ms=response_time,
                                         timestamp=time.time()
                                     )
+                            elif resp.status == 401:
+                                # Authentication failed
+                                return HealthCheckResult(
+                                    component=component,
+                                    status=HealthStatus.UNHEALTHY,
+                                    message="REST API authentication failed",
+                                    details={
+                                        "endpoint": url,
+                                        "status_code": resp.status,
+                                        "error": "Invalid admin credentials"
+                                    },
+                                    response_time_ms=response_time,
+                                    timestamp=time.time()
+                                )
                             else:
                                 return HealthCheckResult(
                                     component=component,
@@ -103,7 +123,8 @@ class HealthChecker:
                                     message=f"REST API returned status {resp.status}",
                                     details={
                                         "endpoint": url,
-                                        "status_code": resp.status
+                                        "status_code": resp.status,
+                                        "authenticated": True
                                     },
                                     response_time_ms=response_time,
                                     timestamp=time.time()
@@ -132,6 +153,7 @@ class HealthChecker:
                 response_time_ms=(time.time() - start_time) * 1000,
                 timestamp=time.time()
             )
+
     
     async def check_server_process(self) -> HealthCheckResult:
         """Check if Palworld server process is running"""
