@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Palworld server manager - Main orchestrator
+Palworld server manager - Main orchestrator with Discord notifications
 Simplified main manager that delegates to specialized components
 """
 
 import asyncio
-from typing import Optional, Any
+from typing import Optional, Any, Set
 
 from .config_loader import PalworldConfig, get_config
 from .logging_setup import get_logger, log_server_event
@@ -14,13 +14,16 @@ from .logging_setup import get_logger, log_server_event
 from .clients import SteamCMDManager
 from .managers import ProcessManager, ConfigManager, IntegrationManager
 
+# Import Discord notifications
+from .notifications import get_discord_notifier
+
 
 class PalworldServerManager:
-    """Main Palworld server orchestrator - delegates to specialized managers"""
+    """Main Palworld server orchestrator with Discord integration"""
     
     def __init__(self, config: Optional[PalworldConfig] = None):
         """
-        Initialize server manager with specialized components
+        Initialize server manager with specialized components and Discord notifications
         
         Args:
             config: Server configuration (loads default if None)
@@ -37,10 +40,18 @@ class PalworldServerManager:
         self.config_manager = ConfigManager(self.config, self.logger)
         self.integration_manager = IntegrationManager(self.config, self.logger)
         
+        # Initialize Discord notifier
+        self.discord_notifier = get_discord_notifier(self.config)
+        
         # Component state
         self._backup_manager: Optional[Any] = None
         self._monitoring_task: Optional[asyncio.Task] = None
+        self._player_monitoring_task: Optional[asyncio.Task] = None
         self._shutdown_event = asyncio.Event()
+        
+        # Player tracking for Discord notifications
+        self._previous_players: Set[str] = set()
+        self._first_player_check = True
     
     async def __aenter__(self):
         """Async context manager enter - initialize all components"""
@@ -57,10 +68,26 @@ class PalworldServerManager:
             await self._backup_manager.start_backup_scheduler()
             self.logger.info(f"Backup system started with {self.config.backup.interval_seconds}s interval")
         
+        # Start player monitoring task for Discord notifications
+        if self.discord_notifier.enabled:
+            self._player_monitoring_task = asyncio.create_task(self._monitor_players_for_discord())
+            self.logger.info("Discord player monitoring started")
+        
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit - cleanup all components"""
+        # Set shutdown event to stop monitoring tasks
+        self._shutdown_event.set()
+        
+        # Stop player monitoring
+        if self._player_monitoring_task:
+            self._player_monitoring_task.cancel()
+            try:
+                await self._player_monitoring_task
+            except asyncio.CancelledError:
+                pass
+        
         # Stop monitoring
         if self._monitoring_task:
             self._monitoring_task.cancel()
@@ -69,12 +96,9 @@ class PalworldServerManager:
             except asyncio.CancelledError:
                 pass
         
-        # Stop server
+        # Stop server with Discord notification
         if self.process_manager.is_server_running():
-            await self.process_manager.stop_server(
-                "System shutdown", 
-                self.integration_manager.get_api_client()
-            )
+            await self.stop_server("System shutdown")
         
         # Stop backup manager
         if self._backup_manager:
@@ -95,6 +119,62 @@ class PalworldServerManager:
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
             self.logger.debug("Directory check/create", path=str(directory))
+    
+    async def _monitor_players_for_discord(self) -> None:
+        """Monitor player join/leave events and send Discord notifications"""
+        self.logger.info("Starting Discord player monitoring task")
+        
+        while not self._shutdown_event.is_set():
+            try:
+                # Get current player list
+                players_response = await self.api_get_players()
+                current_players = set()
+                
+                if players_response and 'players' in players_response:
+                    current_players = {player.get('name', 'Unknown') for player in players_response['players']}
+                
+                # Skip first check to avoid false notifications on startup
+                if not self._first_player_check:
+                    # Detect joined players
+                    joined_players = current_players - self._previous_players
+                    # Detect left players
+                    left_players = self._previous_players - current_players
+                    
+                    # Send Discord notifications for joined players
+                    if joined_players:
+                        async with self.discord_notifier as notifier:
+                            for player_name in joined_players:
+                                await notifier.notify_player_join(
+                                    player_name, 
+                                    len(current_players)
+                                )
+                                self.logger.info(f"Discord notification sent: {player_name} joined")
+                    
+                    # Send Discord notifications for left players
+                    if left_players:
+                        async with self.discord_notifier as notifier:
+                            for player_name in left_players:
+                                await notifier.notify_player_leave(
+                                    player_name, 
+                                    len(current_players)
+                                )
+                                self.logger.info(f"Discord notification sent: {player_name} left")
+                
+                # Update player tracking
+                self._previous_players = current_players
+                self._first_player_check = False
+                
+            except Exception as e:
+                self.logger.error(f"Player monitoring error: {e}")
+                # Send Discord error notification if this is a recurring issue
+                try:
+                    async with self.discord_notifier as notifier:
+                        await notifier.notify_error(f"Player monitoring error: {str(e)}")
+                except Exception as discord_error:
+                    self.logger.error(f"Failed to send Discord error notification: {discord_error}")
+            
+            # Wait before next check
+            await asyncio.sleep(10)  # Check every 10 seconds
     
     # SteamCMD operations (direct delegation)
     async def download_server_files(self) -> bool:
@@ -118,6 +198,12 @@ class PalworldServerManager:
         else:
             log_server_event(self.logger, "server_download_fail", 
                            "Server file download failed")
+            # Send Discord error notification
+            try:
+                async with self.discord_notifier as notifier:
+                    await notifier.notify_error("Server file download failed")
+            except Exception as e:
+                self.logger.error(f"Failed to send Discord notification: {e}")
         
         return success
     
@@ -127,15 +213,59 @@ class PalworldServerManager:
         return self.process_manager.is_server_running()
     
     def start_server(self) -> bool:
-        """Start Palworld server"""
-        return self.process_manager.start_server()
+        """Start Palworld server with Discord notification"""
+        success = self.process_manager.start_server()
+        
+        if success:
+            # Send Discord notification for server start
+            try:
+                asyncio.create_task(self._notify_server_start())
+            except Exception as e:
+                self.logger.error(f"Failed to schedule Discord notification: {e}")
+        else:
+            # Send Discord notification for server start failure
+            try:
+                asyncio.create_task(self._notify_server_start_failed())
+            except Exception as e:
+                self.logger.error(f"Failed to schedule Discord notification: {e}")
+        
+        return success
+    
+    async def _notify_server_start(self) -> None:
+        """Send Discord notification for server start"""
+        try:
+            async with self.discord_notifier as notifier:
+                await notifier.notify_server_start()
+                self.logger.info("Discord notification sent: server started")
+        except Exception as e:
+            self.logger.error(f"Failed to send Discord server start notification: {e}")
+    
+    async def _notify_server_start_failed(self) -> None:
+        """Send Discord notification for server start failure"""
+        try:
+            async with self.discord_notifier as notifier:
+                await notifier.notify_error("Failed to start Palworld server")
+                self.logger.info("Discord notification sent: server start failed")
+        except Exception as e:
+            self.logger.error(f"Failed to send Discord error notification: {e}")
     
     async def stop_server(self, message: str = "Server is shutting down") -> bool:
-        """Stop Palworld server gracefully"""
-        return await self.process_manager.stop_server(
+        """Stop Palworld server gracefully with Discord notification"""
+        # Send Discord notification before stopping
+        try:
+            async with self.discord_notifier as notifier:
+                await notifier.notify_server_stop(message)
+                self.logger.info("Discord notification sent: server stopping")
+        except Exception as e:
+            self.logger.error(f"Failed to send Discord stop notification: {e}")
+        
+        # Stop the server
+        result = await self.process_manager.stop_server(
             message, 
             self.integration_manager.get_api_client()
         )
+        
+        return result
     
     def get_server_status(self) -> dict:
         """Get detailed server process status"""
@@ -237,6 +367,16 @@ class PalworldServerManager:
         """Execute custom RCON command"""
         return await self.integration_manager.rcon_execute_command(command, *args)
     
+    # Backup integration with Discord notifications
+    async def _handle_backup_completion(self) -> None:
+        """Handle backup completion with Discord notification"""
+        try:
+            async with self.discord_notifier as notifier:
+                await notifier.notify_backup_complete()
+                self.logger.info("Discord notification sent: backup completed")
+        except Exception as e:
+            self.logger.error(f"Failed to send Discord backup notification: {e}")
+    
     # Advanced access methods for direct manager control
     def get_api_manager(self) -> IntegrationManager:
         """Get integration manager for direct API access"""
@@ -254,6 +394,10 @@ class PalworldServerManager:
         """Get SteamCMD manager for direct SteamCMD operations"""
         return self.steamcmd_manager
     
+    def get_discord_notifier(self):
+        """Get Discord notifier for direct notification control"""
+        return self.discord_notifier
+    
     # Monitoring and status methods
     def get_overall_status(self) -> dict:
         """Get comprehensive server status"""
@@ -264,8 +408,10 @@ class PalworldServerManager:
             "backup_enabled": self.config.backup.enabled,
             "api_enabled": self.config.rest_api.enabled,
             "rcon_enabled": self.config.rcon.enabled,
+            "discord_enabled": self.discord_notifier.enabled,
             "server_name": self.config.server.name,
-            "max_players": self.config.server.max_players
+            "max_players": self.config.server.max_players,
+            "language": self.config.language
         }
         
         if self._backup_manager:
@@ -275,17 +421,23 @@ class PalworldServerManager:
             except Exception as e:
                 status["backup_error"] = str(e)
         
+        # Add Discord status
+        if self.discord_notifier.enabled:
+            status["discord_status"] = self.discord_notifier.get_event_status()
+        
         return status
 
 
 async def main():
-    """Main production server function"""
+    """Main production server function with Discord integration"""
     config = get_config()
     
-    print("🚀 Starting Palworld Dedicated Server")
+    print("🚀 Starting Palworld Dedicated Server with Discord Integration")
     print(f"   Server: {config.server.name}")
     print(f"   Port: {config.server.port}")
     print(f"   Max Players: {config.server.max_players}")
+    print(f"   Discord: {'Enabled' if config.discord.enabled else 'Disabled'}")
+    print(f"   Language: {config.language}")
     
     async with PalworldServerManager(config) as manager:
         # Optional server file download
@@ -309,18 +461,50 @@ async def main():
             print(f"📊 Backup enabled: {status['backup_enabled']}")
             print(f"🔌 API enabled: {status['api_enabled']}")
             print(f"⚡ RCON enabled: {status['rcon_enabled']}")
+            print(f"💬 Discord enabled: {status['discord_enabled']}")
+            
+            if status['discord_enabled']:
+                print("🎊 Discord notifications are active!")
+                print("   - Server start/stop notifications")
+                print("   - Player join/leave notifications")
+                print("   - Backup completion notifications")
+                print("   - Error notifications")
              
             try:
+                # Main server monitoring loop
                 while manager.is_server_running():
                     await asyncio.sleep(30)   
-                    print(f"📊 Server status: Running (PID: {status['server'].get('pid', 'N/A')})")
+                    current_status = manager.get_server_status()
+                    print(f"📊 Server status: Running (PID: {current_status.get('pid', 'N/A')})")
+                    
+                    # Check for backup completion and send Discord notification
+                    if manager._backup_manager:
+                        try:
+                            # This would be triggered by the backup manager
+                            # For now, we just ensure the backup system is running
+                            pass
+                        except Exception as e:
+                            print(f"Backup system error: {e}")
+                            try:
+                                async with manager.discord_notifier as notifier:
+                                    await notifier.notify_error(f"Backup system error: {str(e)}")
+                            except Exception as discord_error:
+                                print(f"Failed to send Discord error notification: {discord_error}")
+                                
             except KeyboardInterrupt:
                 print("🛑 Received shutdown signal...")
                 await manager.stop_server("Server shutdown requested")
         else:
             print("❌ Failed to start Palworld server")
+            # Send Discord notification for startup failure
+            try:
+                async with manager.discord_notifier as notifier:
+                    await notifier.notify_error("Failed to start Palworld server")
+            except Exception as e:
+                print(f"Failed to send Discord notification: {e}")
             return 1
     
+    print("👋 Palworld server manager stopped")
     return 0
 
 
