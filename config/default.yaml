@@ -13,9 +13,9 @@ server:
 
 # REST API configuration
 rest_api:
-    enabled: ${REST_API_ENABLED:true}
-    port: ${REST_API_PORT:8212}
-    host: ${REST_API_HOST:host.docker.internal}
+    enabled: ${RESTAPI_ENABLED:true}
+    port: ${RESTAPI_PORT:8212}
+    host: ${RESTAPI_HOST:host.docker.internal}
 
 # RCON configuration (fixed missing closing brace)
 rcon:
@@ -58,9 +58,9 @@ palworld_settings:
     ServerPlayerMaxNum: ${SERVER_PLAYER_MAX_NUM:32}
 
     # API and RCON settings
-    RCONEnabled: ${RCON_ENABLED:false}
+    RCONEnabled: ${RCON_ENABLED:true}
     RCONPort: ${RCON_PORT:25575}
-    RESTAPIEnabled: ${RESTAPI_ENABLED:false}
+    RESTAPIEnabled: ${RESTAPI_ENABLED:true}
     RESTAPIPort: ${RESTAPI_PORT:8212}
 
     # Authentication and region
