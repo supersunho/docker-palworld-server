@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
 Discord notification system for Palworld server
-Event-based notifications with webhook integration
+Event-based notifications with webhook integration and multi-language support
+Uses config_loader.py for consistent configuration management
 """
 
 import asyncio
 import aiohttp
-import json
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from enum import Enum
 
 from ..config_loader import PalworldConfig
 from ..logging_setup import get_logger, log_server_event
+from .message_loader import get_message_loader
 
 
 class NotificationLevel(Enum):
@@ -24,45 +25,50 @@ class NotificationLevel(Enum):
 
 
 class DiscordNotifier:
-    """Discord webhook notification manager"""
+    """Discord webhook notification manager using config_loader.py consistently"""
     
     def __init__(self, config: PalworldConfig):
+        """Initialize Discord notifier with configuration from config_loader"""
         self.config = config
         self.logger = get_logger("palworld.discord")
         
-        # Discord settings
+        # Load message loader for multi-language support
+        self.message_loader = get_message_loader()
+        
+        # Discord settings from config_loader (NO os.getenv usage)
         self.webhook_url = config.discord.webhook_url
         self.enabled = config.discord.enabled and bool(self.webhook_url)
         self.mention_role = config.discord.mention_role
         self.events = config.discord.events
         
+        # Language settings from config_loader
+        self.default_language = config.language
+        
         # HTTP session for webhook calls
         self.session: Optional[aiohttp.ClientSession] = None
         
-        # Color mapping for different notification levels
+        # Community-friendly color mapping
         self.level_colors = {
-            NotificationLevel.INFO: 0x00FF00,      # Green
-            NotificationLevel.WARNING: 0xFFFF00,   # Yellow
-            NotificationLevel.ERROR: 0xFF0000,     # Red
+            NotificationLevel.INFO: 0x00FF7F,      # Bright Green
+            NotificationLevel.WARNING: 0xFFD700,   # Gold
+            NotificationLevel.ERROR: 0xFF6B6B,     # Soft Red
             NotificationLevel.CRITICAL: 0x8B0000   # Dark Red
         }
         
-        # Emoji mapping for events
-        self.event_emojis = {
-            "server_start": "🚀",
-            "server_stop": "🛑",
-            "server_restart": "🔄",
-            "server_crash": "💥",
-            "player_join": "👤",
-            "player_leave": "👋",
-            "player_kick": "🦵",
-            "player_ban": "🚫",
-            "backup_complete": "📦",
-            "backup_fail": "💔",
-            "error": "❌",
-            "warning": "⚠️",
-            "info": "ℹ️"
-        }
+        # Log configuration for debugging
+        if self.enabled:
+            self.logger.info(
+                "Discord notifier initialized via config_loader",
+                webhook_configured=bool(self.webhook_url),
+                events_enabled=self.events,
+                language=self.default_language
+            )
+        else:
+            self.logger.info(
+                "Discord notifications disabled",
+                enabled=self.enabled,
+                webhook_url_provided=bool(self.webhook_url)
+            )
     
     async def __aenter__(self):
         """Async context manager enter"""
@@ -77,58 +83,35 @@ class DiscordNotifier:
         if self.session:
             await self.session.close()
     
-    async def send_notification(
+    def _detect_language(self) -> str:
+        """Get language from config_loader (consistent approach)"""
+        return self.default_language
+    
+    async def _send_webhook(
         self, 
-        event_type: str, 
-        title: str, 
-        description: str,
+        description: str, 
         level: NotificationLevel = NotificationLevel.INFO,
-        fields: Optional[List[Dict[str, Any]]] = None,
-        thumbnail_url: Optional[str] = None
+        mention_on_error: bool = False
     ) -> bool:
-        """
-        Send Discord notification
-        
-        Args:
-            event_type: Type of event (server_start, player_join, etc.)
-            title: Notification title
-            description: Notification description
-            level: Notification priority level
-            fields: Additional fields for embed
-            thumbnail_url: Thumbnail image URL
-            
-        Returns:
-            Success status
-        """
-        if not self.enabled:
-            self.logger.debug("Discord notifications disabled")
-            return False
-        
-        # Check if this event type is enabled
-        if event_type not in self.events or not self.events[event_type]:
-            self.logger.debug(
-                "Event type disabled in configuration", 
-                event_type=event_type
-            )
-            return False
-        
+        """Send webhook request to Discord"""
         if not self.session:
             self.logger.error("Discord session not initialized")
             return False
         
         try:
-            # Build Discord embed
-            embed = self._build_embed(
-                event_type, title, description, level, fields, thumbnail_url
-            )
-            
-            # Build webhook payload
-            payload = {
-                "embeds": [embed]
+            # Build clean, community-friendly embed
+            embed = {
+                "description": description,
+                "color": self.level_colors[level],
+                "timestamp": datetime.utcnow().isoformat()
             }
             
-            # Add role mention if configured
-            if self.mention_role:
+            payload = {"embeds": [embed]}
+            
+            # Add role mention for critical notifications (using config value)
+            if (mention_on_error and 
+                self.mention_role and 
+                level in [NotificationLevel.ERROR, NotificationLevel.CRITICAL]):
                 payload["content"] = f"<@&{self.mention_role}>"
             
             # Send webhook request
@@ -138,12 +121,12 @@ class DiscordNotifier:
                 headers={"Content-Type": "application/json"}
             ) as response:
                 
-                if response.status == 204:  # Discord webhook success
+                if response.status == 204:
                     log_server_event(
                         self.logger, "discord_send",
-                        f"Discord notification sent: {title}",
-                        event_type=event_type,
-                        level=level.value
+                        "Discord notification sent successfully",
+                        level=level.value,
+                        language=self.default_language
                     )
                     return True
                 else:
@@ -159,167 +142,142 @@ class DiscordNotifier:
             self.logger.error("Discord notification error", error=str(e))
             return False
     
-    def _build_embed(
-        self,
-        event_type: str,
-        title: str,
-        description: str,
-        level: NotificationLevel,
-        fields: Optional[List[Dict[str, Any]]],
-        thumbnail_url: Optional[str]
-    ) -> Dict[str, Any]:
-        """Build Discord embed object"""
-        
-        # Get emoji for event type
-        emoji = self.event_emojis.get(event_type, "📝")
-        
-        # Build embed
-        embed = {
-            "title": f"{emoji} {title}",
-            "description": description,
-            "color": self.level_colors[level],
-            "timestamp": datetime.utcnow().isoformat(),
-            "footer": {
-                "text": f"Palworld Server: {self.config.server.name}",
-                "icon_url": "https://cdn.steamgriddb.com/icon/6c0c19b75286333084e25b4db6c8de22.ico"
-            }
-        }
-        
-        # Add thumbnail if provided
-        if thumbnail_url:
-            embed["thumbnail"] = {"url": thumbnail_url}
-        
-        # Add fields if provided
-        if fields:
-            embed["fields"] = fields
-        
-        return embed
-    
-    # Convenience methods for common events
-    async def notify_server_start(
+    async def _send_notification(
         self, 
-        server_name: str, 
-        port: int, 
-        max_players: int
+        event_type: str, 
+        message_path: str,
+        level: NotificationLevel = NotificationLevel.INFO,
+        language: Optional[str] = None,
+        **message_kwargs
     ) -> bool:
-        """Notify server start"""
-        fields = [
-            {"name": "Port", "value": str(port), "inline": True},
-            {"name": "Max Players", "value": str(max_players), "inline": True},
-            {"name": "Status", "value": "🟢 Online", "inline": True}
-        ]
+        """
+        Send localized notification with event filtering using config_loader values
         
-        return await self.send_notification(
+        Args:
+            event_type: Discord event type for filtering (from config.discord.events)
+            message_path: Path to message in locale files
+            level: Notification level
+            language: Language override (uses config.language if None)
+            **message_kwargs: Message formatting arguments
+        """
+        if not self.enabled:
+            self.logger.debug("Discord notifications disabled in config")
+            return False
+        
+        # Check if specific event type is enabled (using config.discord.events)
+        if event_type not in self.events or not self.events[event_type]:
+            self.logger.debug(
+                "Event type disabled in configuration",
+                event_type=event_type,
+                config_source="config.discord.events"
+            )
+            return False
+        
+        # Get localized message (using config.language as default)
+        lang = language or self._detect_language()
+        description = self.message_loader.get_message(message_path, lang, **message_kwargs)
+        
+        # Send webhook
+        return await self._send_webhook(
+            description, 
+            level, 
+            mention_on_error=(level in [NotificationLevel.ERROR, NotificationLevel.CRITICAL])
+        )
+    
+    # Clean convenience methods with config_loader integration
+    async def notify_server_start(self, language: str = None) -> bool:
+        """Send server start notification (controlled by config.discord.events.server_start)"""
+        return await self._send_notification(
             "server_start",
-            "Server Started",
-            f"Palworld server **{server_name}** is now online and ready for players!",
+            "server.start",
             NotificationLevel.INFO,
-            fields
+            language
         )
     
-    async def notify_server_stop(self, server_name: str, reason: str = "") -> bool:
-        """Notify server stop"""
-        description = f"Palworld server **{server_name}** has been stopped."
-        if reason:
-            description += f"\n\n**Reason:** {reason}"
-        
-        fields = [
-            {"name": "Status", "value": "🔴 Offline", "inline": True}
-        ]
-        
-        return await self.send_notification(
+    async def notify_server_stop(self, reason: str = "", language: str = None) -> bool:
+        """Send server stop notification (controlled by config.discord.events.server_stop)"""
+        return await self._send_notification(
             "server_stop",
-            "Server Stopped",
-            description,
+            "server.stop", 
             NotificationLevel.WARNING,
-            fields
+            language,
+            reason=reason
         )
     
-    async def notify_player_join(self, player_name: str, player_count: int) -> bool:
-        """Notify player join"""
-        fields = [
-            {"name": "Player", "value": player_name, "inline": True},
-            {"name": "Online Players", "value": str(player_count), "inline": True}
-        ]
-        
-        return await self.send_notification(
-            "player_join",
-            "Player Joined",
-            f"**{player_name}** joined the server!",
-            NotificationLevel.INFO,
-            fields
-        )
-    
-    async def notify_player_leave(self, player_name: str, player_count: int) -> bool:
-        """Notify player leave"""
-        fields = [
-            {"name": "Player", "value": player_name, "inline": True},
-            {"name": "Online Players", "value": str(player_count), "inline": True}
-        ]
-        
-        return await self.send_notification(
-            "player_leave",
-            "Player Left",
-            f"**{player_name}** left the server.",
-            NotificationLevel.INFO,
-            fields
-        )
-    
-    async def notify_backup_complete(
+    async def notify_player_join(
         self, 
-        backup_filename: str, 
-        size_mb: float, 
-        duration: float
+        player_name: str, 
+        player_count: int, 
+        language: str = None
     ) -> bool:
-        """Notify backup completion"""
-        fields = [
-            {"name": "File", "value": backup_filename, "inline": False},
-            {"name": "Size", "value": f"{size_mb:.2f} MB", "inline": True},
-            {"name": "Duration", "value": f"{duration:.1f}s", "inline": True}
-        ]
+        """Send player join notification (controlled by config.discord.events.player_join)"""
+        # Get additional context messages using config.language
+        lang = language or self._detect_language()
+        status_msg = self.message_loader.get_status_message(player_count, lang)
+        greeting = self.message_loader.get_greeting(lang)
         
-        return await self.send_notification(
-            "backup_complete",
-            "Backup Completed",
-            "Server backup has been created successfully!",
+        return await self._send_notification(
+            "player_join",
+            "player.join",
             NotificationLevel.INFO,
-            fields
+            language,
+            player=player_name,
+            status=status_msg,
+            greeting=greeting
         )
     
-    async def notify_backup_failed(self, error: str) -> bool:
-        """Notify backup failure"""
-        return await self.send_notification(
-            "backup_fail",
-            "Backup Failed",
-            f"Server backup failed with error:\n\n``````",
-            NotificationLevel.ERROR
+    async def notify_player_leave(
+        self, 
+        player_name: str, 
+        player_count: int, 
+        language: str = None
+    ) -> bool:
+        """Send player leave notification (controlled by config.discord.events.player_leave)"""
+        return await self._send_notification(
+            "player_leave",
+            "player.leave",
+            NotificationLevel.INFO,
+            language,
+            player=player_name,
+            count=player_count
         )
     
-    async def notify_error(self, title: str, error_message: str) -> bool:
-        """Notify general error"""
-        return await self.send_notification(
-            "error",
-            title,
-            f"``````",
-            NotificationLevel.ERROR
+    async def notify_backup_complete(self, language: str = None) -> bool:
+        """Send backup completion notification (controlled by config.discord.events.backup_complete)"""
+        return await self._send_notification(
+            "backup_complete",
+            "backup.complete",
+            NotificationLevel.INFO,
+            language
         )
     
-    async def notify_warning(self, title: str, warning_message: str) -> bool:
-        """Notify general warning"""
-        return await self.send_notification(
-            "warning",
-            title,
-            warning_message,
-            NotificationLevel.WARNING
+    async def notify_error(self, error_message: str = "", language: str = None) -> bool:
+        """Send error notification (controlled by config.discord.events.errors)"""
+        return await self._send_notification(
+            "errors",
+            "error.general",
+            NotificationLevel.ERROR,
+            language,
+            error=error_message
         )
+    
+    def get_event_status(self) -> Dict[str, bool]:
+        """Get current event configuration status for debugging (using config values)"""
+        return {
+            "discord_enabled": self.enabled,
+            "webhook_configured": bool(self.webhook_url),
+            "mention_role_configured": bool(self.mention_role),
+            "language": self.default_language,
+            "events": self.events.copy()
+        }
 
 
-# Global Discord notifier instance
+# Global instance
 _discord_notifier: Optional[DiscordNotifier] = None
 
 
 def get_discord_notifier(config: Optional[PalworldConfig] = None) -> DiscordNotifier:
-    """Return global Discord notifier instance"""
+    """Get global Discord notifier instance"""
     global _discord_notifier
     
     if _discord_notifier is None:
@@ -330,28 +288,33 @@ def get_discord_notifier(config: Optional[PalworldConfig] = None) -> DiscordNoti
 
 
 async def main():
-    """Test run"""
+    """Test multi-language notifications with config_loader values"""
     from ..config_loader import get_config
     
     config = get_config()
     
     async with DiscordNotifier(config) as notifier:
-        print("🚀 Discord notifier test start")
+        print("🌍 Config-loader based Discord notifier test")
+        
+        # Show current configuration from config_loader
+        status = notifier.get_event_status()
+        print(f"Configuration from config_loader: {status}")
         
         if not notifier.enabled:
-            print("❌ Discord notifications not configured")
+            print("❌ Discord not configured or disabled in config")
+            print("Check config.discord.enabled and config.discord.webhook_url")
             return
         
-        # Test notifications
-        await notifier.notify_server_start("Test Server", 8211, 32)
+        # Test different events (all controlled by config.discord.events)
+        await notifier.notify_server_start(language=config.language)
         await asyncio.sleep(1)
         
-        await notifier.notify_player_join("TestPlayer", 1)
+        await notifier.notify_player_join("TestPlayer", 1, language="en")
         await asyncio.sleep(1)
         
-        await notifier.notify_backup_complete("test_backup.tar.gz", 15.5, 2.3)
+        await notifier.notify_backup_complete(language="ja")
         
-        print("✅ Discord notifier test complete!")
+        print("✅ Config-loader integration test complete!")
 
 
 if __name__ == "__main__":

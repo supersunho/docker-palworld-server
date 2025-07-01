@@ -393,6 +393,8 @@ class PalworldConfig:
     difficulty: DifficultyConfig = field(default_factory=DifficultyConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
     palworld_settings: PalworldSettings = field(default_factory=PalworldSettings)
+    # NEW: Language setting for Discord multi-language support
+    language: str = "ko"
 
 
 class ConfigLoader:
@@ -574,7 +576,7 @@ class ConfigLoader:
             cleanup_interval=config_dict.get('backup', {}).get('cleanup_interval', 86400),
         )
         
-        # Discord configuration
+        # Discord configuration with enhanced event mapping
         discord_events = config_dict.get('discord', {}).get('events', {})
         discord_config = DiscordConfig(
             webhook_url=config_dict.get('discord', {}).get('webhook_url', ''),
@@ -841,6 +843,9 @@ class ConfigLoader:
             ItemContainerForceMarkDirtyInterval=palworld_settings_dict.get('ItemContainerForceMarkDirtyInterval', 1.0),
         )
 
+        # Language configuration (NEW for Discord multi-language support)
+        language = config_dict.get('language', 'ko')
+
         # Return complete PalworldConfig with all configurations
         return PalworldConfig(
             server=server_config,
@@ -861,6 +866,7 @@ class ConfigLoader:
             difficulty=difficulty_config,
             engine=engine_config,
             palworld_settings=palworld_settings_config,
+            language=language,  # NEW: Language setting
         )
 
     
@@ -904,6 +910,11 @@ class ConfigLoader:
         
         if config.server_startup.worker_threads_count < 0:
             raise ValueError(f"Invalid worker threads count: {config.server_startup.worker_threads_count}")
+        
+        # Language validation (NEW)
+        valid_languages = ['ko', 'en', 'ja', 'zh']
+        if config.language not in valid_languages:
+            raise ValueError(f"Invalid language: {config.language}. Supported: {valid_languages}")
         
         return True
 
@@ -964,5 +975,6 @@ if __name__ == "__main__":
         print(f"Palworld settings ServerName: {config.palworld_settings.ServerName}")
         print(f"Server startup performance threads: {config.server_startup.use_performance_threads}")
         print(f"Server startup query port: {config.server_startup.query_port}")
+        print(f"Language: {config.language}")  # NEW
     except Exception as e:
         print(f"❌ Configuration load failed: {e}")

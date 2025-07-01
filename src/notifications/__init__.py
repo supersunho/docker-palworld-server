@@ -1,8 +1,30 @@
+#!/usr/bin/env python3
 """
-Notification system package
-Discord and other notification integrations
+Notification system for Palworld server
+Discord webhook notifications with multi-language support
 """
 
-from .discord_notifier import get_discord_notifier, DiscordNotifier, NotificationLevel
+# Main notification classes
+from .discord_notifier import (
+    DiscordNotifier,
+    NotificationLevel,
+    get_discord_notifier
+)
 
-__all__ = ['get_discord_notifier', 'DiscordNotifier', 'NotificationLevel']
+# Message localization system
+from .message_loader import (
+    MessageLoader,
+    get_message_loader
+)
+
+# Export public API
+__all__ = [
+    # Discord notification system
+    'DiscordNotifier',
+    'NotificationLevel', 
+    'get_discord_notifier',
+    
+    # Message localization
+    'MessageLoader',
+    'get_message_loader',
+]

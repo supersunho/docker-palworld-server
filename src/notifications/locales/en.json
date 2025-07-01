@@ -1,0 +1,41 @@
+{
+    "server": {
+        "start": ["🎉 **Palworld server is now online!** 🏝️\nStart your adventure! 🚀", "🌟 **Server Online!** Pals are waiting for you! 🐾", "⚡ **Palworld Opens!** New adventures await! ⚔️"],
+        "stop": ["💤 **Server is taking a break!** 🌙\nSee you later~ 👋", "🌅 **Maintenance time!** Coming back better! 🔧", "😴 **Good night!** Server is sleeping~ 🌟"]
+    },
+    "player": {
+        "join": [
+            "🎊 **{player} appears!** Welcome to Palworld! 🏝️",
+            "⚡ **A wild {player} appeared!** 🦖",
+            "🚀 **{player} started their adventure!** Ready? ⚔️",
+            "🌟 **{player} connected!** Pals are waiting! 🐾"
+        ],
+        "leave": [
+            "👋 **{player} goodbye!** Great adventure~ 🌅",
+            "🏠 **{player} went home!** See you next time! 😊",
+            "💤 **{player} good night!** Dream of Palworld! 🌙",
+            "🎒 **{player} adventure complete!** Well done! ✨"
+        ]
+    },
+    "backup": {
+        "complete": [
+            "💾 **Server data safely stored!** ✨\nYour adventures are protected! 🛡️",
+            "📦 **Backup complete!** Precious memories are safe! 💖",
+            "🔒 **Data protection complete!** Adventure worry-free! 🚀"
+        ]
+    },
+    "error": {
+        "general": ["⚠️ **Server issue detected!** 🔧\nAdmin is fixing it~ 💪", "🚨 **Wait! Something's wrong!** Fixing quickly! ⚡", "😅 **Oops! Small issue!** Will fix soon! 🛠️"]
+    },
+    "status": {
+        "alone": "Having fun alone! 🎮",
+        "few": "Currently {count} players adventuring! 👥",
+        "many": "Wow! {count} players online! 🎉"
+    },
+    "greeting": {
+        "morning": "Good morning! ☀️",
+        "afternoon": "Good afternoon! 🌤️",
+        "evening": "Good evening! 🌆",
+        "night": "Late night adventure! 🌙"
+    }
+}
