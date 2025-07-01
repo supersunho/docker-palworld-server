@@ -1,11 +1,5 @@
-# Palworld Dedicated Server Configuration
-# Complete configuration with environment variable support
-# All settings can be overridden via Docker environment variables
-
-# Language configuration (NEW)
 language: ${LANGUAGE:ko}
 
-# Core server configuration (basic info only)
 server:
     name: "${SERVER_NAME:Palworld Server}"
     password: "${SERVER_PASSWORD:}"
@@ -14,43 +8,27 @@ server:
     port: ${SERVER_PORT:8211}
     description: "${SERVER_DESCRIPTION:A Palworld dedicated server}"
 
-# REST API configuration
 rest_api:
     enabled: ${RESTAPI_ENABLED:true}
     port: ${RESTAPI_PORT:8212}
     host: ${RESTAPI_HOST:localhost}
 
-# RCON configuration (fixed missing closing brace)
 rcon:
     enabled: ${RCON_ENABLED:true}
     port: ${RCON_PORT:25575}
     host: ${RCON_HOST:localhost}
 
-# Server startup options for PalServer.sh execution
 server_startup:
-    # Performance optimization options (official documentation recommended)
     use_performance_threads: ${USE_PERFORMANCE_THREADS:true}
     disable_async_loading: ${DISABLE_ASYNC_LOADING:true}
     use_multithread_for_ds: ${USE_MULTITHREAD_FOR_DS:true}
-
-    # Network settings
-    query_port: ${QUERY_PORT:27018} # Change from default 27015 to avoid conflicts
-
-    # Community server settings
+    query_port: ${QUERY_PORT:27018}
     enable_public_lobby: ${ENABLE_PUBLIC_LOBBY:false}
-
-    # Logging configuration
-    log_format: ${LOG_FORMAT:text} # Options: text, json
-
-    # Advanced performance settings
-    worker_threads_count: ${WORKER_THREADS_COUNT:0} # 0 = auto (CPU cores - 1)
-
-    # Custom additional options
+    log_format: ${LOG_FORMAT:text}
+    worker_threads_count: ${WORKER_THREADS_COUNT:0}
     additional_options: ${ADDITIONAL_SERVER_OPTIONS:""}
 
-# Direct Palworld settings (INI key names for automatic conversion)
 palworld_settings:
-    # Core server settings
     AdminPassword: "${ADMIN_PASSWORD:admin123}"
     CoopPlayerMaxNum: ${COOP_PLAYER_MAX_NUM:4}
     PublicIP: "${PUBLIC_IP:}"
@@ -60,36 +38,30 @@ palworld_settings:
     ServerPassword: "${SERVER_PASSWORD:}"
     ServerPlayerMaxNum: ${SERVER_PLAYER_MAX_NUM:32}
 
-    # API and RCON settings
     RCONEnabled: ${RCON_ENABLED:true}
     RCONPort: ${RCON_PORT:25575}
     RESTAPIEnabled: ${RESTAPI_ENABLED:true}
     RESTAPIPort: ${RESTAPI_PORT:8212}
 
-    # Authentication and region
     BanListURL: "${BAN_LIST_URL:https://api.palworldgame.com/api/banlist.txt}"
     Region: "${REGION:}"
     bUseAuth: ${USE_AUTH:true}
 
-    # Game difficulty and mode
     DeathPenalty: "${DEATH_PENALTY:All}"
     Difficulty: "${DIFFICULTY:None}"
     bHardcore: ${HARDCORE:false}
     bIsMultiplay: ${IS_MULTIPLAY:false}
     bIsPvP: ${IS_PV_P:false}
 
-    # Randomizer settings
     RandomizerSeed: "${RANDOMIZER_SEED:}"
     RandomizerType: "${RANDOMIZER_TYPE:None}"
     bIsRandomizerPalLevelRandom: ${IS_RANDOMIZER_PAL_LEVEL_RANDOM:false}
 
-    # Time and experience rates
     DayTimeSpeedRate: ${DAY_TIME_SPEED_RATE:1.0}
     ExpRate: ${EXP_RATE:1.0}
     NightTimeSpeedRate: ${NIGHT_TIME_SPEED_RATE:1.0}
     WorkSpeedRate: ${WORK_SPEED_RATE:1.0}
 
-    # Pal settings
     PalAutoHPRegeneRate: ${PAL_AUTO_HP_REGENE_RATE:1.0}
     PalAutoHpRegeneRateInSleep: ${PAL_AUTO_HP_REGENE_RATE_IN_SLEEP:1.0}
     PalCaptureRate: ${PAL_CAPTURE_RATE:1.0}
@@ -100,7 +72,6 @@ palworld_settings:
     PalStaminaDecreaceRate: ${PAL_STAMINA_DECREACE_RATE:1.0}
     PalStomachDecreaceRate: ${PAL_STOMACH_DECREACE_RATE:1.0}
 
-    # Player settings
     PlayerAutoHPRegeneRate: ${PLAYER_AUTO_HP_REGENE_RATE:1.0}
     PlayerAutoHpRegeneRateInSleep: ${PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP:1.0}
     PlayerDamageRateAttack: ${PLAYER_DAMAGE_RATE_ATTACK:1.0}
@@ -108,12 +79,10 @@ palworld_settings:
     PlayerStaminaDecreaceRate: ${PLAYER_STAMINA_DECREACE_RATE:1.0}
     PlayerStomachDecreaceRate: ${PLAYER_STOMACH_DECREACE_RATE:1.0}
 
-    # PvP and combat settings
     bEnableFriendlyFire: ${ENABLE_FRIENDLY_FIRE:false}
     bEnableInvaderEnemy: ${ENABLE_INVADER_ENEMY:true}
     bEnablePlayerToPlayerDamage: ${ENABLE_PLAYER_TO_PLAYER_DAMAGE:false}
 
-    # Building and objects
     BuildObjectDamageRate: ${BUILD_OBJECT_DAMAGE_RATE:1.0}
     BuildObjectDeteriorationDamageRate: ${BUILD_OBJECT_DETERIORATION_DAMAGE_RATE:1.0}
     BuildObjectHpRate: ${BUILD_OBJECT_HP_RATE:1.0}
@@ -124,24 +93,20 @@ palworld_settings:
     MaxBuildingLimitNum: ${MAX_BUILDING_LIMIT_NUM:0}
     bBuildAreaLimit: ${BUILD_AREA_LIMIT:false}
 
-    # Base camp settings
     BaseCampMaxNum: ${BASE_CAMP_MAX_NUM:128}
     BaseCampMaxNumInGuild: ${BASE_CAMP_MAX_NUM_IN_GUILD:4}
     BaseCampWorkerMaxNum: ${BASE_CAMP_WORKER_MAX_NUM:15}
 
-    # Guild settings
     AutoResetGuildTimeNoOnlinePlayers: ${AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS:72.0}
     GuildPlayerMaxNum: ${GUILD_PLAYER_MAX_NUM:20}
     bAutoResetGuildNoOnlinePlayers: ${AUTO_RESET_GUILD_NO_ONLINE_PLAYERS:false}
 
-    # Items and drops
     DropItemAliveMaxHours: ${DROP_ITEM_ALIVE_MAX_HOURS:1.0}
     DropItemMaxNum: ${DROP_ITEM_MAX_NUM:3000}
     DropItemMaxNum_UNKO: ${DROP_ITEM_MAX_NUM_UNKO:100}
     EquipmentDurabilityDamageRate: ${EQUIPMENT_DURABILITY_DAMAGE_RATE:1.0}
     ItemWeightRate: ${ITEM_WEIGHT_RATE:1.0}
 
-    # Game mechanics
     bActiveUNKO: ${ACTIVE_UNKO:false}
     bCanPickupOtherGuildDeathPenaltyDrop: ${CAN_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP:false}
     bEnableAimAssistKeyboard: ${ENABLE_AIM_ASSIST_KEYBOARD:false}
@@ -153,37 +118,28 @@ palworld_settings:
     bInvisibleOtherGuildBaseCampAreaFX: ${INVISIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX:false}
     bIsStartLocationSelectByMap: ${IS_START_LOCATION_SELECT_BY_MAP:true}
 
-    # Save and backup
     AutoSaveSpan: ${AUTO_SAVE_SPAN:30.0}
     bIsUseBackupSaveData: ${IS_USE_BACKUP_SAVE_DATA:true}
 
-    # Chat and communication
     ChatPostLimitPerMinute: ${CHAT_POST_LIMIT_PER_MINUTE:30}
     bShowPlayerList: ${SHOW_PLAYER_LIST:false}
 
-    # Loss and hardcore settings
     bCharacterRecreateInHardcore: ${CHARACTER_RECREATE_IN_HARDCORE:false}
     bPalLost: ${PAL_LOST:false}
 
-    # Logging and monitoring
     LogFormatType: "${LOG_FORMAT_TYPE:Text}"
 
-    # Special events and features
     EnablePredatorBossPal: ${ENABLE_PREDATOR_BOSS_PAL:true}
     SupplyDropSpan: ${SUPPLY_DROP_SPAN:180}
 
-    # Platform settings
     CrossplayPlatforms: "${CROSSPLAY_PLATFORMS:(Steam,Xbox,PS5,Mac)}"
 
-    # Global Palbox settings
     bAllowGlobalPalboxExport: ${ALLOW_GLOBAL_PALBOX_EXPORT:true}
     bAllowGlobalPalboxImport: ${ALLOW_GLOBAL_PALBOX_IMPORT:false}
 
-    # Network settings
     ItemContainerForceMarkDirtyInterval: ${ITEM_CONTAINER_FORCE_MARK_DIRTY_INTERVAL:1.0}
     ServerReplicatePawnCullDistance: ${SERVER_REPLICATE_PAWN_CULL_DISTANCE:15000.0}
 
-# Monitoring and metrics configuration
 monitoring:
     mode: "${MONITORING_MODE:logs}"
     log_level: "${LOG_LEVEL:INFO}"
@@ -191,7 +147,6 @@ monitoring:
     enable_dashboard: ${ENABLE_DASHBOARD:true}
     dashboard_port: ${DASHBOARD_PORT:8080}
 
-# Backup system configuration
 backup:
     enabled: ${BACKUP_ENABLED:true}
     interval_seconds: ${BACKUP_INTERVAL:3600}
@@ -202,7 +157,6 @@ backup:
     max_backups: ${BACKUP_MAX_COUNT:100}
     cleanup_interval: ${BACKUP_CLEANUP_INTERVAL:86400}
 
-# Discord notification configuration
 discord:
     webhook_url: "${DISCORD_WEBHOOK_URL:}"
     enabled: ${DISCORD_ENABLED:false}
@@ -215,21 +169,18 @@ discord:
         backup_complete: ${DISCORD_EVENT_BACKUP:true}
         errors: ${DISCORD_EVENT_ERRORS:true}
 
-# Directory path configuration
 paths:
     server_dir: "${SERVER_DIR:/home/steam/palworld_server}"
     backup_dir: "${BACKUP_DIR:/home/steam/backups}"
     log_dir: "${LOG_DIR:/home/steam/logs}"
     steamcmd_dir: "${STEAMCMD_DIR:/home/steam/steamcmd}"
 
-# SteamCMD configuration
 steamcmd:
     app_id: 2394010
     validate: ${STEAMCMD_VALIDATE:true}
     auto_update: ${AUTO_UPDATE:true}
     update_on_start: ${UPDATE_ON_START:true}
 
-# Engine.ini performance configuration
 engine:
     lan_server_max_tick_rate: ${ENGINE_LAN_TICK_RATE:120}
     net_server_max_tick_rate: ${ENGINE_NET_TICK_RATE:120}

@@ -23,7 +23,6 @@ class IntegrationManager:
     
     async def initialize_clients(self) -> None:
         """Initialize API clients with proper error handling"""
-        # Initialize REST API client
         if self.config.rest_api.enabled:
             try:
                 self._api_client = RestAPIClient(self.config, self.logger)
@@ -35,7 +34,6 @@ class IntegrationManager:
                 self._api_client = None
                 self._api_initialized = False
         
-        # Initialize RCON client
         if self.config.rcon.enabled:
             try:
                 self._rcon_client = RconClient(self.config, self.logger)
@@ -82,7 +80,6 @@ class IntegrationManager:
         return (self._rcon_client is not None and 
                 self._rcon_initialized)
     
-    # REST API wrapper methods with better error handling
     async def api_get_server_info(self) -> Optional[Dict]:
         """Get server information via REST API"""
         if not self._is_api_available():
@@ -195,7 +192,6 @@ class IntegrationManager:
             self.logger.error(f"REST API shutdown_server error: {e}")
             return False
     
-    # RCON wrapper methods with better error handling
     async def rcon_get_server_info(self) -> Optional[str]:
         """Get server information via RCON"""
         if not self._is_rcon_available():
@@ -284,15 +280,12 @@ class IntegrationManager:
             self.logger.error(f"RCON execute_command error: {e}")
             return None
     
-    # Integrated management methods (REST API or RCON auto-select)
     async def get_server_info_any(self) -> Optional[Dict]:
         """Get server info using available API (REST first, then RCON)"""
-        # Try REST API first
         info = await self.api_get_server_info()
         if info:
             return info
         
-        # Fallback to RCON
         rcon_result = await self.rcon_get_server_info()
         if rcon_result:
             return {"source": "rcon", "info": rcon_result}
@@ -301,20 +294,16 @@ class IntegrationManager:
     
     async def announce_message_any(self, message: str) -> bool:
         """Announce message using available API"""
-        # Try REST API first
         if await self.api_announce_message(message):
             return True
         
-        # Fallback to RCON
         return await self.rcon_announce_message(message)
     
     async def save_world_any(self) -> bool:
         """Save world using available API"""
-        # Try REST API first
         if await self.api_save_world():
             return True
         
-        # Fallback to RCON
         return await self.rcon_save_world()
     
     def get_api_client(self) -> Optional[RestAPIClient]:

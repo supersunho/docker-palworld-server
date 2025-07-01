@@ -32,38 +32,27 @@ class ProcessManager:
         return poll_result is None
     
     def _build_startup_options(self) -> List[str]:
-        """
-        Build server startup options based on configuration
-        
-        Returns:
-            List of command line options for PalServer.sh
-        """
+        """Build server startup options based on configuration"""
         options = []
         startup_cfg = self.config.server_startup
         
-        # Performance optimization options (official documentation recommended)
         if (startup_cfg.use_performance_threads and 
             startup_cfg.disable_async_loading and 
             startup_cfg.use_multithread_for_ds):
             options.extend(["-useperfthreads", "-NoAsyncLoadingThread", "-UseMultithreadForDS"])
             
-            # Advanced worker threads configuration
             if startup_cfg.worker_threads_count > 0:
                 options.append(f"-NumberOfWorkerThreadsServer={startup_cfg.worker_threads_count}")
         
-        # Network configuration - query port (resolve 27015 port conflict)
         if startup_cfg.query_port != 27015:
             options.append(f"-queryport={startup_cfg.query_port}")
         
-        # Community server settings
         if startup_cfg.enable_public_lobby:
             options.append("-publiclobby")
         
-        # Logging format configuration
         if startup_cfg.log_format != "text":
             options.append(f"-logformat={startup_cfg.log_format}")
         
-        # Custom additional options from user configuration
         if startup_cfg.additional_options:
             additional_opts = startup_cfg.additional_options.strip().split()
             options.extend(additional_opts)
@@ -71,16 +60,10 @@ class ProcessManager:
         return options
     
     def _build_server_command(self) -> List[str]:
-        """
-        Build complete server command with dynamic options
-        
-        Returns:
-            Complete command list for subprocess execution
-        """
+        """Build complete server command with dynamic options"""
         server_executable = self.server_path / "PalServer.sh"
         startup_options = self._build_startup_options()
         
-        # Construct command with options
         if startup_options:
             command = f"{server_executable} {' '.join(startup_options)}"
             log_server_event(self.logger, "server_command_build", 
@@ -110,7 +93,6 @@ class ProcessManager:
             log_server_event(self.logger, "server_start", 
                            "Starting Palworld server with dynamic options")
             
-            # Build server command with dynamic startup options
             full_cmd = self._build_server_command()
             
             self.server_process = subprocess.Popen(
@@ -121,7 +103,6 @@ class ProcessManager:
                 text=True
             )
             
-            # Wait for startup stabilization
             time.sleep(10)
             
             if not self.is_server_running():
@@ -149,14 +130,12 @@ class ProcessManager:
             return True
         
         try:
-            # Attempt graceful shutdown via API if available
             if api_client:
                 try:
                     await api_client.announce_message(f"{message}. Shutting down in 30 seconds.")
                     await asyncio.sleep(30)
                     await api_client.shutdown_server(1, message)
                     
-                    # Wait for graceful shutdown
                     for _ in range(60):
                         if not self.is_server_running():
                             break
@@ -164,7 +143,6 @@ class ProcessManager:
                 except Exception as e:
                     self.logger.warning(f"API graceful shutdown failed: {e}")
             
-            # Force terminate if still running
             if self.is_server_running():
                 log_server_event(self.logger, "server_force_stop", 
                                "Attempting force termination")
@@ -202,12 +180,7 @@ class ProcessManager:
         }
     
     def get_startup_options_summary(self) -> dict:
-        """
-        Get summary of current startup options configuration
-        
-        Returns:
-            Dictionary containing startup options information
-        """
+        """Get summary of current startup options configuration"""
         startup_cfg = self.config.server_startup
         options = self._build_startup_options()
         

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Advanced health check script for Palworld server
-Comprehensive server health monitoring with multiple check layers
+Health check script for Palworld server
+Comprehensive server health monitoring
 """
 
 import sys
@@ -10,7 +10,7 @@ import aiohttp
 import os
 import time
 import json
-import subprocess  # Added for RCON support
+import subprocess
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
@@ -36,20 +36,17 @@ class HealthCheckResult:
 
 
 class HealthChecker:
-    """Advanced health checker for Palworld server"""
+    """Health checker for Palworld server"""
     
     def __init__(self): 
-        
         self.rest_api_host = os.getenv('REST_API_HOST', 'localhost')
         self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
         self.server_port = int(os.getenv('SERVER_PORT', '8211'))
         self.rcon_host = os.getenv('RCON_HOST', 'localhost')
-        self.rcon_port = int(os.getenv('RCON_PORT', '25575'))  # RCON port configuration
+        self.rcon_port = int(os.getenv('RCON_PORT', '25575'))
         self.admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
         self.rcon_password = self.admin_password
-        self.timeout = 10  # seconds
-
-        # Health check results
+        self.timeout = 10
         self.results: List[HealthCheckResult] = []
     
     async def check_rest_api_health(self) -> HealthCheckResult:
@@ -58,11 +55,9 @@ class HealthChecker:
         component = "rest_api"
         
         try:
-            # Create Basic Authentication for REST API
-            auth = aiohttp.BasicAuth("admin", self.rcon_password)  # Using admin password for auth
+            auth = aiohttp.BasicAuth("admin", self.rcon_password)
             
             async with aiohttp.ClientSession(auth=auth) as session:   
-                # Try different endpoints
                 endpoints = [
                     f'http://{self.rest_api_host}:{self.rest_api_port}/v1/api/info',
                     f'http://{self.rest_api_host}:{self.rest_api_port}/health'
@@ -82,14 +77,12 @@ class HealthChecker:
                                         details={
                                             "endpoint": url,
                                             "status_code": resp.status,
-                                            "response_data": data,
-                                            "authenticated": True   
+                                            "authenticated": True
                                         },
                                         response_time_ms=response_time,
                                         timestamp=time.time()
                                     )
                                 except:
-                                    # API responded but not with JSON
                                     return HealthCheckResult(
                                         component=component,
                                         status=HealthStatus.WARNING,
@@ -103,7 +96,6 @@ class HealthChecker:
                                         timestamp=time.time()
                                     )
                             elif resp.status == 401:
-                                # Authentication failed
                                 return HealthCheckResult(
                                     component=component,
                                     status=HealthStatus.UNHEALTHY,
@@ -134,7 +126,6 @@ class HealthChecker:
                     except Exception:
                         continue
                 
-                # All endpoints failed
                 return HealthCheckResult(
                     component=component,
                     status=HealthStatus.UNHEALTHY,
@@ -153,7 +144,6 @@ class HealthChecker:
                 response_time_ms=(time.time() - start_time) * 1000,
                 timestamp=time.time()
             )
-
     
     async def check_server_process(self) -> HealthCheckResult:
         """Check if Palworld server process is running"""
@@ -171,7 +161,6 @@ class HealthChecker:
                         (proc_info.get('cmdline') and 
                          any('PalServer' in str(cmd) for cmd in proc_info.get('cmdline', [])))):
                         
-                        # Get additional process information
                         with proc.oneshot():
                             server_processes.append({
                                 "pid": proc_info['pid'],
@@ -207,7 +196,6 @@ class HealthChecker:
                 )
                 
         except ImportError:
-            # Fallback to port checking if psutil not available
             return await self._check_port_listening()
         except Exception as e:
             return HealthCheckResult(
@@ -227,7 +215,6 @@ class HealthChecker:
         try:
             import socket
             
-            # Check if server port is listening
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             result = sock.connect_ex(('localhost', self.server_port))
             sock.close()
@@ -271,12 +258,10 @@ class HealthChecker:
         try:
             import psutil
             
-            # Collect system metrics
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
             
-            # Determine status based on thresholds
             status = HealthStatus.HEALTHY
             warnings = []
             
@@ -331,12 +316,11 @@ class HealthChecker:
             )
     
     async def check_rcon_health(self) -> HealthCheckResult:
-        """Check RCON server health with comprehensive testing"""
+        """Check RCON server health"""
         start_time = time.time()
         component = "rcon"
         
         try:
-            # Step 1: Check if RCON port is listening
             port_check = await self._check_rcon_port()
             if not port_check['success']:
                 return HealthCheckResult(
@@ -351,9 +335,7 @@ class HealthChecker:
                     timestamp=time.time()
                 )
             
-            # Step 2: Test RCON command execution
             rcon_test = await self._test_rcon_command()
-            
             response_time = (time.time() - start_time) * 1000
             
             if rcon_test['success']:
@@ -363,8 +345,7 @@ class HealthChecker:
                     message="RCON responding normally",
                     details={
                         "port": self.rcon_port,
-                        "test_command": "Info",
-                        "response_preview": rcon_test['response'][:100] if rcon_test['response'] else "OK"
+                        "test_command": "Info"
                     },
                     response_time_ms=response_time,
                     timestamp=time.time()
@@ -395,7 +376,6 @@ class HealthChecker:
     async def _check_rcon_port(self) -> Dict[str, Any]:
         """Check if RCON port is listening"""
         try:
-            # TCP connection test for RCON port
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(self.rcon_host, self.rcon_port),
                 timeout=5
@@ -415,16 +395,14 @@ class HealthChecker:
     async def _test_rcon_command(self) -> Dict[str, Any]:
         """Test RCON command execution using rcon-cli"""
         try:
-            # Execute RCON command using rcon-cli
             cmd = [
                 'rcon-cli',
                 '--host', 'localhost',
                 '--port', str(self.rcon_port),
                 '--password', self.rcon_password,
-                'Info'  # Simple info command for testing
+                'Info'
             ]
             
-            # Run command with timeout
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -462,7 +440,6 @@ class HealthChecker:
                 }
                 
         except FileNotFoundError:
-            # rcon-cli not found, fallback to port-only check
             return {
                 "success": True,
                 "response": "rcon-cli not available, port check only",
@@ -481,12 +458,11 @@ class HealthChecker:
             self.check_rest_api_health(),
             self.check_server_process(),
             self.check_system_resources(),
-            self.check_rcon_health()  # RCON health check added
+            self.check_rcon_health()
         ]
         
         self.results = await asyncio.gather(*checks, return_exceptions=True)
         
-        # Handle any exceptions that occurred during checks
         final_results = []
         for i, result in enumerate(self.results):
             if isinstance(result, Exception):
@@ -539,7 +515,6 @@ class HealthChecker:
                 ]
             }, indent=2)
         else:
-            # Text format
             overall_status = self.get_overall_status()
             status_emoji = {
                 HealthStatus.HEALTHY: "✅",
@@ -551,15 +526,14 @@ class HealthChecker:
             report = f"{status_emoji[overall_status]} Overall Status: {overall_status.value.upper()}\n\n"
             
             for result in self.results:
-                emoji = status_emoji[result.status]
-                report += f"{emoji} {result.component}: {result.message}\n"
+                status_text = status_emoji[result.status]
+                report += f"{status_text} {result.component}: {result.message}\n"
                 if result.response_time_ms > 0:
                     report += f"   Response time: {result.response_time_ms:.1f}ms\n"
                 
-                # Add key details
                 if result.details:
                     for key, value in result.details.items():
-                        if key not in ['error', 'processes']:  # Skip complex data
+                        if key not in ['error', 'processes']:
                             report += f"   {key}: {value}\n"
                 report += "\n"
             
@@ -568,24 +542,20 @@ class HealthChecker:
 
 async def main():
     """Main health check function"""
-    # Parse command line arguments
     format_json = "--json" in sys.argv
     verbose = "--verbose" in sys.argv
     
     checker = HealthChecker()
     
     try:
-        # Run all health checks
         results = await checker.run_all_checks()
         overall_status = checker.get_overall_status()
         
-        # Generate and print report
         if format_json:
             print(checker.generate_report("json"))
         else:
             print(checker.generate_report("text"))
         
-        # Exit with appropriate code
         if overall_status in [HealthStatus.HEALTHY, HealthStatus.WARNING]:
             return 0
         else:
@@ -598,7 +568,7 @@ async def main():
                 "timestamp": time.time()
             }))
         else:
-            print(f"🚨 Health check failed: {e}")
+            print(f"Health check failed: {e}")
         return 1
 
 
@@ -607,5 +577,5 @@ if __name__ == "__main__":
         exit_code = asyncio.run(main())
         sys.exit(exit_code)
     except Exception as e:
-        print(f"❌ Health check critical failure: {e}")
+        print(f"Health check critical failure: {e}")
         sys.exit(1)

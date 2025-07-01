@@ -51,31 +51,20 @@ class RconConfig:
 @dataclass
 class ServerStartupConfig:
     """Server startup options configuration for PalServer.sh execution"""
-    # Performance optimization options (official documentation recommended)
     use_performance_threads: bool = True
     disable_async_loading: bool = True
     use_multithread_for_ds: bool = True
-    
-    # Network settings
-    query_port: int = 27018  # Change from default 27015 to avoid conflicts
-    
-    # Community server settings
+    query_port: int = 27018
     enable_public_lobby: bool = False
-    
-    # Logging configuration
-    log_format: str = "text"  # Options: text, json
-    
-    # Advanced performance settings
-    worker_threads_count: int = 0  # 0 = auto (CPU cores - 1)
-    
-    # Custom additional options
+    log_format: str = "text"
+    worker_threads_count: int = 0
     additional_options: str = ""
 
 
 @dataclass
 class MonitoringConfig:
     """Monitoring configuration data class"""
-    mode: str = "both"  # logs, prometheus, both
+    mode: str = "both"
     log_level: str = "INFO"
     metrics_interval: int = 60
     enable_dashboard: bool = True
@@ -92,7 +81,7 @@ class BackupConfig:
     retention_months: int = 6
     compress: bool = True
     max_backups: int = 100
-    cleanup_interval: int = 86400  # 24 hours in seconds
+    cleanup_interval: int = 86400
 
 
 @dataclass
@@ -211,26 +200,17 @@ class SteamCMDConfig:
 @dataclass
 class EngineConfig:
     """Engine.ini configuration data class"""
-    # Network and tick rate settings
     lan_server_max_tick_rate: int = 120
     net_server_max_tick_rate: int = 120
-    
-    # Player network speed settings
     configured_internet_speed: int = 104857600
     configured_lan_speed: int = 104857600
-    
-    # Client rate settings
     max_client_rate: int = 104857600
     max_internet_client_rate: int = 104857600
-    
-    # Frame rate and smoothing settings
     smooth_frame_rate: bool = True
     use_fixed_frame_rate: bool = False
     min_desired_frame_rate: float = 60.0
     fixed_frame_rate: float = 120.0
     net_client_ticks_per_second: int = 120
-    
-    # Smoothed frame rate range settings
     frame_rate_lower_bound: float = 30.0
     frame_rate_upper_bound: float = 120.0
 
@@ -238,7 +218,6 @@ class EngineConfig:
 @dataclass
 class PalworldSettings:
     """Direct Palworld settings with INI key names for automatic conversion"""
-    # Core server settings
     ServerName: str = "Palworld Server"
     ServerDescription: str = "A Palworld dedicated server"
     AdminPassword: str = "admin123"
@@ -248,36 +227,30 @@ class PalworldSettings:
     ServerPlayerMaxNum: int = 32
     CoopPlayerMaxNum: int = 4
     
-    # API and RCON settings
     RESTAPIEnabled: bool = True
     RESTAPIPort: int = 8212
     RCONEnabled: bool = True
     RCONPort: int = 25575
     
-    # Authentication and region
     bUseAuth: bool = True
     Region: str = ""
     BanListURL: str = "https://api.palworldgame.com/api/banlist.txt"
     
-    # Game difficulty and mode
     Difficulty: str = "None"
     bIsMultiplay: bool = True
     bIsPvP: bool = False
     bHardcore: bool = False
     DeathPenalty: str = "All"
     
-    # Randomizer settings
     RandomizerType: str = "None"
     RandomizerSeed: str = ""
     bIsRandomizerPalLevelRandom: bool = False
     
-    # Time and experience rates
     DayTimeSpeedRate: float = 1.0
     NightTimeSpeedRate: float = 1.0
     ExpRate: float = 1.0
     WorkSpeedRate: float = 1.0
     
-    # Pal settings
     PalCaptureRate: float = 1.0
     PalSpawnNumRate: float = 1.0
     PalDamageRateAttack: float = 1.0
@@ -288,7 +261,6 @@ class PalworldSettings:
     PalAutoHpRegeneRateInSleep: float = 1.0
     PalEggDefaultHatchingTime: float = 72.0
     
-    # Player settings
     PlayerDamageRateAttack: float = 1.0
     PlayerDamageRateDefense: float = 1.0
     PlayerStomachDecreaceRate: float = 1.0
@@ -296,12 +268,10 @@ class PalworldSettings:
     PlayerAutoHPRegeneRate: float = 1.0
     PlayerAutoHpRegeneRateInSleep: float = 1.0
     
-    # PvP and combat settings
     bEnablePlayerToPlayerDamage: bool = False
     bEnableFriendlyFire: bool = False
     bEnableInvaderEnemy: bool = True
     
-    # Building and objects
     BuildObjectHpRate: float = 1.0
     BuildObjectDamageRate: float = 1.0
     BuildObjectDeteriorationDamageRate: float = 1.0
@@ -312,24 +282,20 @@ class PalworldSettings:
     MaxBuildingLimitNum: int = 0
     EnemyDropItemRate: float = 1.0
     
-    # Base camp settings
     BaseCampMaxNum: int = 128
     BaseCampWorkerMaxNum: int = 15
     BaseCampMaxNumInGuild: int = 4
     
-    # Guild settings
     GuildPlayerMaxNum: int = 20
     bAutoResetGuildNoOnlinePlayers: bool = False
     AutoResetGuildTimeNoOnlinePlayers: float = 72.0
     
-    # Items and drops
     DropItemMaxNum: int = 3000
     DropItemMaxNum_UNKO: int = 100
     DropItemAliveMaxHours: float = 1.0
     ItemWeightRate: float = 1.0
     EquipmentDurabilityDamageRate: float = 1.0
     
-    # Game mechanics
     bActiveUNKO: bool = False
     bEnableAimAssistPad: bool = True
     bEnableAimAssistKeyboard: bool = False
@@ -341,33 +307,25 @@ class PalworldSettings:
     bEnableDefenseOtherGuildPlayer: bool = False
     bInvisibleOtherGuildBaseCampAreaFX: bool = False
     
-    # Save and backup
     AutoSaveSpan: float = 30.0
     bIsUseBackupSaveData: bool = True
     
-    # Chat and communication
     bShowPlayerList: bool = False
     ChatPostLimitPerMinute: int = 30
     
-    # Loss and hardcore settings
     bPalLost: bool = False
     bCharacterRecreateInHardcore: bool = False
     
-    # Logging and monitoring
     LogFormatType: str = "Text"
     
-    # Special events and features
     SupplyDropSpan: int = 180
     EnablePredatorBossPal: bool = True
     
-    # Platform settings
     CrossplayPlatforms: str = "(Steam,Xbox,PS5,Mac)"
     
-    # Global Palbox settings
     bAllowGlobalPalboxExport: bool = True
     bAllowGlobalPalboxImport: bool = False
     
-    # Network settings
     ServerReplicatePawnCullDistance: float = 15000.0
     ItemContainerForceMarkDirtyInterval: float = 1.0
 
@@ -393,25 +351,17 @@ class PalworldConfig:
     difficulty: DifficultyConfig = field(default_factory=DifficultyConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
     palworld_settings: PalworldSettings = field(default_factory=PalworldSettings)
-    # NEW: Language setting for Discord multi-language support
     language: str = "ko"
 
 
 class ConfigLoader:
     """Configuration loader class"""
     
-    # Environment variable substitution pattern: ${VAR_NAME:default_value}
     ENV_VAR_PATTERN = re.compile(r'\$\{([^}:]+)(?::([^}]*))?\}')
     
     def __init__(self, config_path: Optional[Union[str, Path]] = None):
-        """
-        Initialize configuration loader
-        
-        Args:
-            config_path: Configuration file path (default: config/default.yaml)
-        """
+        """Initialize configuration loader"""
         if config_path is None:
-            # Find config directory from current script location
             current_dir = Path(__file__).parent.parent
             config_path = current_dir / "config" / "default.yaml"
         
@@ -420,15 +370,7 @@ class ConfigLoader:
         self._processed_config: Dict[str, Any] = {}
     
     def _substitute_env_vars(self, value: Any) -> Any:
-        """
-        Process environment variable substitution
-        
-        Args:
-            value: Value to substitute
-            
-        Returns:
-            Value with environment variables substituted
-        """
+        """Process environment variable substitution"""
         if isinstance(value, str):
             def replace_env_var(match):
                 var_name = match.group(1)
@@ -446,23 +388,13 @@ class ConfigLoader:
         return value
     
     def _convert_types(self, value: Any) -> Any:
-        """
-        Convert strings to appropriate types
-        
-        Args:
-            value: Value to convert
-            
-        Returns:
-            Type-converted value
-        """
+        """Convert strings to appropriate types"""
         if isinstance(value, str):
-            # Boolean value processing
             if value.lower() in ('true', 'yes', '1', 'on'):
                 return True
             elif value.lower() in ('false', 'no', '0', 'off'):
                 return False
             
-            # Numeric value processing
             if value.isdigit():
                 return int(value)
             
@@ -481,17 +413,7 @@ class ConfigLoader:
         return value
     
     def load_config(self) -> PalworldConfig:
-        """
-        Load configuration file and apply environment variables
-        
-        Returns:
-            PalworldConfig instance
-            
-        Raises:
-            FileNotFoundError: When configuration file is not found
-            yaml.YAMLError: YAML parsing error
-        """
-        # Load YAML file
+        """Load configuration file and apply environment variables"""
         if not self.config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
         
@@ -501,25 +423,15 @@ class ConfigLoader:
         except yaml.YAMLError as e:
             raise yaml.YAMLError(f"YAML file parsing error: {e}")
         
-        # Environment variable substitution
         self._processed_config = self._substitute_env_vars(self._raw_config)
-        
-        # Type conversion
         self._processed_config = self._convert_types(self._processed_config)
         
-        # Create data class instance
         return self._create_config_instance()
     
     def _create_config_instance(self) -> PalworldConfig:
-        """
-        Create PalworldConfig instance from dictionary
-        
-        Returns:
-            PalworldConfig instance
-        """
+        """Create PalworldConfig instance from dictionary"""
         config_dict = self._processed_config
         
-        # Server configuration
         server_config = ServerConfig(
             name=config_dict.get('server', {}).get('name', 'Palworld Server'),
             password=config_dict.get('server', {}).get('password', ''),
@@ -529,21 +441,18 @@ class ConfigLoader:
             description=config_dict.get('server', {}).get('description', 'A Palworld dedicated server'),
         )
         
-        # REST API configuration
         rest_api_config = RestAPIConfig(
             enabled=config_dict.get('rest_api', {}).get('enabled', True),
             port=config_dict.get('rest_api', {}).get('port', 8212),
             host=config_dict.get('rest_api', {}).get('host', 'localhost'),
         )
         
-        # RCON configuration
         rcon_config = RconConfig(
             enabled=config_dict.get('rcon', {}).get('enabled', False),
             port=config_dict.get('rcon', {}).get('port', 25575),
             host=config_dict.get('rcon', {}).get('host', 'localhost'),
         )
         
-        # Server startup configuration
         server_startup_config = ServerStartupConfig(
             use_performance_threads=config_dict.get('server_startup', {}).get('use_performance_threads', True),
             disable_async_loading=config_dict.get('server_startup', {}).get('disable_async_loading', True),
@@ -555,7 +464,6 @@ class ConfigLoader:
             additional_options=config_dict.get('server_startup', {}).get('additional_options', ''),
         )
         
-        # Monitoring configuration
         monitoring_config = MonitoringConfig(
             mode=config_dict.get('monitoring', {}).get('mode', 'both'),
             log_level=config_dict.get('monitoring', {}).get('log_level', 'INFO'),
@@ -564,7 +472,6 @@ class ConfigLoader:
             dashboard_port=config_dict.get('monitoring', {}).get('dashboard_port', 8080),
         )
         
-        # Backup configuration
         backup_config = BackupConfig(
             enabled=config_dict.get('backup', {}).get('enabled', True),
             interval_seconds=config_dict.get('backup', {}).get('interval_seconds', 3600),
@@ -576,7 +483,6 @@ class ConfigLoader:
             cleanup_interval=config_dict.get('backup', {}).get('cleanup_interval', 86400),
         )
         
-        # Discord configuration with enhanced event mapping
         discord_events = config_dict.get('discord', {}).get('events', {})
         discord_config = DiscordConfig(
             webhook_url=config_dict.get('discord', {}).get('webhook_url', ''),
@@ -592,7 +498,6 @@ class ConfigLoader:
             }
         )
         
-        # Path configuration
         paths_config = ConfigPaths(
             server_dir=Path(config_dict.get('paths', {}).get('server_dir', '/home/steam/palworld_server')),
             backup_dir=Path(config_dict.get('paths', {}).get('backup_dir', '/home/steam/backups')),
@@ -600,7 +505,6 @@ class ConfigLoader:
             steamcmd_dir=Path(config_dict.get('paths', {}).get('steamcmd_dir', '/home/steam/steamcmd')),
         )
         
-        # SteamCMD configuration
         steamcmd_config = SteamCMDConfig(
             app_id=config_dict.get('steamcmd', {}).get('app_id', 2394010),
             validate=config_dict.get('steamcmd', {}).get('validate', True),
@@ -608,7 +512,6 @@ class ConfigLoader:
             update_on_start=config_dict.get('steamcmd', {}).get('update_on_start', True),
         )
         
-        # Gameplay configuration
         gameplay_config = GameplayConfig(
             region=config_dict.get('gameplay', {}).get('region', ''),
             banlist_url=config_dict.get('gameplay', {}).get('banlist_url', 'https://api.palworldgame.com/api/banlist.txt'),
@@ -630,27 +533,23 @@ class ConfigLoader:
             use_auth=config_dict.get('gameplay', {}).get('use_auth', True),
         )
         
-        # Items configuration
         items_config = ItemsConfig(
             drop_item_max_num=config_dict.get('items', {}).get('drop_item_max_num', 3000),
             drop_item_max_num_unko=config_dict.get('items', {}).get('drop_item_max_num_unko', 100),
             drop_item_alive_max_hours=config_dict.get('items', {}).get('drop_item_alive_max_hours', 1.0),
         )
         
-        # Base camp configuration
         base_camp_config = BaseCampConfig(
             max_num=config_dict.get('base_camp', {}).get('max_num', 128),
             worker_max_num=config_dict.get('base_camp', {}).get('worker_max_num', 15),
         )
         
-        # Guild configuration
         guild_config = GuildConfig(
             player_max_num=config_dict.get('guild', {}).get('player_max_num', 20),
             auto_reset_guild_no_online_players=config_dict.get('guild', {}).get('auto_reset_guild_no_online_players', False),
             auto_reset_guild_time_no_online_players=config_dict.get('guild', {}).get('auto_reset_guild_time_no_online_players', 72.0),
         )
         
-        # Pal settings configuration
         pal_settings_config = PalSettingsConfig(
             egg_default_hatching_time=config_dict.get('pal_settings', {}).get('egg_default_hatching_time', 72.0),
             work_speed_rate=config_dict.get('pal_settings', {}).get('work_speed_rate', 1.0),
@@ -673,7 +572,6 @@ class ConfigLoader:
             player_auto_hp_regene_rate_in_sleep=config_dict.get('pal_settings', {}).get('player_auto_hp_regene_rate_in_sleep', 1.0),
         )
         
-        # Building configuration
         building_config = BuildingConfig(
             build_object_damage_rate=config_dict.get('building', {}).get('build_object_damage_rate', 1.0),
             build_object_deterioration_damage_rate=config_dict.get('building', {}).get('build_object_deterioration_damage_rate', 1.0),
@@ -683,13 +581,11 @@ class ConfigLoader:
             enemy_drop_item_rate=config_dict.get('building', {}).get('enemy_drop_item_rate', 1.0),
         )
         
-        # Difficulty configuration
         difficulty_config = DifficultyConfig(
             level=config_dict.get('difficulty', {}).get('level', 'None'),
             death_penalty=config_dict.get('difficulty', {}).get('death_penalty', 'All'),
         )
         
-        # Engine configuration
         engine_config = EngineConfig(
             lan_server_max_tick_rate=config_dict.get('engine', {}).get('lan_server_max_tick_rate', 120),
             net_server_max_tick_rate=config_dict.get('engine', {}).get('net_server_max_tick_rate', 120),
@@ -705,11 +601,9 @@ class ConfigLoader:
             frame_rate_lower_bound=config_dict.get('engine', {}).get('frame_rate_lower_bound', 30.0),
             frame_rate_upper_bound=config_dict.get('engine', {}).get('frame_rate_upper_bound', 120.0),
         )
-
-        # Palworld settings configuration (new section)
+        
         palworld_settings_dict = config_dict.get('palworld_settings', {})
         palworld_settings_config = PalworldSettings(
-            # Core server settings
             ServerName=palworld_settings_dict.get('ServerName', 'Palworld Server'),
             ServerDescription=palworld_settings_dict.get('ServerDescription', 'A Palworld dedicated server'),
             AdminPassword=palworld_settings_dict.get('AdminPassword', 'admin123'),
@@ -719,36 +613,30 @@ class ConfigLoader:
             ServerPlayerMaxNum=palworld_settings_dict.get('ServerPlayerMaxNum', 32),
             CoopPlayerMaxNum=palworld_settings_dict.get('CoopPlayerMaxNum', 4),
             
-            # API and RCON settings
             RESTAPIEnabled=palworld_settings_dict.get('RESTAPIEnabled', True),
             RESTAPIPort=palworld_settings_dict.get('RESTAPIPort', 8212),
             RCONEnabled=palworld_settings_dict.get('RCONEnabled', True),
             RCONPort=palworld_settings_dict.get('RCONPort', 25575),
             
-            # Authentication and region
             bUseAuth=palworld_settings_dict.get('bUseAuth', True),
             Region=palworld_settings_dict.get('Region', ''),
             BanListURL=palworld_settings_dict.get('BanListURL', 'https://api.palworldgame.com/api/banlist.txt'),
             
-            # Game difficulty and mode
             Difficulty=palworld_settings_dict.get('Difficulty', 'None'),
             bIsMultiplay=palworld_settings_dict.get('bIsMultiplay', True),
             bIsPvP=palworld_settings_dict.get('bIsPvP', False),
             bHardcore=palworld_settings_dict.get('bHardcore', False),
             DeathPenalty=palworld_settings_dict.get('DeathPenalty', 'All'),
             
-            # Randomizer settings
             RandomizerType=palworld_settings_dict.get('RandomizerType', 'None'),
             RandomizerSeed=palworld_settings_dict.get('RandomizerSeed', ''),
             bIsRandomizerPalLevelRandom=palworld_settings_dict.get('bIsRandomizerPalLevelRandom', False),
             
-            # Time and experience rates
             DayTimeSpeedRate=palworld_settings_dict.get('DayTimeSpeedRate', 1.0),
             NightTimeSpeedRate=palworld_settings_dict.get('NightTimeSpeedRate', 1.0),
             ExpRate=palworld_settings_dict.get('ExpRate', 1.0),
             WorkSpeedRate=palworld_settings_dict.get('WorkSpeedRate', 1.0),
             
-            # Pal settings
             PalCaptureRate=palworld_settings_dict.get('PalCaptureRate', 1.0),
             PalSpawnNumRate=palworld_settings_dict.get('PalSpawnNumRate', 1.0),
             PalDamageRateAttack=palworld_settings_dict.get('PalDamageRateAttack', 1.0),
@@ -759,7 +647,6 @@ class ConfigLoader:
             PalAutoHpRegeneRateInSleep=palworld_settings_dict.get('PalAutoHpRegeneRateInSleep', 1.0),
             PalEggDefaultHatchingTime=palworld_settings_dict.get('PalEggDefaultHatchingTime', 72.0),
             
-            # Player settings
             PlayerDamageRateAttack=palworld_settings_dict.get('PlayerDamageRateAttack', 1.0),
             PlayerDamageRateDefense=palworld_settings_dict.get('PlayerDamageRateDefense', 1.0),
             PlayerStomachDecreaceRate=palworld_settings_dict.get('PlayerStomachDecreaceRate', 1.0),
@@ -767,12 +654,10 @@ class ConfigLoader:
             PlayerAutoHPRegeneRate=palworld_settings_dict.get('PlayerAutoHPRegeneRate', 1.0),
             PlayerAutoHpRegeneRateInSleep=palworld_settings_dict.get('PlayerAutoHpRegeneRateInSleep', 1.0),
             
-            # PvP and combat settings
             bEnablePlayerToPlayerDamage=palworld_settings_dict.get('bEnablePlayerToPlayerDamage', False),
             bEnableFriendlyFire=palworld_settings_dict.get('bEnableFriendlyFire', False),
             bEnableInvaderEnemy=palworld_settings_dict.get('bEnableInvaderEnemy', True),
             
-            # Building and objects
             BuildObjectHpRate=palworld_settings_dict.get('BuildObjectHpRate', 1.0),
             BuildObjectDamageRate=palworld_settings_dict.get('BuildObjectDamageRate', 1.0),
             BuildObjectDeteriorationDamageRate=palworld_settings_dict.get('BuildObjectDeteriorationDamageRate', 1.0),
@@ -783,24 +668,20 @@ class ConfigLoader:
             MaxBuildingLimitNum=palworld_settings_dict.get('MaxBuildingLimitNum', 0),
             EnemyDropItemRate=palworld_settings_dict.get('EnemyDropItemRate', 1.0),
             
-            # Base camp settings
             BaseCampMaxNum=palworld_settings_dict.get('BaseCampMaxNum', 128),
             BaseCampWorkerMaxNum=palworld_settings_dict.get('BaseCampWorkerMaxNum', 15),
             BaseCampMaxNumInGuild=palworld_settings_dict.get('BaseCampMaxNumInGuild', 4),
             
-            # Guild settings
             GuildPlayerMaxNum=palworld_settings_dict.get('GuildPlayerMaxNum', 20),
             bAutoResetGuildNoOnlinePlayers=palworld_settings_dict.get('bAutoResetGuildNoOnlinePlayers', False),
             AutoResetGuildTimeNoOnlinePlayers=palworld_settings_dict.get('AutoResetGuildTimeNoOnlinePlayers', 72.0),
             
-            # Items and drops
             DropItemMaxNum=palworld_settings_dict.get('DropItemMaxNum', 3000),
             DropItemMaxNum_UNKO=palworld_settings_dict.get('DropItemMaxNum_UNKO', 100),
             DropItemAliveMaxHours=palworld_settings_dict.get('DropItemAliveMaxHours', 1.0),
             ItemWeightRate=palworld_settings_dict.get('ItemWeightRate', 1.0),
             EquipmentDurabilityDamageRate=palworld_settings_dict.get('EquipmentDurabilityDamageRate', 1.0),
             
-            # Game mechanics
             bActiveUNKO=palworld_settings_dict.get('bActiveUNKO', False),
             bEnableAimAssistPad=palworld_settings_dict.get('bEnableAimAssistPad', True),
             bEnableAimAssistKeyboard=palworld_settings_dict.get('bEnableAimAssistKeyboard', False),
@@ -812,41 +693,31 @@ class ConfigLoader:
             bEnableDefenseOtherGuildPlayer=palworld_settings_dict.get('bEnableDefenseOtherGuildPlayer', False),
             bInvisibleOtherGuildBaseCampAreaFX=palworld_settings_dict.get('bInvisibleOtherGuildBaseCampAreaFX', False),
             
-            # Save and backup
             AutoSaveSpan=palworld_settings_dict.get('AutoSaveSpan', 30.0),
             bIsUseBackupSaveData=palworld_settings_dict.get('bIsUseBackupSaveData', True),
             
-            # Chat and communication
             bShowPlayerList=palworld_settings_dict.get('bShowPlayerList', False),
             ChatPostLimitPerMinute=palworld_settings_dict.get('ChatPostLimitPerMinute', 30),
             
-            # Loss and hardcore settings
             bPalLost=palworld_settings_dict.get('bPalLost', False),
             bCharacterRecreateInHardcore=palworld_settings_dict.get('bCharacterRecreateInHardcore', False),
             
-            # Logging and monitoring
             LogFormatType=palworld_settings_dict.get('LogFormatType', 'Text'),
             
-            # Special events and features
             SupplyDropSpan=palworld_settings_dict.get('SupplyDropSpan', 180),
             EnablePredatorBossPal=palworld_settings_dict.get('EnablePredatorBossPal', True),
             
-            # Platform settings
             CrossplayPlatforms=palworld_settings_dict.get('CrossplayPlatforms', '(Steam,Xbox,PS5,Mac)'),
             
-            # Global Palbox settings
             bAllowGlobalPalboxExport=palworld_settings_dict.get('bAllowGlobalPalboxExport', True),
             bAllowGlobalPalboxImport=palworld_settings_dict.get('bAllowGlobalPalboxImport', False),
             
-            # Network settings
             ServerReplicatePawnCullDistance=palworld_settings_dict.get('ServerReplicatePawnCullDistance', 15000.0),
             ItemContainerForceMarkDirtyInterval=palworld_settings_dict.get('ItemContainerForceMarkDirtyInterval', 1.0),
         )
 
-        # Language configuration (NEW for Discord multi-language support)
         language = config_dict.get('language', 'ko')
 
-        # Return complete PalworldConfig with all configurations
         return PalworldConfig(
             server=server_config,
             rest_api=rest_api_config,
@@ -866,41 +737,27 @@ class ConfigLoader:
             difficulty=difficulty_config,
             engine=engine_config,
             palworld_settings=palworld_settings_config,
-            language=language,  # NEW: Language setting
+            language=language,
         )
-
     
     def validate_config(self, config: PalworldConfig) -> bool:
-        """
-        Validate configuration
-        
-        Args:
-            config: Configuration to validate
-            
-        Returns:
-            Whether validation passed
-        """
-        # Port range validation
+        """Validate configuration"""
         if not (1024 <= config.server.port <= 65535):
             raise ValueError(f"Invalid server port: {config.server.port}")
         
         if not (1024 <= config.rest_api.port <= 65535):
             raise ValueError(f"Invalid REST API port: {config.rest_api.port}")
         
-        # Player count validation
         if not (1 <= config.server.max_players <= 32):
             raise ValueError(f"Invalid max players count: {config.server.max_players}")
         
-        # Monitoring mode validation
         valid_modes = ['logs', 'prometheus', 'both']
         if config.monitoring.mode not in valid_modes:
             raise ValueError(f"Invalid monitoring mode: {config.monitoring.mode}")
         
-        # Discord webhook URL validation (if enabled)
         if config.discord.enabled and not config.discord.webhook_url:
             raise ValueError("Discord notifications enabled but webhook URL not set")
         
-        # Server startup options validation
         valid_log_formats = ['text', 'json']
         if config.server_startup.log_format not in valid_log_formats:
             raise ValueError(f"Invalid log format: {config.server_startup.log_format}")
@@ -911,7 +768,6 @@ class ConfigLoader:
         if config.server_startup.worker_threads_count < 0:
             raise ValueError(f"Invalid worker threads count: {config.server_startup.worker_threads_count}")
         
-        # Language validation (NEW)
         valid_languages = ['ko', 'en', 'ja', 'zh']
         if config.language not in valid_languages:
             raise ValueError(f"Invalid language: {config.language}. Supported: {valid_languages}")
@@ -919,21 +775,12 @@ class ConfigLoader:
         return True
 
 
-# Global configuration instances
 _config_instance: Optional[PalworldConfig] = None
 _config_loader: Optional[ConfigLoader] = None
 
 
 def get_config(config_path: Optional[Union[str, Path]] = None) -> PalworldConfig:
-    """
-    Return global configuration instance (singleton pattern)
-    
-    Args:
-        config_path: Configuration file path
-        
-    Returns:
-        PalworldConfig instance
-    """
+    """Return global configuration instance (singleton pattern)"""
     global _config_instance, _config_loader
     
     if _config_instance is None:
@@ -945,12 +792,7 @@ def get_config(config_path: Optional[Union[str, Path]] = None) -> PalworldConfig
 
 
 def reload_config() -> PalworldConfig:
-    """
-    Reload configuration
-    
-    Returns:
-        Newly loaded PalworldConfig instance
-    """
+    """Reload configuration"""
     global _config_instance, _config_loader
     
     if _config_loader is None:
@@ -960,21 +802,3 @@ def reload_config() -> PalworldConfig:
     _config_loader.validate_config(_config_instance)
     
     return _config_instance
-
-
-if __name__ == "__main__":
-    # Test execution
-    try:
-        config = get_config()
-        print("✅ Configuration loaded successfully!")
-        print(f"Server name: {config.server.name}")
-        print(f"Max players: {config.server.max_players}")
-        print(f"Monitoring mode: {config.monitoring.mode}")
-        print(f"Backup enabled: {config.backup.enabled}")
-        print(f"Discord enabled: {config.discord.enabled}")
-        print(f"Palworld settings ServerName: {config.palworld_settings.ServerName}")
-        print(f"Server startup performance threads: {config.server_startup.use_performance_threads}")
-        print(f"Server startup query port: {config.server_startup.query_port}")
-        print(f"Language: {config.language}")  # NEW
-    except Exception as e:
-        print(f"❌ Configuration load failed: {e}")

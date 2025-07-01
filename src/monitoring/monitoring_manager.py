@@ -18,33 +18,22 @@ class MonitoringManager:
     """Central manager for all monitoring components"""
     
     def __init__(self, config: PalworldConfig, process_manager, api_manager):
-        """
-        Initialize monitoring manager
-        
-        Args:
-            config: Server configuration
-            process_manager: Process manager for server control
-            api_manager: API manager for server communication
-        """
+        """Initialize monitoring manager"""
         self.config = config
         self.logger = get_logger("palworld.monitoring.manager")
         
-        # Initialize monitoring components
         self.player_monitor = PlayerMonitor(config, api_manager)
         self.server_monitor = ServerMonitor(config, process_manager, api_manager)
         self.event_dispatcher = EventDispatcher(config)
         
-        # Task management
         self._background_tasks: Set[asyncio.Task] = set()
         self._monitoring_active = False
         self._shutdown_event = asyncio.Event()
         
-        # Setup event callbacks
         self._setup_event_callbacks()
     
     def _setup_event_callbacks(self) -> None:
         """Setup event callbacks for monitoring components"""
-        # Player event callbacks
         self.player_monitor.add_event_callback(
             PlayerEventType.JOINED,
             self.event_dispatcher.handle_player_event
@@ -54,7 +43,6 @@ class MonitoringManager:
             self.event_dispatcher.handle_player_event
         )
         
-        # Server event callbacks
         self.server_monitor.add_event_callback(
             ServerEventType.STATUS_CHANGED,
             self.event_dispatcher.handle_server_event
@@ -79,14 +67,12 @@ class MonitoringManager:
         self.logger.info("Starting comprehensive monitoring system")
         
         try:
-            # Start player monitoring
             if self.config.discord.enabled:
                 player_task = asyncio.create_task(self.player_monitor.start_monitoring())
                 self._background_tasks.add(player_task)
                 player_task.add_done_callback(self._background_tasks.discard)
                 self.logger.info("Player monitoring started")
             
-            # Start server monitoring
             server_task = asyncio.create_task(self.server_monitor.start_monitoring())
             self._background_tasks.add(server_task)
             server_task.add_done_callback(self._background_tasks.discard)
@@ -105,17 +91,14 @@ class MonitoringManager:
         self.logger.info("Stopping monitoring system")
         self._shutdown_event.set()
         
-        # Stop individual monitors
         await self.player_monitor.stop_monitoring()
         await self.server_monitor.stop_monitoring()
         
-        # Cancel all background tasks
         if self._background_tasks:
             self.logger.info(f"Cancelling {len(self._background_tasks)} background tasks")
             for task in self._background_tasks:
                 task.cancel()
             
-            # Wait for tasks to complete cancellation
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
             self._background_tasks.clear()
         

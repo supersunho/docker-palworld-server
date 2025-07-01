@@ -14,7 +14,7 @@ from ..logging_setup import log_api_call
 
 
 class RestAPIClient:
-    """Palworld REST API client class"""
+    """Palworld REST API client with Basic Authentication"""
     
     def __init__(self, config: PalworldConfig, logger):
         self.config = config
@@ -25,7 +25,7 @@ class RestAPIClient:
         self._retry_delay = 1.0
     
     async def __aenter__(self):
-        """Async context manager enter"""
+        """Initialize HTTP session with authentication"""
         auth = aiohttp.BasicAuth("admin", self.config.server.admin_password)
         timeout = aiohttp.ClientTimeout(
             total=30,
@@ -52,29 +52,12 @@ class RestAPIClient:
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit"""
+        """Close HTTP session"""
         if self.session:
             await self.session.close()
     
-    async def _make_request_with_retry(
-        self, 
-        endpoint: str, 
-        method: str = "GET", 
-        data: Optional[Dict] = None,
-        retry_count: Optional[int] = None
-    ) -> Optional[Dict]:
-        """
-        API request with retry logic
-        
-        Args:
-            endpoint: API endpoint
-            method: HTTP method
-            data: Request data
-            retry_count: Number of retries (default if None)
-            
-        Returns:
-            API response data or None
-        """
+    async def _make_request_with_retry(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None, retry_count: Optional[int] = None) -> Optional[Dict]:
+        """Execute API request with exponential backoff retry"""
         if retry_count is None:
             retry_count = self._retry_count
         
@@ -87,36 +70,23 @@ class RestAPIClient:
                 duration_ms = (time.time() - start_time) * 1000
                 
                 if result is not None:
-                    log_api_call(self.logger, endpoint, 200, duration_ms, 
-                               attempt=attempt + 1)
+                    log_api_call(self.logger, endpoint, 200, duration_ms, attempt=attempt + 1)
                     return result
                 
             except Exception as e:
                 last_exception = e
                 duration_ms = (time.time() - start_time) * 1000
                 
-                log_api_call(self.logger, endpoint, 0, duration_ms, 
-                           attempt=attempt + 1, error=str(e))
+                log_api_call(self.logger, endpoint, 0, duration_ms, attempt=attempt + 1, error=str(e))
                 
                 if attempt < retry_count:
                     await asyncio.sleep(self._retry_delay * (2 ** attempt))
         
-        # All retries failed
-        self.logger.error("API request final failure", 
-                         endpoint=endpoint, 
-                         attempts=retry_count + 1,
-                         last_error=str(last_exception))
+        self.logger.error("API request final failure", endpoint=endpoint, attempts=retry_count + 1, last_error=str(last_exception))
         return None
     
-    async def _make_request(
-        self, 
-        endpoint: str, 
-        method: str = "GET", 
-        data: Optional[Dict] = None
-    ) -> Optional[Dict]:
-        """
-        Single API request execution
-        """
+    async def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
+        """Execute single API request"""
         if not self.session:
             self.logger.error("API client session not initialized")
             return None
@@ -139,12 +109,9 @@ class RestAPIClient:
                     try:
                         return await response.json() if response_text else {}
                     except ValueError:
-                        # Return raw text if JSON parsing fails
                         return {"raw_response": response_text}
                 else:
-                    self.logger.warning("API request failed", 
-                                      status=response.status,
-                                      response=response_text[:200])
+                    self.logger.warning("API request failed", status=response.status, response=response_text[:200])
                     return None
                     
         except asyncio.TimeoutError:
@@ -154,7 +121,6 @@ class RestAPIClient:
             self.logger.error("API client error", endpoint=endpoint, error=str(e))
             return None
     
-    # API methods (based on official Palworld REST API documentation)
     async def get_server_info(self) -> Optional[Dict]:
         """Get server information"""
         return await self._make_request_with_retry("/info")

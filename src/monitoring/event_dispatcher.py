@@ -18,27 +18,16 @@ class EventDispatcher:
     """Dispatch monitoring events to appropriate handlers (Discord, logging, etc.)"""
     
     def __init__(self, config: PalworldConfig):
-        """
-        Initialize event dispatcher
-        
-        Args:
-            config: Server configuration
-        """
+        """Initialize event dispatcher"""
         self.config = config
         self.logger = get_logger("palworld.monitoring.events")
         self.discord_notifier = get_discord_notifier(config)
         
-        # Event handling configuration
         self._discord_enabled = config.discord.enabled
         self._language = config.language
     
     async def handle_player_event(self, event: PlayerEvent) -> None:
-        """
-        Handle player join/leave events
-        
-        Args:
-            event: Player event to handle
-        """
+        """Handle player join/leave events"""
         try:
             if not self._discord_enabled:
                 return
@@ -64,12 +53,7 @@ class EventDispatcher:
             self.logger.error(f"Failed to handle player event: {e}")
     
     async def handle_server_event(self, event: ServerEvent) -> None:
-        """
-        Handle server status events
-        
-        Args:
-            event: Server event to handle
-        """
+        """Handle server status events"""
         try:
             if not self._discord_enabled:
                 return
@@ -110,12 +94,7 @@ class EventDispatcher:
             self.logger.error(f"Failed to handle server event: {e}")
     
     async def handle_backup_completion(self, backup_info: dict) -> None:
-        """
-        Handle backup completion events
-        
-        Args:
-            backup_info: Backup completion information
-        """
+        """Handle backup completion events"""
         try:
             if not self._discord_enabled:
                 return
@@ -128,13 +107,7 @@ class EventDispatcher:
             self.logger.error(f"Failed to handle backup completion: {e}")
     
     async def handle_error_event(self, error_message: str, error_details: Optional[dict] = None) -> None:
-        """
-        Handle general error events
-        
-        Args:
-            error_message: Error message to send
-            error_details: Additional error details
-        """
+        """Handle general error events"""
         try:
             if not self._discord_enabled:
                 return

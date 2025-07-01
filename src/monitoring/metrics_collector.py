@@ -18,7 +18,7 @@ from ..logging_setup import get_logger, log_server_event
 
 @dataclass
 class SystemMetrics:
-    """System metrics data class"""
+    """System metrics data structure"""
     timestamp: datetime = field(default_factory=datetime.now)
     cpu_percent: float = 0.0
     memory_usage_gb: float = 0.0
@@ -32,27 +32,25 @@ class SystemMetrics:
 
 @dataclass
 class GameMetrics:
-    """Game server metrics data class"""
+    """Game server metrics data structure"""
     timestamp: datetime = field(default_factory=datetime.now)
     players_online: int = 0
     max_players: int = 32
     server_uptime_seconds: float = 0.0
-    tps: float = 0.0  # Ticks Per Second
+    tps: float = 0.0
     world_save_size_mb: float = 0.0
     api_response_time_ms: float = 0.0
 
 
 class MetricsCollector:
-    """Main metrics collector class (log-based monitoring only)"""
+    """Log-based metrics collector for Palworld server monitoring"""
     
     def __init__(self, config: PalworldConfig):
         self.config = config
         self.logger = get_logger("palworld.metrics")
         
-        # Monitoring mode check (logs only)
         self.enable_logs = config.monitoring.mode in ['logs', 'both']
         
-        # Collection state
         self.server_start_time = time.time()
         self.last_network_stats = psutil.net_io_counters()
         self._collection_task: Optional[asyncio.Task] = None
@@ -66,7 +64,6 @@ class MetricsCollector:
         
         self._running = True
         
-        # Start collection task
         self._collection_task = asyncio.create_task(self._collection_loop())
         log_server_event(self.logger, "metrics_start", "Log-based metrics collection started")
     
@@ -89,12 +86,8 @@ class MetricsCollector:
         
         while self._running:
             try:
-                # Collect system metrics
                 system_metrics = await self._collect_system_metrics()
                 await self._process_system_metrics(system_metrics)
-                
-                # Game metrics collection (requires API client)
-                # This part to be implemented with server_manager integration
                 
                 await asyncio.sleep(interval)
                 
@@ -102,32 +95,26 @@ class MetricsCollector:
                 break
             except Exception as e:
                 self.logger.error("Metrics collection error", error=str(e))
-                await asyncio.sleep(5)  # Short wait on error
+                await asyncio.sleep(5)
     
     async def _collect_system_metrics(self) -> SystemMetrics:
         """Collect system metrics"""
-        # CPU usage
         cpu_percent = psutil.cpu_percent(interval=1)
         
-        # Memory info
         memory = psutil.virtual_memory()
         memory_usage_gb = memory.used / (1024**3)
         memory_percent = memory.percent
         
-        # Disk info (based on server path)
         disk = psutil.disk_usage(str(self.config.paths.server_dir))
         disk_usage_gb = disk.used / (1024**3)
         disk_percent = (disk.used / disk.total) * 100
         
-        # Network info
         net_io = psutil.net_io_counters()
         
-        # Load average (Unix only)
         load_avg = []
         try:
             load_avg = list(psutil.getloadavg())
         except AttributeError:
-            # Not supported on Windows
             pass
         
         return SystemMetrics(
@@ -142,8 +129,7 @@ class MetricsCollector:
         )
     
     async def _process_system_metrics(self, metrics: SystemMetrics):
-        """Process system metrics (log-based monitoring only)"""
-        # Log-based monitoring
+        """Process system metrics"""
         if self.enable_logs:
             self.logger.info(
                 "📊 System metrics",
@@ -157,13 +143,11 @@ class MetricsCollector:
                 network_recv_mb=round(metrics.network_bytes_recv / (1024**2), 1)
             )
     
-    def collect_game_metrics_sync(self, players_data: Optional[List[Dict]] = None,
-                                 server_info: Optional[Dict] = None) -> GameMetrics:
-        """Collect game metrics (sync, external data provided)"""
+    def collect_game_metrics_sync(self, players_data: Optional[List[Dict]] = None, server_info: Optional[Dict] = None) -> GameMetrics:
+        """Collect game metrics with external data"""
         players_online = len(players_data) if players_data else 0
         uptime = time.time() - self.server_start_time
         
-        # Calculate world size
         world_size_mb = 0.0
         save_dir = self.config.paths.server_dir / "Pal" / "Saved"
         if save_dir.exists():
@@ -174,8 +158,7 @@ class MetricsCollector:
             except Exception:
                 pass
         
-        # TPS from server info if available
-        tps = 20.0  # default
+        tps = 20.0
         if server_info and 'tps' in server_info:
             tps = float(server_info['tps'])
         
@@ -185,12 +168,11 @@ class MetricsCollector:
             server_uptime_seconds=uptime,
             tps=tps,
             world_save_size_mb=world_size_mb,
-            api_response_time_ms=0.0  # set by API client
+            api_response_time_ms=0.0
         )
     
     async def process_game_metrics(self, metrics: GameMetrics):
-        """Process game metrics (log-based monitoring only)"""
-        # Log-based monitoring
+        """Process game metrics"""
         if self.enable_logs:
             uptime_hours = metrics.server_uptime_seconds / 3600
             self.logger.info(
@@ -204,7 +186,7 @@ class MetricsCollector:
             )
     
     def record_api_call(self, endpoint: str, status_code: int, duration_ms: float):
-        """Record API call metrics (log-based only)"""
+        """Record API call metrics"""
         if self.enable_logs:
             status_category = "success" if 200 <= status_code < 300 else "error"
             self.logger.info(
@@ -217,7 +199,7 @@ class MetricsCollector:
             )
     
     def record_backup_event(self, duration_seconds: float, size_bytes: int):
-        """Record backup event metrics (log-based only)"""
+        """Record backup event metrics"""
         if self.enable_logs:
             size_mb = size_bytes / (1024**2)
             self.logger.info(
@@ -229,7 +211,7 @@ class MetricsCollector:
             )
     
     def record_player_event(self, event_type: str, player_name: str, player_count: int):
-        """Record player join/leave events (log-based only)"""
+        """Record player join/leave events"""
         if self.enable_logs:
             self.logger.info(
                 f"👤 Player {event_type}",
@@ -240,7 +222,7 @@ class MetricsCollector:
             )
     
     def record_server_event(self, event_type: str, message: str, **kwargs):
-        """Record server events (log-based only)"""
+        """Record server events"""
         if self.enable_logs:
             self.logger.info(
                 f"🎮 Server {event_type}",
@@ -250,9 +232,8 @@ class MetricsCollector:
             )
     
     def get_current_metrics_summary(self) -> Dict[str, Any]:
-        """Get current metrics summary for external use"""
+        """Get current metrics summary"""
         try:
-            # Collect current system metrics
             cpu_percent = psutil.cpu_percent()
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage(str(self.config.paths.server_dir))
@@ -282,7 +263,6 @@ class MetricsCollector:
             }
 
 
-# Global metrics collector instance
 _metrics_collector: Optional[MetricsCollector] = None
 
 
@@ -295,30 +275,3 @@ def get_metrics_collector(config: Optional[PalworldConfig] = None) -> MetricsCol
         _metrics_collector = MetricsCollector(config or get_config())
     
     return _metrics_collector
-
-
-async def main():
-    """Test run"""
-    from ..config_loader import get_config
-    
-    config = get_config()
-    collector = MetricsCollector(config)
-    
-    print("🚀 Log-based metrics collector test start")
-    
-    await collector.start_collection()
-    
-    # Run for 5 seconds
-    await asyncio.sleep(5)
-    
-    # Test metrics summary
-    summary = collector.get_current_metrics_summary()
-    print(f"📊 Current metrics: {summary}")
-    
-    await collector.stop_collection()
-    
-    print("✅ Metrics collector test complete!")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

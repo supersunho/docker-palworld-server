@@ -24,27 +24,20 @@ class BackupInfo:
     filepath: Path
     size_bytes: int
     created_time: datetime
-    backup_type: str  # 'daily', 'weekly', 'monthly'
+    backup_type: str
 
 
 class EnhancedBackupManager:
     """Enhanced backup manager with config integration and retention policies"""
     
     def __init__(self, config: Optional[PalworldConfig] = None):
-        """
-        Initialize backup manager with config
-        
-        Args:
-            config: Palworld configuration (loads default if None)
-        """
+        """Initialize backup manager with config"""
         self.config = config or get_config()
         self.logger = get_logger("palworld.backup")
         
-        # Path configuration from config_loader
         self.backup_dir = self.config.paths.backup_dir
         self.source_dir = self.config.paths.server_dir / "Pal" / "Saved"
         
-        # Backup settings from config
         self.enabled = self.config.backup.enabled
         self.interval_seconds = self.config.backup.interval_seconds
         self.retention_days = self.config.backup.retention_days
@@ -54,10 +47,8 @@ class EnhancedBackupManager:
         self.max_backups = self.config.backup.max_backups
         self.cleanup_interval = self.config.backup.cleanup_interval
         
-        # Ensure backup directory exists
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         
-        # Backup scheduler task
         self._backup_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._running = False
@@ -74,10 +65,7 @@ class EnhancedBackupManager:
         
         self._running = True
         
-        # Start backup creation task
         self._backup_task = asyncio.create_task(self._backup_loop())
-        
-        # Start cleanup task
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
         
         log_backup_event(
@@ -107,7 +95,6 @@ class EnhancedBackupManager:
     
     async def _backup_loop(self):
         """Main backup creation loop"""
-        # Wait 10 minutes after start for server stabilization
         await asyncio.sleep(600)
         
         while self._running:
@@ -115,7 +102,7 @@ class EnhancedBackupManager:
                 current_time = datetime.now()
                 backup_type = self._determine_backup_type(current_time)
                 
-                self.logger.info(f"Creating {backup_type} backup at {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                self.logger.debug(f"Creating {backup_type} backup at {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
                 
                 result = await self.create_backup(f"{backup_type}_auto", backup_type)
                 
@@ -134,23 +121,21 @@ class EnhancedBackupManager:
                         error=result.get('error')
                     )
                 
-                # Wait for next backup
                 await asyncio.sleep(self.interval_seconds)
                 
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 self.logger.error("Backup loop error", error=str(e))
-                await asyncio.sleep(300)  # Wait 5 minutes on error
+                await asyncio.sleep(300)
     
     async def _cleanup_loop(self):
         """Backup cleanup loop"""
-        # Initial cleanup after 30 minutes
         await asyncio.sleep(1800)
         
         while self._running:
             try:
-                self.logger.info("Starting backup cleanup process")
+                self.logger.debug("Starting backup cleanup process")
                 cleaned_count = self.cleanup_old_backups()
                 
                 if cleaned_count > 0:
@@ -159,47 +144,26 @@ class EnhancedBackupManager:
                         f"Cleaned up {cleaned_count} old backup files"
                     )
                 
-                # Wait for next cleanup
                 await asyncio.sleep(self.cleanup_interval)
                 
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 self.logger.error("Cleanup loop error", error=str(e))
-                await asyncio.sleep(3600)  # Wait 1 hour on error
+                await asyncio.sleep(3600)
     
     def _determine_backup_type(self, current_time: datetime) -> str:
-        """
-        Determine backup type based on current time
-        
-        Args:
-            current_time: Current datetime
-            
-        Returns:
-            Backup type: 'daily', 'weekly', or 'monthly'
-        """
-        # Monthly backup on 1st day of month at 02:00
+        """Determine backup type based on current time"""
         if current_time.day == 1 and current_time.hour == 2:
             return 'monthly'
         
-        # Weekly backup on Sunday at 03:00
         if current_time.weekday() == 6 and current_time.hour == 3:
             return 'weekly'
         
-        # Default to daily backup
         return 'daily'
     
     async def create_backup(self, name: str = None, backup_type: str = 'manual') -> Dict[str, Any]:
-        """
-        Create a backup with specified name and type
-        
-        Args:
-            name: Backup name (auto-generated if None)
-            backup_type: Type of backup ('daily', 'weekly', 'monthly', 'manual')
-            
-        Returns:
-            Dictionary with backup result information
-        """
+        """Create a backup with specified name and type"""
         start_time = time.time()
         
         try:
@@ -209,7 +173,6 @@ class EnhancedBackupManager:
                     'error': f'Source directory does not exist: {self.source_dir}'
                 }
             
-            # Generate backup filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             if name:
                 backup_name = f"{name}_{timestamp}"
@@ -219,7 +182,6 @@ class EnhancedBackupManager:
             backup_filename = f"{backup_name}.tar.gz" if self.compress else f"{backup_name}.tar"
             backup_path = self.backup_dir / backup_filename
             
-            # Create backup archive
             await self._create_archive(backup_path, backup_type)
             
             duration_seconds = time.time() - start_time
@@ -246,44 +208,29 @@ class EnhancedBackupManager:
             }
     
     async def _create_archive(self, backup_path: Path, backup_type: str):
-        """
-        Create backup archive (async wrapper for tar creation)
-        
-        Args:
-            backup_path: Path for backup file
-            backup_type: Type of backup for logging
-        """
+        """Create backup archive"""
         def create_tar():
             compression = 'gz' if self.compress else ''
             mode = f'w:{compression}' if compression else 'w'
             
             with tarfile.open(backup_path, mode) as tar:
-                # Add save data directory
                 if self.source_dir.exists():
                     tar.add(self.source_dir, arcname='SaveGames')
                 
-                # Add server configuration files
                 config_dir = self.config.paths.server_dir / "Pal" / "Saved" / "Config"
                 if config_dir.exists():
                     tar.add(config_dir, arcname='Config')
         
-        # Run tar creation in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, create_tar)
     
     def list_backups(self) -> List[BackupInfo]:
-        """
-        List all backup files with metadata
-        
-        Returns:
-            List of BackupInfo objects
-        """
+        """List all backup files with metadata"""
         backups = []
         
         if not self.backup_dir.exists():
             return backups
         
-        # Find all backup files
         patterns = ['*.tar.gz', '*.tar'] if self.compress else ['*.tar']
         backup_files = []
         
@@ -292,7 +239,6 @@ class EnhancedBackupManager:
         
         for backup_file in backup_files:
             try:
-                # Extract backup type from filename
                 backup_type = 'manual'
                 if 'daily' in backup_file.name:
                     backup_type = 'daily'
@@ -314,18 +260,12 @@ class EnhancedBackupManager:
             except Exception as e:
                 self.logger.warning(f"Failed to process backup file {backup_file}: {e}")
         
-        # Sort by creation time (newest first)
         backups.sort(key=lambda x: x.created_time, reverse=True)
         
         return backups
     
     def cleanup_old_backups(self) -> int:
-        """
-        Clean up old backups based on retention policies
-        
-        Returns:
-            Number of deleted backup files
-        """
+        """Clean up old backups based on retention policies"""
         if not self.backup_dir.exists():
             return 0
         
@@ -333,63 +273,55 @@ class EnhancedBackupManager:
         now = datetime.now()
         deleted_count = 0
         
-        # Calculate cutoff dates
         daily_cutoff = now - timedelta(days=self.retention_days)
         weekly_cutoff = now - timedelta(weeks=self.retention_weeks)
         monthly_cutoff = now - timedelta(days=self.retention_months * 30)
         
-        # Group backups by type
         daily_backups = [b for b in backups if b.backup_type == 'daily']
         weekly_backups = [b for b in backups if b.backup_type == 'weekly']
         monthly_backups = [b for b in backups if b.backup_type == 'monthly']
         manual_backups = [b for b in backups if b.backup_type == 'manual']
         
-        # Clean up daily backups
         for backup in daily_backups:
             if backup.created_time < daily_cutoff:
                 try:
                     backup.filepath.unlink()
                     deleted_count += 1
-                    self.logger.info(f"Deleted old daily backup: {backup.filename}")
+                    self.logger.debug(f"Deleted old daily backup: {backup.filename}")
                 except Exception as e:
                     self.logger.error(f"Failed to delete daily backup {backup.filename}: {e}")
         
-        # Clean up weekly backups
         for backup in weekly_backups:
             if backup.created_time < weekly_cutoff:
                 try:
                     backup.filepath.unlink()
                     deleted_count += 1
-                    self.logger.info(f"Deleted old weekly backup: {backup.filename}")
+                    self.logger.debug(f"Deleted old weekly backup: {backup.filename}")
                 except Exception as e:
                     self.logger.error(f"Failed to delete weekly backup {backup.filename}: {e}")
         
-        # Clean up monthly backups
         for backup in monthly_backups:
             if backup.created_time < monthly_cutoff:
                 try:
                     backup.filepath.unlink()
                     deleted_count += 1
-                    self.logger.info(f"Deleted old monthly backup: {backup.filename}")
+                    self.logger.debug(f"Deleted old monthly backup: {backup.filename}")
                 except Exception as e:
                     self.logger.error(f"Failed to delete monthly backup {backup.filename}: {e}")
         
-        # Clean up excess manual backups (keep only latest 20)
         if len(manual_backups) > 20:
             excess_manual = manual_backups[20:]
             for backup in excess_manual:
                 try:
                     backup.filepath.unlink()
                     deleted_count += 1
-                    self.logger.info(f"Deleted excess manual backup: {backup.filename}")
+                    self.logger.debug(f"Deleted excess manual backup: {backup.filename}")
                 except Exception as e:
                     self.logger.error(f"Failed to delete manual backup {backup.filename}: {e}")
         
-        # Emergency cleanup if total backups exceed max_backups
         remaining_backups = self.list_backups()
         if len(remaining_backups) > self.max_backups:
             excess_count = len(remaining_backups) - self.max_backups
-            # Delete oldest backups first
             oldest_backups = sorted(remaining_backups, key=lambda x: x.created_time)[:excess_count]
             
             for backup in oldest_backups:
@@ -403,12 +335,7 @@ class EnhancedBackupManager:
         return deleted_count
     
     def get_backup_statistics(self) -> Dict[str, Any]:
-        """
-        Get backup statistics and summary
-        
-        Returns:
-            Dictionary with backup statistics
-        """
+        """Get backup statistics and summary"""
         backups = self.list_backups()
         
         total_size = sum(backup.size_bytes for backup in backups)
@@ -435,7 +362,6 @@ class EnhancedBackupManager:
         }
 
 
-# Global backup manager instance
 _backup_manager: Optional[EnhancedBackupManager] = None
 
 
@@ -447,35 +373,3 @@ def get_backup_manager(config: Optional[PalworldConfig] = None) -> EnhancedBacku
         _backup_manager = EnhancedBackupManager(config)
     
     return _backup_manager
-
-
-async def main():
-    """Test backup manager functionality"""
-    print("🚀 Enhanced backup manager test start")
-    
-    # Get backup manager with config
-    manager = get_backup_manager()
-    
-    print(f"Configuration loaded:")
-    print(f"  - Backup enabled: {manager.enabled}")
-    print(f"  - Backup interval: {manager.interval_seconds} seconds")
-    print(f"  - Retention: {manager.retention_days}d/{manager.retention_weeks}w/{manager.retention_months}m")
-    print(f"  - Max backups: {manager.max_backups}")
-    
-    # Create test backup
-    result = await manager.create_backup("test_enhanced")
-    print(f"Test backup result: {result}")
-    
-    # Show backup statistics
-    stats = manager.get_backup_statistics()
-    print(f"Backup statistics: {stats}")
-    
-    # Test cleanup
-    cleaned = manager.cleanup_old_backups()
-    print(f"Cleaned up {cleaned} old backups")
-    
-    print("✅ Enhanced backup manager test complete!")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

@@ -44,48 +44,28 @@ class ServerMonitor:
     """Monitor Palworld server status and performance"""
     
     def __init__(self, config: PalworldConfig, process_manager, api_manager):
-        """
-        Initialize server monitor
-        
-        Args:
-            config: Server configuration
-            process_manager: Process manager for server control
-            api_manager: API manager for server communication
-        """
+        """Initialize server monitor"""
         self.config = config
         self.process_manager = process_manager
         self.api_manager = api_manager
         self.logger = get_logger("palworld.monitoring.server")
         
-        # Monitoring state
         self._monitoring_active = False
         self._shutdown_event = asyncio.Event()
         self._last_status: Optional[ServerStatus] = None
         
-        # Event callbacks
         self._event_callbacks: Dict[ServerEventType, list] = {
             ServerEventType.STATUS_CHANGED: [],
             ServerEventType.HEALTH_WARNING: [],
             ServerEventType.PERFORMANCE_ISSUE: []
         }
         
-        # Monitoring configuration
-        self._check_interval = 30  # seconds
-        self._health_check_interval = 300  # 5 minutes
+        self._check_interval = 30
+        self._health_check_interval = 300
         self._last_health_check = 0
     
-    def add_event_callback(
-        self, 
-        event_type: ServerEventType, 
-        callback: Callable[[ServerEvent], Awaitable[None]]
-    ) -> None:
-        """
-        Add callback for server events
-        
-        Args:
-            event_type: Type of event to listen for
-            callback: Async callback function
-        """
+    def add_event_callback(self, event_type: ServerEventType, callback: Callable[[ServerEvent], Awaitable[None]]) -> None:
+        """Add callback for server events"""
         self._event_callbacks[event_type].append(callback)
         self.logger.debug(f"Added callback for {event_type.value} events")
     
@@ -124,23 +104,18 @@ class ServerMonitor:
                 monitor_cycle += 1
                 current_time = time.time()
                 
-                # Get current server status
                 current_status = await self._get_server_status()
                 
-                # Check for status changes
                 if self._last_status:
                     await self._check_status_changes(current_status)
                 
-                # Periodic health checks
                 if current_time - self._last_health_check > self._health_check_interval:
                     await self._perform_health_check(current_status)
                     self._last_health_check = current_time
                 
-                # Update tracking state
                 self._last_status = current_status
                 
-                # Log status periodically
-                if monitor_cycle % 6 == 0:  # Every 3 minutes
+                if monitor_cycle % 6 == 0:
                     status_msg = "Running" if current_status.is_running else "Stopped"
                     self.logger.info(
                         f"Server status: {status_msg} "
@@ -151,25 +126,22 @@ class ServerMonitor:
             except Exception as e:
                 self.logger.error(f"Server monitoring cycle error: {e}")
             
-            # Wait before next check
             try:
                 await asyncio.wait_for(
                     self._shutdown_event.wait(), 
                     timeout=self._check_interval
                 )
-                break  # Shutdown requested
+                break
             except asyncio.TimeoutError:
-                continue  # Normal timeout, continue monitoring
+                continue
     
     async def _get_server_status(self) -> ServerStatus:
         """Get current server status"""
-        # Get process status
         process_status = self.process_manager.get_server_status()
         is_running = process_status.get('running', False)
         pid = process_status.get('pid')
         uptime = process_status.get('uptime', 0)
         
-        # Get player count from API if available
         player_count = 0
         try:
             players_response = await self.api_manager.api_get_players()
@@ -191,7 +163,6 @@ class ServerMonitor:
         if not self._last_status:
             return
         
-        # Check for server start/stop
         if current_status.is_running != self._last_status.is_running:
             if current_status.is_running:
                 event = ServerEvent(
@@ -216,7 +187,6 @@ class ServerMonitor:
             
             await self._trigger_event_callbacks(event)
         
-        # Check for PID changes (unexpected restarts)
         elif (current_status.is_running and self._last_status.is_running and 
               current_status.pid != self._last_status.pid):
             event = ServerEvent(
@@ -238,25 +208,21 @@ class ServerMonitor:
         
         health_issues = []
         
-        # Check API responsiveness
         try:
             start_time = time.time()
             server_info = await self.api_manager.api_get_server_info()
             response_time = (time.time() - start_time) * 1000
             
-            if response_time > 5000:  # 5 seconds
+            if response_time > 5000:
                 health_issues.append(f"Slow API response: {response_time:.0f}ms")
             elif server_info is None:
                 health_issues.append("API not responding")
         except Exception as e:
             health_issues.append(f"API health check failed: {e}")
         
-        # Check for long uptime without players (potential issue)
-        if (current_status.uptime > 3600 and  # 1 hour
-            current_status.player_count == 0):
+        if (current_status.uptime > 3600 and current_status.player_count == 0):
             health_issues.append("Server running without players for over 1 hour")
         
-        # Trigger health warning events if issues found
         if health_issues:
             event = ServerEvent(
                 event_type=ServerEventType.HEALTH_WARNING,

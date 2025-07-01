@@ -25,7 +25,7 @@ class HealthThresholds:
     disk_warning: float = 90.0
     disk_critical: float = 95.0
     api_timeout: float = 10.0
-    check_interval: int = 30  # seconds
+    check_interval: int = 30
 
 
 class HealthManager:
@@ -36,18 +36,15 @@ class HealthManager:
         self.logger = get_logger("palworld.health")
         self.thresholds = HealthThresholds()
         
-        # Health state tracking
         self.last_check_time: Optional[float] = None
         self.consecutive_failures = 0
         self.health_history: List[Dict[str, Any]] = []
         self.max_history = 100
         
-        # Recovery configuration
         self.max_consecutive_failures = 3
         self.recovery_enabled = True
         self.recovery_callbacks: List[Callable] = []
         
-        # Monitoring task
         self._monitoring_task: Optional[asyncio.Task] = None
         self._running = False
     
@@ -83,31 +80,21 @@ class HealthManager:
         """Main monitoring loop"""
         while self._running:
             try:
-                # Run health check
                 health_result = await self.perform_health_check()
-                
-                # Update health history
                 self._update_health_history(health_result)
-                
-                # Check for issues and trigger recovery if needed
                 await self._handle_health_result(health_result)
-                
-                # Send notifications if needed
                 await self._notify_health_status(health_result)
-                
-                # Wait for next check
                 await asyncio.sleep(self.thresholds.check_interval)
                 
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 self.logger.error("Health monitoring loop error", error=str(e))
-                await asyncio.sleep(10)  # Short wait on error
+                await asyncio.sleep(10)
     
     async def perform_health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check"""
         try:
-            # Run the health check script
             result = subprocess.run(
                 ["python3", "/app/scripts/healthcheck.py", "--json"],
                 capture_output=True,
@@ -144,7 +131,6 @@ class HealthManager:
             "success": health_result.get("check_success", False)
         })
         
-        # Limit history size
         if len(self.health_history) > self.max_history:
             self.health_history = self.health_history[-self.max_history:]
         
@@ -163,12 +149,10 @@ class HealthManager:
                 status=overall_status
             )
             
-            # Trigger recovery if threshold reached
             if (self.consecutive_failures >= self.max_consecutive_failures and 
                 self.recovery_enabled):
                 await self._trigger_recovery(health_result)
         else:
-            # Reset failure counter on success
             if self.consecutive_failures > 0:
                 self.logger.info(
                     "Health restored after failures",
@@ -184,7 +168,6 @@ class HealthManager:
         )
         
         try:
-            # Call registered recovery callbacks
             for callback in self.recovery_callbacks:
                 try:
                     if asyncio.iscoroutinefunction(callback):
@@ -194,7 +177,6 @@ class HealthManager:
                 except Exception as e:
                     self.logger.error("Recovery callback failed", error=str(e))
             
-            # Reset failure counter after recovery attempt
             self.consecutive_failures = 0
             
             log_server_event(
@@ -212,7 +194,6 @@ class HealthManager:
         """Send health status notifications"""
         overall_status = health_result.get("overall_status", "unknown")
         
-        # Only notify on status changes or critical issues
         should_notify = False
         
         if len(self.health_history) >= 2:
@@ -225,7 +206,6 @@ class HealthManager:
         
         if should_notify:
             try:
-                # Try to send Discord notification
                 from ..notifications.discord_notifier import get_discord_notifier
                 notifier = get_discord_notifier(self.config)
                 
@@ -249,7 +229,7 @@ class HealthManager:
                             )
                             
             except ImportError:
-                pass  # Discord notifier not available
+                pass
             except Exception as e:
                 self.logger.error("Failed to send health notification", error=str(e))
     
@@ -263,7 +243,7 @@ class HealthManager:
         if not self.health_history:
             return {"status": "unknown", "message": "No health data available"}
         
-        recent_checks = self.health_history[-10:]  # Last 10 checks
+        recent_checks = self.health_history[-10:]
         healthy_count = sum(1 for check in recent_checks if check["status"] == "healthy")
         
         return {
@@ -276,7 +256,6 @@ class HealthManager:
         }
 
 
-# Default recovery functions
 async def restart_server_recovery(health_result: Dict[str, Any]) -> None:
     """Default recovery function to restart server"""
     logger = get_logger("palworld.recovery")
@@ -287,8 +266,6 @@ async def restart_server_recovery(health_result: Dict[str, Any]) -> None:
     )
     
     try:
-        # This would integrate with the server manager
-        # For now, just log the attempt
         logger.info("Server restart recovery procedure would execute here")
         
     except Exception as e:
@@ -305,19 +282,16 @@ async def clear_cache_recovery(health_result: Dict[str, Any]) -> None:
     )
     
     try:
-        # Clear temporary files, logs, etc.
         import shutil
         import tempfile
         
         temp_dir = tempfile.gettempdir()
-        # Clear specific temp files related to Palworld
         logger.info("Cache clearing recovery procedure executed")
         
     except Exception as e:
         logger.error("Cache clearing recovery failed", error=str(e))
 
 
-# Global health manager instance
 _health_manager: Optional[HealthManager] = None
 
 
@@ -329,32 +303,7 @@ def get_health_manager(config: Optional[PalworldConfig] = None) -> HealthManager
         from ..config_loader import get_config
         _health_manager = HealthManager(config or get_config())
         
-        # Register default recovery callbacks
         _health_manager.register_recovery_callback(clear_cache_recovery)
         _health_manager.register_recovery_callback(restart_server_recovery)
     
     return _health_manager
-
-
-async def main():
-    """Test run"""
-    from ..config_loader import get_config
-    
-    config = get_config()
-    health_manager = HealthManager(config)
-    
-    print("🚀 Health manager test start")
-    
-    # Perform single health check
-    result = await health_manager.perform_health_check()
-    print(f"Health check result: {result.get('overall_status', 'unknown')}")
-    
-    # Get health summary
-    summary = health_manager.get_health_summary()
-    print(f"Health summary: {summary}")
-    
-    print("✅ Health manager test complete!")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
