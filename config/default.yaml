@@ -15,13 +15,13 @@ server:
 rest_api:
     enabled: ${RESTAPI_ENABLED:true}
     port: ${RESTAPI_PORT:8212}
-    host: ${RESTAPI_HOST:host.docker.internal}
+    host: ${RESTAPI_HOST:localhost}
 
 # RCON configuration (fixed missing closing brace)
 rcon:
     enabled: ${RCON_ENABLED:true}
     port: ${RCON_PORT:25575}
-    host: ${RCON_HOST:host.docker.internal}
+    host: ${RCON_HOST:localhost}
 
 # Server startup options for PalServer.sh execution
 server_startup:
@@ -48,7 +48,7 @@ server_startup:
 # Direct Palworld settings (INI key names for automatic conversion)
 palworld_settings:
     # Core server settings
-    AdminPassword: "${ADMIN_PASSWORD:}"
+    AdminPassword: "${ADMIN_PASSWORD:admin123}"
     CoopPlayerMaxNum: ${COOP_PLAYER_MAX_NUM:4}
     PublicIP: "${PUBLIC_IP:}"
     PublicPort: ${PUBLIC_PORT:8211}
