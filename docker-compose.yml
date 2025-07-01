@@ -2,50 +2,16 @@ version: "3.8"
 
 services:
     palworld-server:
-        #image: supersunho/palworld-server:latest
-        image: docker.io/library/docker-palworld-shk:0.1
+        image: supersunho/palworld-server:latest
         container_name: palworld-server
         hostname: palworld-server
         restart: unless-stopped
-
+        env_file: .env
         # Network configuration
         ports:
-            - "${SERVER_PORT:-8211}:8211/udp" # Game server port
+            - "8211:8211/udp" # Game server port
             - "27015:27015/udp" # Steam query port
-            - "${REST_API_PORT:-8212}:8212/tcp" # REST API port
-
-        # Environment configuration
-        environment:
-            # Server configuration
-            - SERVER_NAME=${SERVER_NAME:-Palworld Server}
-            - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
-            - SERVER_PASSWORD=${SERVER_PASSWORD:-}
-            - MAX_PLAYERS=${MAX_PLAYERS:-32}
-            - SERVER_PORT=${SERVER_PORT:-8211}
-            - REST_API_PORT=${REST_API_PORT:-8212}
-
-            # Feature toggles
-            - BACKUP_ENABLED=${BACKUP_ENABLED:-true}
-            - AUTO_UPDATE=${AUTO_UPDATE:-true}
-            - REST_API_ENABLED=${REST_API_ENABLED:-true}
-            - MONITORING_MODE=${MONITORING_MODE:-both}
-            - DISCORD_ENABLED=${DISCORD_ENABLED:-false}
-
-            # Discord integration
-            - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
-            - DISCORD_MENTION_ROLE=${DISCORD_MENTION_ROLE:-}
-
-            # Backup configuration
-            - BACKUP_INTERVAL=${BACKUP_INTERVAL:-3600}
-            - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-7}
-
-            # Operational settings
-            - LOG_LEVEL=${LOG_LEVEL:-INFO}
-            - TZ=${TZ:-UTC}
-
-            # User/Group IDs
-            - PUID=${PUID:-1000}
-            - PGID=${PGID:-1000}
+            - "8212:8212/tcp" # REST API port
 
         # Volume mounts
         volumes:
@@ -71,10 +37,6 @@ services:
                 reservations:
                     memory: 4G
                     cpus: "2"
-
-        # Security settings
-        security_opt:
-            - no-new-privileges:true
 
         # Logging configuration
         logging:
