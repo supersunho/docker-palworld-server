@@ -2,6 +2,9 @@
 # Complete configuration with environment variable support
 # All settings can be overridden via Docker environment variables
 
+# Language configuration (NEW)
+language: ${LANGUAGE:ko}
+
 # Core server configuration (basic info only)
 server:
     name: "${SERVER_NAME:Palworld Server}"
