@@ -60,6 +60,12 @@ class ServerStartupConfig:
     worker_threads_count: int = 0
     additional_options: str = ""
 
+@dataclass
+class IdleRestartConfig:
+    """Idle restart configuration"""
+    enabled: bool = True
+    idle_minutes: int = 30
+
 
 @dataclass
 class MonitoringConfig:
@@ -69,6 +75,7 @@ class MonitoringConfig:
     metrics_interval: int = 60
     enable_dashboard: bool = True
     dashboard_port: int = 8080
+    idle_restart: IdleRestartConfig = field(default_factory=IdleRestartConfig)
 
 
 @dataclass

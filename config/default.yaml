@@ -146,6 +146,9 @@ monitoring:
     metrics_interval: ${METRICS_INTERVAL:60}
     enable_dashboard: ${ENABLE_DASHBOARD:true}
     dashboard_port: ${DASHBOARD_PORT:8080}
+    idle_restart:
+        enabled: "${IDLE_RESTART_ENABLED:true}"
+        idle_minutes: "${IDLE_RESTART_MINUTES:30}"
 
 backup:
     enabled: ${BACKUP_ENABLED:true}
@@ -168,6 +171,7 @@ discord:
         player_leave: ${DISCORD_EVENT_LEAVE:true}
         backup_complete: ${DISCORD_EVENT_BACKUP:true}
         errors: ${DISCORD_EVENT_ERRORS:true}
+        idle_restart: ${DISCORD_EVENT_IDLE_RESTART:true}
 
 paths:
     server_dir: "${SERVER_DIR:/home/steam/palworld_server}"

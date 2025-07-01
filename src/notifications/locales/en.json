@@ -37,5 +37,8 @@
         "afternoon": "Good afternoon! 🌤️",
         "evening": "Good evening! 🌆",
         "night": "Late night adventure! 🌙"
+    },
+    "idle": {
+        "restart": "⏰ No players for {minutes} minutes. Restarting server ({server})."
     }
 }

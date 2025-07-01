@@ -12,6 +12,7 @@ from ..logging_setup import get_logger
 from .player_monitor import PlayerMonitor, PlayerEventType
 from .server_monitor import ServerMonitor, ServerEventType
 from .event_dispatcher import EventDispatcher
+from .idle_restart_manager import IdleRestartManager
 
 
 class MonitoringManager:
@@ -25,6 +26,7 @@ class MonitoringManager:
         self.player_monitor = PlayerMonitor(config, api_manager)
         self.server_monitor = ServerMonitor(config, process_manager, api_manager)
         self.event_dispatcher = EventDispatcher(config)
+        self.idle_restart_manager = IdleRestartManager(config, self.player_monitor, process_manager)
         
         self._background_tasks: Set[asyncio.Task] = set()
         self._monitoring_active = False
@@ -64,19 +66,25 @@ class MonitoringManager:
         
         self._monitoring_active = True
         self._shutdown_event.clear()
-        self.logger.info("Starting comprehensive monitoring system")
+        self.logger.info("🚀 Starting comprehensive monitoring system")
         
         try:
             if self.config.discord.enabled:
                 player_task = asyncio.create_task(self.player_monitor.start_monitoring())
                 self._background_tasks.add(player_task)
                 player_task.add_done_callback(self._background_tasks.discard)
-                self.logger.info("Player monitoring started")
+                self.logger.info("👥 Player monitoring started")
             
             server_task = asyncio.create_task(self.server_monitor.start_monitoring())
             self._background_tasks.add(server_task)
             server_task.add_done_callback(self._background_tasks.discard)
-            self.logger.info("Server monitoring started")
+            self.logger.info("🖥️ Server monitoring started")
+            
+            # Start idle restart monitoring
+            idle_restart_task = asyncio.create_task(self.idle_restart_manager.start_monitoring())
+            self._background_tasks.add(idle_restart_task)
+            idle_restart_task.add_done_callback(self._background_tasks.discard)
+            self.logger.info("⏰ Idle restart monitoring started")
             
         except Exception as e:
             self.logger.error(f"Failed to start monitoring: {e}")
@@ -88,11 +96,12 @@ class MonitoringManager:
         if not self._monitoring_active:
             return
         
-        self.logger.info("Stopping monitoring system")
+        self.logger.info("🛑 Stopping monitoring system")
         self._shutdown_event.set()
         
         await self.player_monitor.stop_monitoring()
         await self.server_monitor.stop_monitoring()
+        await self.idle_restart_manager.stop_monitoring()
         
         if self._background_tasks:
             self.logger.info(f"Cancelling {len(self._background_tasks)} background tasks")
@@ -103,7 +112,7 @@ class MonitoringManager:
             self._background_tasks.clear()
         
         self._monitoring_active = False
-        self.logger.info("Monitoring system stopped")
+        self.logger.info("✅ Monitoring system stopped")
     
     async def handle_backup_completion(self, backup_info: dict) -> None:
         """Handle backup completion events"""
@@ -119,10 +128,12 @@ class MonitoringManager:
             "monitoring_active": self._monitoring_active,
             "player_monitoring": self.player_monitor.is_monitoring_active(),
             "server_monitoring": self.server_monitor.is_monitoring_active(),
+            "idle_restart_monitoring": self.idle_restart_manager.is_monitoring_active(),
             "discord_enabled": self.config.discord.enabled,
             "current_players": list(self.player_monitor.get_current_players()),
             "player_count": self.player_monitor.get_current_player_count(),
             "last_server_status": self.server_monitor.get_last_status(),
+            "idle_restart_status": self.idle_restart_manager.get_idle_status(),
             "background_tasks": len(self._background_tasks)
         }
     
