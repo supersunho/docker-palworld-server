@@ -51,7 +51,7 @@ palworld_settings:
     Difficulty: "${DIFFICULTY:None}"
     bHardcore: ${HARDCORE:false}
     bIsMultiplay: ${IS_MULTIPLAY:false}
-    bIsPvP: ${IS_PV_P:false}
+    bIsPvP: ${IS_PVP:false}
 
     RandomizerSeed: "${RANDOMIZER_SEED:}"
     RandomizerType: "${RANDOMIZER_TYPE:None}"

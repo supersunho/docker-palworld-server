@@ -253,12 +253,49 @@ class INIToYAMLConverter:
         return env_name.upper()
     
     def _camel_to_snake(self, camel_str: str) -> str:
-        """Convert camelCase to snake_case"""
+        """Convert camelCase to snake_case with special abbreviation handling"""
         if not camel_str:
             return ""
         
-        s1 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', camel_str)
+        # Handle compound abbreviations and special cases first
+        compound_replacements = {
+            'RESTAPI': 'RESTAPI',  # Keep as single word
+            'PvP': 'PVP',          # Player vs Player
+            'PVP': 'PVP',          # Already correct
+            'BanList': 'BANLIST',  # Keep as single word
+            'AutoHP': 'AUTO_HP',   # Auto HP should have underscore
+            'AutoHp': 'AUTO_HP',   # Auto HP variant
+        }
+        
+        # Single abbreviations
+        single_replacements = {
+            'API': 'API',
+            'RCON': 'RCON',
+            'HTTP': 'HTTP',
+            'URL': 'URL',
+            'ID': 'ID',
+            'HP': 'HP',
+            'AI': 'AI',
+            'UI': 'UI',
+            'FPS': 'FPS',
+            'CPU': 'CPU',
+            'GPU': 'GPU',
+            'RAM': 'RAM'
+        }
+        
+        # Apply compound replacements first
+        processed_str = camel_str
+        for original, replacement in compound_replacements.items():
+            processed_str = processed_str.replace(original, replacement)
+        
+        # Apply single replacements
+        for original, replacement in single_replacements.items():
+            processed_str = processed_str.replace(original, replacement)
+        
+        # Apply standard camelCase to snake_case conversion
+        s1 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', processed_str)
         s2 = re.sub('([A-Z])([A-Z][a-z])', r'\1_\2', s1)
+        
         return s2.upper()
     
     def _infer_data_type_and_format(self, value: str) -> Tuple[str, Any]:
