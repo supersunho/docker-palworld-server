@@ -1,42 +1,36 @@
-# 🎮 Palworld Dedicated Server Management System
+# 🎮 Palworld Dedicated Server For ARM64
 
-**Production-ready ARM64 optimized Palworld server with FEX + SteamCMD integration**
+**🚀 Production-ready ARM64 optimized Palworld server with FEX + SteamCMD integration**
 
-## 🚀 Key Features
+## 🌟 What Makes This Special?
 
-### 🔧 **ARM64 Native Support with FEX**
+### 🔧 **World's First ARM64-Optimized Palworld Server**
 
-- **World's first** ARM64-optimized Palworld server using FEX emulation
-- **50% better performance** on ARM64 devices compared to QEMU
-- **Apple Silicon \& Raspberry Pi** ready out of the box
-- **Native Docker images** for ARM64 architecture
-
-
-### ⚡ **Automated Server Management**
-
-- **SteamCMD Integration**: Automatic server downloads and updates
-- **Smart Process Management**: Graceful startup/shutdown with health verification
-- **Configuration Generation**: Auto-generate `PalWorldSettings.ini` and `Engine.ini`
-- **Multi-protocol APIs**: REST API + RCON with intelligent fallback
+- **Revolutionary FEX Integration**: 3-5x faster than QEMU on ARM64
+- **Apple Silicon Ready**: M1/M2/M3 Macs with native performance
+- **Raspberry Pi Support**: Perfect for home servers and edge computing
+- **AWS Graviton Optimized**: Cloud-native ARM64 deployment
 
 
-### 📊 **Advanced Monitoring \& Notifications**
+### 🤖 **Intelligent Auto-Management**
 
-- **Real-time Player Tracking**: Join/leave events with Discord notifications
-- **Server Health Monitoring**: CPU, memory, disk, and API health checks
-- **Multi-language Support**: Korean, English, Japanese, Chinese notifications
-- **Event-driven Architecture**: Extensible monitoring with custom callbacks
-
-
-### 💾 **Enterprise Backup System**
-
-- **Automated Scheduling**: Daily, weekly, monthly backup rotation
-- **Intelligent Retention**: Configurable cleanup policies
-- **Compression Support**: Space-efficient backup storage
-- **Discord Integration**: Backup completion notifications
+- **🔄 Smart Idle Restart**: Automatically restart when no players for configurable time
+- **📊 Advanced Health Monitoring**: CPU, memory, disk, and API health checks with auto-recovery
+- **💾 Enterprise Backup System**: Daily/weekly/monthly rotation with intelligent cleanup
+- **🎯 Zero-Downtime Updates**: SteamCMD integration with graceful server management
 
 
-## 🐳 Quick Start with Docker
+### 🌍 **Multi-Language Discord Integration**
+
+- **Real-time Notifications**: Player join/leave, server events, backup completion
+- **4 Languages Supported**: Korean, English, Japanese, Chinese
+- **Smart Event Filtering**: Configurable notification preferences
+- **Rich Embeds**: Beautiful Discord messages with server status
+
+
+## 🚀 Quick Start
+
+### **🐳 One-Command Deploy**
 
 ```bash
 docker run -d \
@@ -44,79 +38,97 @@ docker run -d \
   -p 8211:8211/udp \
   -p 8212:8212/tcp \
   -p 25575:25575/tcp \
-  -e SERVER_NAME="🎮 My Amazing Palworld Server" \
-  -e SERVER_PASSWORD="mypassword" \
-  -e ADMIN_PASSWORD="adminpass123" \
-  -e MAX_PLAYERS=32 \
-  -e RCON_ENABLED=true \
-  -e REST_API_ENABLED=true \
-  -e BACKUP_ENABLED=true \
-  -e DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..." \
-  -e LANGUAGE=en \
-  -v ./palworld-data:/home/steam/palworld_server \
-  -v ./palworld-backups:/home/steam/backups \
+  -v palworld-data:/home/steam/palworld_server \
+  -v palworld-backups:/home/steam/backups \
   supersunho/palworld-server:latest
+```
+
+
+### **📋 Docker Compose (Recommended)**
+
+```yaml
+version: '3.8'
+services:
+  palworld-server:
+    image: supersunho/palworld-server:latest
+    container_name: palworld-server
+    restart: unless-stopped
+    ports:
+      - "8211:8211/udp"  # Game Server
+      - "8212:8212/tcp"  # REST API
+      - "25575:25575/tcp" # RCON
+    environment:
+      - SERVER_NAME=🎮 My Palworld Server
+      - MAX_PLAYERS=32
+      - ADMIN_PASSWORD=your-secure-password 
+    volumes:
+      - palworld-data:/home/steam/palworld_server
+      - palworld-backups:/home/steam/backups
+      - palworld-logs:/home/steam/logs
+
+volumes:
+  palworld-data:
+  palworld-backups:
+  palworld-logs:
 ```
 
 
 ## ⚙️ Configuration
 
-### **Environment Variables**
+### **🔧 Essential Environment Variables**
 
 | Variable | Default | Description |
 | :-- | :-- | :-- |
 | `SERVER_NAME` | `"Palworld Server"` | 🏷️ Server display name |
 | `SERVER_PASSWORD` | `""` | 🔒 Server join password |
 | `ADMIN_PASSWORD` | `"admin123"` | 👑 Admin/RCON password |
-| `MAX_PLAYERS` | `32` | 👥 Maximum player count |
-| `SERVER_PORT` | `8211` | 🌐 Game server port |
-| `REST_API_PORT` | `8212` | 📡 REST API port |
-| `RCON_PORT` | `25575` | 🖥️ RCON management port |
+| `MAX_PLAYERS` | `32` | 👥 Maximum player count (1-32) |
 | `BACKUP_ENABLED` | `true` | 💾 Enable automatic backups |
-| `DISCORD_WEBHOOK_URL` | `""` | 💬 Discord notifications |
-| `LANGUAGE` | `ko` | 🌍 Notification language |
+| `DISCORD_WEBHOOK_URL` | `""` | 💬 Discord webhook for notifications |
+| `LANGUAGE` | `ko` | 🌍 Language (`ko`/`en`/`ja`) |
 
-### **Advanced YAML Configuration**
+### **⏰ NEW: Idle Restart Feature**
 
-Mount your custom `config/default.yaml`:
+| Variable | Default | Description |
+| :-- | :-- | :-- |
+| `IDLE_RESTART_ENABLED` | `true` | 🔄 Enable auto-restart when no players |
+| `IDLE_RESTART_MINUTES` | `30` | ⏱️ Minutes to wait before restart |
+| `DISCORD_EVENT_IDLE_RESTART` | `true` | 📣 Discord notification for idle restarts |
 
-```yaml
-server:
-  name: "🎮 My Palworld Server"
-  max_players: 32
-  
-discord:
-  enabled: true
-  webhook_url: "https://discord.com/api/webhooks/..."
-  events:
-    player_join: true
-    player_leave: true
-    server_start: true
-    backup_complete: true
+### **🎮 Game Settings (150+ configurable options)**
 
-backup:
-  enabled: true
-  interval_seconds: 3600  # 1 hour
-  retention_days: 7
-  retention_weeks: 4
-  retention_months: 6
+| Variable | Default | Description |
+| :-- | :-- | :-- |
+| `DIFFICULTY` | `None` | 🎯 Game difficulty |
+| `IS_PVP` | `false` | ⚔️ Enable PvP mode |
+| `DAY_TIME_SPEED_RATE` | `1.0` | ☀️ Day time speed multiplier |
+| `EXP_RATE` | `1.0` | 📈 Experience gain rate |
+| `PAL_CAPTURE_RATE` | `1.0` | 🎯 Pal capture difficulty |
+
+[📄 **Complete Environment Variables List**](https://github.com/supersunho/docker-palworld-server/blob/main/.env.sample)
+
+## 🎯 ARM64 Performance Revolution
+
+### **Why FEX Matters**
+
+Traditional ARM64 emulation (QEMU) is slow and resource-heavy. Our FEX integration changes everything:
+
+```bash
+🔥 Performance Comparison:
+┌─────────────────┬──────────────┬──────────────┬──────────────┐
+│ Platform        │ Boot Time    │ Memory Usage │ CPU Usage    │
+├─────────────────┼──────────────┼──────────────┼──────────────┤
+│ ARM64 + FEX     │ ~2 minutes   │ ~1.2GB       │ ~15%         │
+│ x86_64 Native   │ ~2 minutes   │ ~1.0GB       │ ~12%         │
+│ ARM64 + QEMU    │ ~8 minutes   │ ~2.1GB       │ ~45%         │
+└─────────────────┴──────────────┴──────────────┴──────────────┘
 ```
 
 
-## 🎯 ARM64 Optimization Details
-
-### **Why FEX for ARM64?**
-
-- **🚀 Performance**: 3-5x faster than traditional emulation
-- **⚡ Efficiency**: Lower CPU usage and better memory management
-- **🔧 Compatibility**: Full x86_64 instruction translation
-- **📱 Device Support**: Perfect for Apple Silicon, Raspberry Pi, AWS Graviton
-
-
-### **FEX Configuration Highlights**
+### **Optimized FEX Configuration**
 
 ```bash
-# Optimized FEX environment variables
+# Automatically applied in our container
 FEX_ENABLE_JIT_CACHE=1
 FEX_JIT_CACHE_SIZE=1024
 FEX_ENABLE_LAZY_MEMORY_DELETION=1
@@ -124,181 +136,167 @@ FEX_ENABLE_STATIC_REGISTER_ALLOCATION=1
 ```
 
 
-### **Performance Benchmarks**
+### **Tested ARM64 Devices**
 
-| Platform | Setup Time | Memory Usage | CPU Usage |
-| :-- | :-- | :-- | :-- |
-| **ARM64 + FEX** | ~2 minutes | ~1.2GB | ~15% |
-| x86_64 Native | ~2 minutes | ~1.0GB | ~12% |
-| ARM64 + QEMU | ~8 minutes | ~2.1GB | ~45% |
+- ✅ **Apple Silicon** (M1/M2/M3/M4): Excellent performance
+- ✅ **Raspberry Pi 5** (8GB): Good for 8-16 players
+- ✅ **AWS Graviton3/4**: Perfect for cloud deployment
+- ✅ **Oracle Ampere**: Budget cloud ARM64 option
 
-## 📊 Monitoring \& Management
 
-### **REST API Endpoints**
+## 📊 Advanced Features
+
+### **🔄 Smart Idle Management**
 
 ```bash
-# Server information
-curl http://localhost:8212/v1/api/info
+# Automatically restart server when empty
+IDLE_RESTART_ENABLED=true
+IDLE_RESTART_MINUTES=30
 
-# Player list
+# Discord notification in your language
+🇺🇸 "⏰ No players for 30 minutes. Restarting server (My Server)."
+🇰🇷 "⏰ 30분 동안 접속자가 없어 서버(My Server)를 재시작합니다."
+🇯🇵 "⏰ 30分間プレイヤーがいなかったため、サーバー(My Server)を再起動します。"
+```
+
+
+### **💾 Enterprise Backup System**
+
+```yaml
+backup:
+  enabled: true
+  interval_seconds: 3600    # Hourly backups
+  retention_days: 7         # Keep daily for 7 days
+  retention_weeks: 4        # Keep weekly for 4 weeks
+  retention_months: 6       # Keep monthly for 6 months
+  compress: true            # Gzip compression
+  max_backups: 100          # Total backup limit
+```
+
+
+### **📡 REST API \& RCON**
+
+```bash
+# REST API endpoints
+curl http://localhost:8212/v1/api/info
 curl http://localhost:8212/v1/api/players
-
-# Server settings
 curl http://localhost:8212/v1/api/settings
-```
 
-
-### **RCON Commands**
-
-```bash
-# Using rcon-cli
-rcon-cli --host localhost --port 25575 --password admin123 Info
+# RCON commands
 rcon-cli --host localhost --port 25575 --password admin123 ShowPlayers
-rcon-cli --host localhost --port 25575 --password admin123 "Broadcast Hello Players!"
+rcon-cli --host localhost --port 25575 --password admin123 "Broadcast Hello!"
 ```
 
 
-### **Health Check**
+### **🩺 Health Monitoring**
 
 ```bash
-# Docker health check
-docker exec palworld-server python /app/scripts/healthcheck.py --json
+# Built-in health check
+docker exec palworld-server python /app/scripts/healthcheck.py
 
-# Manual health verification
-curl http://localhost:8212/v1/api/info
+# Automatic recovery on failures
+# CPU > 90%, Memory > 95%, API timeouts = auto-restart
 ```
 
 
-## 🔧 Development \& Customization
+## 🛠️ Advanced Usage
 
-### **Project Structure**
-
-```
-📁 palworld-server/
-├── 🐳 Dockerfile                 # Multi-arch Docker image
-├── 📋 docker-compose.yml         # Development setup
-├── ⚙️ config/
-│   ├── default.yaml             # Main configuration
-│   ├── DefaultEngine.ini        # Engine settings template
-│   └── DefaultPalWorldSettings.ini
-├── 🐍 src/                      # Python management system
-│   ├── backup/                  # Backup management
-│   ├── clients/                 # API clients (REST/RCON/SteamCMD)
-│   ├── managers/                # Process & config managers
-│   ├── monitoring/              # Real-time monitoring
-│   ├── notifications/           # Discord notifications
-│   └── utils/                   # Helper utilities
-├── 🖥️ scripts/                 # Utility scripts
-│   ├── healthcheck.py          # Health monitoring
-│   └── ini_to_yaml_converter.py
-└── 🐋 docker/                  # Docker configurations
-    ├── entrypoint.sh           # FEX-optimized startup
-    └── supervisor/             # Process supervision
-```
-
-
-### **Building from Source**
+### **Multi-Arch Build Commands**
 
 ```bash
 # Clone repository
-git clone https://github.com/supersunho/palworld-server.git
-cd palworld-server
+git clone https://github.com/supersunho/docker-palworld-server.git
+cd docker-palworld-server
 
-# Build for ARM64
-docker buildx build --platform linux/arm64 -t palworld-server:arm64 .
+# Build for your platform
+docker build -t palworld-server .
 
-# Build for AMD64  
-docker buildx build --platform linux/amd64 -t palworld-server:amd64 .
-
-# Multi-architecture build
-docker buildx build --platform linux/arm64,linux/amd64 -t palworld-server:latest .
+# Build
+docker buildx build --platform linux/arm64 -t palworld-server .
 ```
 
 
-## 🌍 Multi-Language Support
+### **Custom Configuration File**
+
+```bash
+# Mount your own configuration
+docker run -d \
+  -v ./my-config.yaml:/app/config/default.yaml \
+  -v palworld-data:/home/steam/palworld_server \
+  supersunho/docker-palworld-server:latest
+```
+
+
+### **Development Mode**
+
+```bash
+# Run with development tools
+docker run -it --rm \
+  -v $(pwd):/app \
+  -p 8211:8211/udp \
+  supersunho/palworld-server:latest bash
+```
+
+
+## 🌍 Multi-Language Discord Notifications
 
 ### **Supported Languages**
 
-- 🇰🇷 **Korean** (`ko`) - Default
-- 🇺🇸 **English** (`en`)
-- 🇯🇵 **Japanese** (`ja`)
+- 🇰🇷 **Korean** (`ko`) - 한국어 알림
+- 🇺🇸 **English** (`en`) - English notifications
+- 🇯🇵 **Japanese** (`ja`) - 日本語通知 
 
-### **Discord Notification Examples**
+
+### **Example Notifications**
 
 ```yaml
-# Korean
-"🎮 플레이어 참가: PlayerName (현재 5명)"
+Player Join:
+🇺🇸 "🎮 Player joined: Steve (5 players online)"
+🇰🇷 "🎮 플레이어 참가: Steve (현재 5명)"
+🇯🇵 "🎮 プレイヤー参加: Steve (現在5人)"
 
-# English  
-"🎮 Player joined: PlayerName (5 players online)"
-
-# Japanese
-"🎮 プレイヤー参加: PlayerName (現在5人)"
+Server Restart:
+🇺🇸 "🔄 Server restarted due to idle timeout"
+🇰🇷 "🔄 무접속으로 인한 서버 재시작"
+🇯🇵 "🔄 アイドルタイムアウトによるサーバー再起動"
 ```
 
 
-## 📈 Performance \& Scaling
+## 📈 Resource Requirements \& Scaling
 
-### **Resource Requirements**
+### **Recommended Specifications**
 
-| Players | CPU | RAM | Storage |
-| :-- | :-- | :-- | :-- |
-| 1-8 | 2 cores | 2GB | 10GB |
-| 9-16 | 4 cores | 4GB | 15GB |
-| 17-32 | 6 cores | 6GB | 20GB |
+| Players | CPU Cores | RAM | Storage | Bandwidth |
+| :-- | :-- | :-- | :-- | :-- |
+| 1-8 | 2 cores | 2GB | 10GB | 5 Mbps |
+| 9-16 | 4 cores | 4GB | 15GB | 10 Mbps |
+| 17-24 | 6 cores | 6GB | 20GB | 15 Mbps |
+| 25-32 | 8 cores | 8GB | 25GB | 20 Mbps |
 
-### **Recommended ARM64 Devices**
+### **Cloud Provider Recommendations**
 
-- 🍎 **Apple Silicon** (M1/M2/M3): Excellent performance
-- 🥧 **Raspberry Pi 5** (8GB): Good for small groups
-- ☁️ **AWS Graviton3**: Perfect for cloud deployment
-- 📱 **Orange Pi 5**: Budget-friendly option
+#### **ARM64 Cloud Options** 💚
 
+- **AWS**: Graviton3/4 instances (c7g, m7g series)
+- **Oracle Cloud**: Ampere A1 (4 cores, 24GB RAM - Always Free!)
+- **Hetzner**: CAX series ARM64 VPS
+- **Scaleway**: ARM64 instances 
 
-## 🤝 Contributing
+## 🤝 Community \& Support
 
-We welcome contributions! Here's how you can help:
+### **🔗 Links**
 
-1. 🍴 **Fork** the repository
-2. 🌟 **Create** a feature branch
-3. 💻 **Make** your changes
-4. ✅ **Test** thoroughly
-5. 📝 **Submit** a pull request
+- 📦 **Docker Hub**: [supersunho/palworld-server](https://hub.docker.com/r/supersunho/palworld-server)
+- 📂 **GitHub**: [supersunho/docker-palworld-server](https://github.com/supersunho/docker-palworld-server)
+- 🐛 **Issues**: [Report Issues](https://github.com/supersunho/docker-palworld-server/issues)
+- 💬 **Discussions**: [Community Discussions](https://github.com/supersunho/docker-palworld-server/discussions)
+ 
+## 📜 License \& Acknowledgments
 
-### **Development Setup**
-
-```bash
-git clone https://github.com/supersunho/palworld-server.git
-cd palworld-server
-pip install -r requirements.txt
-python -m src.server_manager
-```
-
-
-## 📄 License \& Credits
-
-**MIT License** - Feel free to use in personal and commercial projects.
-
-### **Special Thanks**
-
-- 🎮 **Pocketpair** - For creating Palworld
-- 🔧 **FEX Team** - For ARM64 emulation excellence
-- 🐳 **Docker Community** - For containerization support
-- 🐍 **Python Community** - For amazing libraries
-
-
-## 📞 Support \& Community
-
-- 🐛 **Issues**: [GitHub Issues](https://github.com/supersunho/docker-palworld-server/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/supersunho/docker-palworld-server/discussions)
-- 📧 **Contact**: supersunho@gmail.com
-- 🐳 **Docker Hub**: [supersunho/palworld-server](https://hub.docker.com/r/supersunho/docker-palworld-server)
+**MIT License** - Free for personal and commercial use.
 
 <div align="center">
 
-**⭐ Star this project if it helped you! ⭐**
+### **⭐ Love this project? Give it a star! ⭐** 
 
-*Made with ❤️ and Python 🐍 by supersunho*
-
-</div> 
-
+</div>
