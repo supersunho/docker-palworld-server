@@ -129,16 +129,7 @@ FEX_JIT_CACHE_SIZE=1024
 FEX_ENABLE_LAZY_MEMORY_DELETION=1
 FEX_ENABLE_STATIC_REGISTER_ALLOCATION=1
 ```
-
-
-### **Tested ARM64 Devices**
-
-- ✅ **Apple Silicon** (M1/M2/M3/M4): Excellent performance
-- ✅ **Raspberry Pi 5** (8GB): Good for 8-16 players
-- ✅ **AWS Graviton3/4**: Perfect for cloud deployment
-- ✅ **Oracle Ampere**: Budget cloud ARM64 option
-
-
+ 
 ## 📊 Advanced Features
 
 ### **🔄 Smart Idle Management**
