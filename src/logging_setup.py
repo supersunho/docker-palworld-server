@@ -231,7 +231,7 @@ def log_api_call(logger: structlog.BoundLogger, endpoint: str, status_code: int,
     """Log API call"""
     event_type = "api_success" if 200 <= status_code < 300 else "api_fail"
     
-    logger.info(f"API call completed", 
+    logger.info(f"API call completed {endpoint}", 
                 event_type=event_type,
                 endpoint=endpoint,
                 status_code=status_code,
