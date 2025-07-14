@@ -26,7 +26,7 @@ server_startup:
     enable_public_lobby: ${ENABLE_PUBLIC_LOBBY:false}
     log_format: ${LOG_FORMAT:text}
     worker_threads_count: ${WORKER_THREADS_COUNT:0}
-    additional_options: "${ADDITIONAL_SERVER_OPTIONS:""}"
+    additional_options: "${ADDITIONAL_SERVER_OPTIONS:}"
 
 palworld_settings:
     AdminPassword: "${ADMIN_PASSWORD:admin123}"
