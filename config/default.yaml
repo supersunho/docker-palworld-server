@@ -26,14 +26,14 @@ server_startup:
     enable_public_lobby: ${ENABLE_PUBLIC_LOBBY:false}
     log_format: ${LOG_FORMAT:text}
     worker_threads_count: ${WORKER_THREADS_COUNT:0}
-    additional_options: ${ADDITIONAL_SERVER_OPTIONS:""}
+    additional_options: "${ADDITIONAL_SERVER_OPTIONS:""}"
 
 palworld_settings:
     AdminPassword: "${ADMIN_PASSWORD:admin123}"
     CoopPlayerMaxNum: ${COOP_PLAYER_MAX_NUM:4}
     PublicIP: "${PUBLIC_IP:}"
     PublicPort: ${PUBLIC_PORT:8211}
-    ServerDescription: "${SERVER_DESCRIPTION:}"
+    ServerDescription: "${SERVER_DESCRIPTION:A Palworld dedicated server}"
     ServerName: "${SERVER_NAME:Default Palworld Server}"
     ServerPassword: "${SERVER_PASSWORD:}"
     ServerPlayerMaxNum: ${SERVER_PLAYER_MAX_NUM:32}
@@ -147,8 +147,8 @@ monitoring:
     enable_dashboard: ${ENABLE_DASHBOARD:true}
     dashboard_port: ${DASHBOARD_PORT:8080}
     idle_restart:
-        enabled: "${IDLE_RESTART_ENABLED:true}"
-        idle_minutes: "${IDLE_RESTART_MINUTES:30}"
+        enabled: ${IDLE_RESTART_ENABLED:true}
+        idle_minutes: ${IDLE_RESTART_MINUTES:30}
 
 backup:
     enabled: ${BACKUP_ENABLED:true}
