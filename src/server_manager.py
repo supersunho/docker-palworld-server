@@ -10,7 +10,7 @@ import aiohttp
 from typing import Optional, Any
 
 from .config_loader import PalworldConfig, get_config
-from .logging_setup import get_logger, log_server_event
+from .logging_setup import get_logger, log_server_event, setup_logging
 
 from .clients import SteamCMDManager
 from .managers import ProcessManager, ConfigManager, IntegrationManager
@@ -371,7 +371,13 @@ class PalworldServerManager:
 async def main():
     """Main production server function with API readiness verification"""
     config = get_config()
-    
+    setup_logging(
+        log_level=config.monitoring.log_level,
+        log_format_style=config.monitoring.log_format_style,
+        log_dir=config.paths.log_dir,
+        enable_console=True,
+        enable_file=True
+    )
     print("🚀 Starting Palworld Dedicated Server")
     print(f"   Server: {config.server.name}")
     print(f"   Port: {config.server.port}")

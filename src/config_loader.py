@@ -76,6 +76,7 @@ class MonitoringConfig:
     metrics_interval: int = 60
     enable_dashboard: bool = True
     dashboard_port: int = 8080
+    log_format_style: str = "simple"
     idle_restart: IdleRestartConfig = field(default_factory=IdleRestartConfig)
 
 
@@ -502,6 +503,7 @@ class ConfigLoader:
             metrics_interval=monitoring_dict.get('metrics_interval', 60),
             enable_dashboard=monitoring_dict.get('enable_dashboard', True),
             dashboard_port=monitoring_dict.get('dashboard_port', 8080),
+            log_format_style=monitoring_dict.get('log_format_style', 'simple'),
             idle_restart=idle_restart_config
         )
         

@@ -50,6 +50,8 @@ EVENT_EMOJIS = {
     "shutdown": "🔚",
     "config_load": "⚙️",
     "discord_send": "💬",
+    "idle_restart_init": "⏰",
+    "rcon_connect": "🖥️",
 }
 
 
@@ -73,7 +75,7 @@ class EmojiEventProcessor:
                     break
         
         if event_emoji:
-            emoji_prefix = f"{event_emoji} {level_emoji}"
+            emoji_prefix = f"{event_emoji}"
         else:
             emoji_prefix = level_emoji
         
@@ -98,12 +100,37 @@ class ContextProcessor:
         return event_dict
 
 
+class CustomConsoleRenderer:
+    """Custom console renderer to match bash script format"""
+    
+    def __call__(self, logger, name, event_dict):
+        """Render log entry in bash script format"""
+        level = event_dict.get("level", "info").upper()
+        event = event_dict.get("event", "")
+
+        level_colors = {
+            "DEBUG": "\033[36m",    # Cyan
+            "INFO": "\033[34m",     # Blue  
+            "WARNING": "\033[33m",  # Yellow
+            "ERROR": "\033[31m",    # Red
+            "CRITICAL": "\033[35m", # Magenta
+        }
+        
+        reset_color = "\033[0m"
+        color = level_colors.get(level, "")
+
+        formatted_message = f"{color}[{level}]{reset_color} {event}"
+        
+        return formatted_message
+
+
 def setup_logging(
     log_level: str = "INFO",
     log_dir: Optional[Union[str, Path]] = None,
     enable_console: bool = True,
     enable_file: bool = True,
     enable_json: bool = False,
+    log_format_style: str = "simple",  
 ) -> None:
     """Setup structlog logging system"""
     colorama.init()
@@ -153,18 +180,22 @@ def setup_logging(
         ContextProcessor(),
         EmojiEventProcessor(),
         structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="ISO"),
     ]
     
-    if enable_json:
-        processors.append(structlog.processors.JSONRenderer())
+    
+    if log_format_style == "simple":
+        processors.append(CustomConsoleRenderer())
     else:
-        processors.append(
-            structlog.dev.ConsoleRenderer(
-                colors=enable_console and not os.getenv("NO_COLOR"),
-                exception_formatter=structlog.dev.rich_traceback
+        processors.append(structlog.processors.TimeStamper(fmt="ISO"))
+        if enable_json:
+            processors.append(structlog.processors.JSONRenderer())
+        else:
+            processors.append(
+                structlog.dev.ConsoleRenderer(
+                    colors=enable_console and not os.getenv("NO_COLOR"),
+                    exception_formatter=structlog.dev.rich_traceback
+                )
             )
-        )
     
     structlog.configure(
         processors=processors,
