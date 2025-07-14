@@ -60,6 +60,7 @@ class ServerStartupConfig:
     worker_threads_count: int = 0
     additional_options: str = ""
 
+
 @dataclass
 class IdleRestartConfig:
     """Idle restart configuration"""
@@ -104,6 +105,7 @@ class DiscordConfig:
         "player_leave": True,
         "backup_complete": True,
         "errors": True,
+        "idle_restart": True,
     })
 
 
@@ -405,6 +407,10 @@ class ConfigLoader:
             if value.isdigit():
                 return int(value)
             
+            # 음수 처리 추가
+            if value.startswith('-') and value[1:].isdigit():
+                return int(value)
+            
             try:
                 if '.' in value:
                     return float(value)
@@ -471,12 +477,32 @@ class ConfigLoader:
             additional_options=config_dict.get('server_startup', {}).get('additional_options', ''),
         )
         
+        monitoring_dict = config_dict.get('monitoring', {})
+        idle_restart_dict = monitoring_dict.get('idle_restart', {})
+        
+        enabled = idle_restart_dict.get('enabled', True)
+        if isinstance(enabled, str):
+            enabled = enabled.lower() in ('true', '1', 'yes', 'on')
+        
+        idle_minutes = idle_restart_dict.get('idle_minutes', 30)
+        if isinstance(idle_minutes, str):
+            try:
+                idle_minutes = int(idle_minutes)
+            except ValueError:
+                idle_minutes = 30
+        
+        idle_restart_config = IdleRestartConfig(
+            enabled=enabled,
+            idle_minutes=idle_minutes
+        )
+        
         monitoring_config = MonitoringConfig(
-            mode=config_dict.get('monitoring', {}).get('mode', 'both'),
-            log_level=config_dict.get('monitoring', {}).get('log_level', 'INFO'),
-            metrics_interval=config_dict.get('monitoring', {}).get('metrics_interval', 60),
-            enable_dashboard=config_dict.get('monitoring', {}).get('enable_dashboard', True),
-            dashboard_port=config_dict.get('monitoring', {}).get('dashboard_port', 8080),
+            mode=monitoring_dict.get('mode', 'both'),
+            log_level=monitoring_dict.get('log_level', 'INFO'),
+            metrics_interval=monitoring_dict.get('metrics_interval', 60),
+            enable_dashboard=monitoring_dict.get('enable_dashboard', True),
+            dashboard_port=monitoring_dict.get('dashboard_port', 8080),
+            idle_restart=idle_restart_config
         )
         
         backup_config = BackupConfig(
@@ -502,6 +528,7 @@ class ConfigLoader:
                 "player_leave": True,
                 "backup_complete": True,
                 "errors": True,
+                "idle_restart": True,
             }
         )
         
