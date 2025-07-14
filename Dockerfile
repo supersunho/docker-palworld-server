@@ -2,7 +2,7 @@
 FROM supersunho/steamcmd-arm64:latest
 
 LABEL maintainer="supersunho" \
-      version="1.0.0" \
+      version="1.0.1" \
       description="Palworld Dedicated Server with FEX emulation for ARM64" \
       architecture="arm64" \
       base-image="supersunho/steamcmd-arm64:latest"
