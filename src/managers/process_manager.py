@@ -4,14 +4,19 @@ Process management for Palworld server
 Handles server process lifecycle and monitoring
 """
 
+
 import asyncio
+import os
+import signal
 import subprocess
 import time
 from pathlib import Path
 from typing import Optional, List
 
+
 from ..config_loader import PalworldConfig
 from ..logging_setup import log_server_event
+
 
 
 class ProcessManager:
@@ -95,12 +100,14 @@ class ProcessManager:
             
             full_cmd = self._build_server_command()
             
+            # Create a new process group to manage FEXBash and all child processes
             self.server_process = subprocess.Popen(
                 full_cmd,
                 cwd=str(self.server_path),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                start_new_session=True
             )
             
             time.sleep(10)
@@ -123,7 +130,7 @@ class ProcessManager:
     
     async def stop_server(self, message: str = "Server is shutting down", 
                          api_client=None) -> bool:
-        """Stop Palworld server gracefully"""
+        """Stop Palworld server gracefully and clean up zombie processes"""
         if not self.is_server_running():
             log_server_event(self.logger, "server_stop", 
                            "Server is already stopped")
@@ -145,15 +152,27 @@ class ProcessManager:
             
             if self.is_server_running():
                 log_server_event(self.logger, "server_force_stop", 
-                               "Attempting force termination")
+                               "Attempting force termination of entire process group")
                 
-                self.server_process.terminate()
-                
+                # Kill the entire process group (FEXBash + all child processes)
                 try:
-                    self.server_process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    self.server_process.kill()
-                    self.server_process.wait()
+                    os.killpg(self.server_process.pid, signal.SIGTERM)
+                    try:
+                        self.server_process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(self.server_process.pid, signal.SIGKILL)
+                        self.server_process.wait()
+                except ProcessLookupError:
+                    # Process group already terminated
+                    pass
+            
+            # Clean up zombie process by reading remaining output
+            try:
+                self.server_process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception:
+                pass
             
             log_server_event(self.logger, "server_stop_complete", 
                            "Server stopped successfully")
