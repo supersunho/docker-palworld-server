@@ -47,10 +47,7 @@ class SteamCMDManager:
         if not self.validate_steamcmd():
             return False
 
-        steamcmd_command = " ".join([
-            str(self.steamcmd_script),
-            "+login", "anonymous"
-        ] + commands + ["+quit"])
+        steamcmd_command = " ".join([str(self.steamcmd_script)] + commands)
 
         full_cmd = ["FEXBash", "-c", steamcmd_command]
 

@@ -212,12 +212,13 @@ class PalworldServerManager:
         
         commands = [
             f"+force_install_dir {self.config.paths.server_dir}",
+            "+login", "anonymous",
             f"+app_update {self.config.steamcmd.app_id}"
         ]
         
         if self.config.steamcmd.validate:
             commands.append("validate")
-        
+        commands.append("+quit")
         success = self.steamcmd_manager.run_command(commands, timeout=1800)
         
         if success:
