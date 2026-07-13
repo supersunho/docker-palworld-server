@@ -449,7 +449,7 @@ jobs:
 
             - name: 💾 Cache build dependencies
               if: steps.check-images.outputs.build_image == 'true'
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: system-cache
               with:
                   path: |
