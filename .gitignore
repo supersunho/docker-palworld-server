@@ -9,6 +9,8 @@
 *.zip
 .coverage
 .env
+.env.palworld
+.env.grafana
 .history
 venv
 docker_palworld_server.egg-info

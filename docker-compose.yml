@@ -6,22 +6,12 @@ services:
         container_name: palworld-server
         hostname: palworld-server
         restart: unless-stopped
-        environment:
-            # Required — must be set via .env or shell environment
-            ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Admin password is required in .env or environment}
-            SERVER_NAME: ${SERVER_NAME:?Server name is required}
-            MAX_PLAYERS: ${MAX_PLAYERS:?MAX_PLAYERS is required}
-            SERVER_PORT: ${SERVER_PORT:?SERVER_PORT is required}
-            REST_API_PORT: ${REST_API_PORT:?REST_API_PORT is required}
-            # Optional
-            PUID: ${PUID:-1002}
-            PGID: ${PGID:-1002}
-            BACKUP_ENABLED: ${BACKUP_ENABLED:-true}
-            MONITORING_MODE: ${MONITORING_MODE:-both}
+        env_file:
+            - .env.palworld
         ports:
-            - "8211:8211/udp" # Game server port
-            - "27015:27015/udp" # Steam query port
-            - "127.0.0.1:8212:8212/tcp" # REST API port (localhost only)
+            - "${SERVER_PORT:-8211}:${SERVER_PORT:-8211}/udp" # Game server port
+            - "${QUERY_PORT:-27018}:${QUERY_PORT:-27018}/udp" # Steam query port
+            - "127.0.0.1:${REST_API_PORT:-8212}:${REST_API_PORT:-8212}/tcp" # REST API port (localhost only)
             - "127.0.0.1:9090:9090/tcp" # Prometheus metrics (localhost only)
 
         volumes:
@@ -76,10 +66,8 @@ services:
         restart: unless-stopped
         ports:
             - "127.0.0.1:3000:3000" # Grafana UI (localhost only)
-        environment:
-            - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-            - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Grafana admin password is required}
-            - GF_INSTALL_PLUGINS=
+        env_file:
+            - .env.grafana
         volumes:
             - ./docker/grafana/datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
             - ./docker/grafana/provisioning/dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/providers.yml:ro

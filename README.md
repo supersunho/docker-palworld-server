@@ -46,6 +46,21 @@ docker run -d \
 
 ### **📋 Docker Compose (Recommended)**
 
+Create the service-specific environment files before starting the stack:
+
+```bash
+cp .env.palworld.example .env.palworld
+cp .env.grafana.example .env.grafana
+
+# Set ADMIN_PASSWORD in .env.palworld.
+# Set GF_SECURITY_ADMIN_PASSWORD in .env.grafana.
+bash scripts/validate_env_files.sh .env.palworld .env.grafana
+docker compose --env-file .env.palworld up -d
+```
+
+`.env.palworld` contains the Palworld configuration; `.env.grafana` contains
+only Grafana's native `GF_*` variables.
+
 ```yaml
 version: "3.8"
 services:
@@ -57,10 +72,8 @@ services:
             - "8211:8211/udp" # Game Server
             - "127.0.0.1:8212:8212/tcp" # REST API (localhost only)
             - "127.0.0.1:25575:25575/tcp" # RCON (localhost only)
-        environment:
-            - SERVER_NAME=🎮 My Palworld Server
-            - MAX_PLAYERS=32
-            - ADMIN_PASSWORD=your-secure-password
+        env_file:
+            - .env.palworld
         volumes:
             - palworld-data:/home/steam/palworld_server
             - palworld-backups:/home/steam/backups
@@ -104,7 +117,7 @@ volumes:
 | `EXP_RATE`            | `1.0`   | 📈 Experience gain rate      |
 | `PAL_CAPTURE_RATE`    | `1.0`   | 🎯 Pal capture difficulty    |
 
-[📄 **Complete Environment Variables List**](https://github.com/supersunho/docker-palworld-server/blob/main/.env.example)
+[📄 **Complete Environment Variables List**](https://github.com/supersunho/docker-palworld-server/blob/main/.env.palworld.example)
 
 ## 🎯 ARM64 Performance Revolution
 

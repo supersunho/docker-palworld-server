@@ -1,6 +1,0 @@
-{
-    "yaml.schemas": {
-        "https://json.schemastore.org/grafana-datasource": ["**/grafana/**/datasources/*.yml", "**/grafana/**/datasources/*.yaml"],
-        "https://json.schemastore.org/prometheus": ["**/prometheus.yml", "!**/grafana/**/prometheus.yml"]
-    }
-}
