@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 SteamCMD client for Palworld server management
-Handles server file downloads and updates via SteamCMD
+Handles server file downloads and updates via SteamCMD.
 """
 
 import os
 import threading
 import shlex
 import subprocess
+import hashlib
 from pathlib import Path
 from typing import List
 
@@ -21,6 +22,21 @@ class SteamCMDManager:
         self.steamcmd_path = steamcmd_path
         self.logger = logger
         self.steamcmd_script = steamcmd_path / "steamcmd.sh"
+
+    def _steamcmd_digest(self) -> str | None:
+        """Return a hex digest of the steamcmd.sh entry point.
+
+        Used by _ensure_updated to detect whether the SteamCMD
+        self-updater actually touched the binary during warm-up.
+        Returns None when the file cannot be read (the caller
+        treats None as "unchanged").
+        """
+        try:
+            return hashlib.sha256(
+                self.steamcmd_script.read_bytes()
+            ).hexdigest()
+        except OSError:
+            return None
 
     def validate_steamcmd(self) -> bool:
         """Check if SteamCMD executable exists and is executable"""
@@ -98,38 +114,84 @@ class SteamCMDManager:
         return returncode, output_lines
 
     def _ensure_updated(self) -> bool:
-        """Lightweight warm-up to trigger any pending self-update."""
+        """Lightweight warm-up to trigger any pending self-update.
+
+        Returns True if it is safe to proceed with the main command.
+        Returns False only when the binary was modified during a
+        failed update -- a strong signal that SteamCMD would run a
+        partially-overwritten (and likely broken) installation.
+
+        All other outcomes (timeout, transient network error, update
+        already applied, no update needed) return True because the
+        binary remains in a known-good state.
+        """
         if not self.validate_steamcmd():
             return False
+
+        # Snapshot the binary before warming up so we can detect
+        # whether the SteamCMD self-updater actually wrote to disk.
+        before = self._steamcmd_digest()
 
         warmup_parts = [str(self.steamcmd_script), "+login", "anonymous", "+quit"]
         full_cmd = ["FEXBash", "-c", shlex.join(warmup_parts)]
 
         env = {
             **dict(os.environ),
-            "STEAM_COMPAT_DATA_PATH": str(self.steamcmd_path / "steam_compat"),
-            "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.steamcmd_path),
+            "STEAM_COMPAT_DATA_PATH": str(
+                self.steamcmd_path / "steam_compat"
+            ),
+            "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(
+                self.steamcmd_path
+            ),
         }
         (self.steamcmd_path / "steam_compat").mkdir(parents=True, exist_ok=True)
 
-        self.logger.info("Running SteamCMD warm-up to trigger any pending self-update",
-                         event_type="steamcmd_warmup")
+        self.logger.info(
+            "Running SteamCMD warm-up to trigger any pending self-update",
+            event_type="steamcmd_warmup",
+        )
         try:
             rc, lines = self._run_and_stream(
-                full_cmd, env, str(self.steamcmd_path), timeout=120, label="warmup"
+                full_cmd,
+                env,
+                str(self.steamcmd_path),
+                timeout=120,
+                label="warmup",
             )
             if rc == 0:
-                self.logger.info("SteamCMD warm-up completed (no update needed or update applied)")
-            else:
-                self.logger.warning(
-                    "SteamCMD warm-up finished with non-zero exit (may be normal)",
-                    event_type="steamcmd_warmup",
-                    return_code=rc,
-                    last_lines=lines[-50:],
+                self.logger.info(
+                    "SteamCMD warm-up completed successfully"
                 )
+                return True
+
+            # Non-zero exit.  Check whether the binary changed -- a
+            # changed binary means a partial self-update landed on
+            # disk and likely corrupted the installation.
+            after = self._steamcmd_digest()
+            if after is not None and after != before:
+                self.logger.error(
+                    "SteamCMD warm-up failed and the binary was "
+                    "modified. Refusing to proceed -- the installation "
+                    "may be partially overwritten.",
+                    event_type="steamcmd_warmup_corrupt",
+                    return_code=rc,
+                )
+                return False
+
+            self.logger.warning(
+                "SteamCMD warm-up finished with a non-zero exit, "
+                "but the binary is unchanged (may be normal -- "
+                "continuing).",
+                event_type="steamcmd_warmup",
+                return_code=rc,
+            )
             return True
+
         except subprocess.TimeoutExpired:
-            self.logger.warning("SteamCMD warm-up timed out, proceeding anyway")
+            self.logger.warning(
+                "SteamCMD warm-up timed out (the main command has a "
+                "longer timeout, so this may still work -- continuing)."
+            )
             return True
 
     def run_command(self, commands: List[str], timeout: int = 600) -> bool:
@@ -138,8 +200,10 @@ class SteamCMDManager:
             return False
 
         # Warm up steamcmd first to handle any pending self-update
-        # before running the real command.
-        self._ensure_updated()
+        # before running the real command.  If the binary was corrupted
+        # during the warm-up, abort immediately.
+        if not self._ensure_updated():
+            return False
 
         steamcmd_command = shlex.join([str(self.steamcmd_script)] + commands)
         full_cmd = ["FEXBash", "-c", steamcmd_command]
