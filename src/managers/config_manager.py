@@ -108,8 +108,11 @@ class ConfigManager:
             if self._checksums[key] != current_hash:
                 self._checksums[key] = current_hash
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.warning(
+                'Failed to check YAML config for changes: %s',
+                e,
+            )
         return False
     
     def reload_and_apply(self) -> bool:

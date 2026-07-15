@@ -430,8 +430,12 @@ async def main():
                 return 1
         
         print("Generating server settings...")
-        manager.generate_server_settings()
-        manager.generate_engine_settings()
+        if not manager.generate_server_settings():
+            print("Server settings generation failed")
+            return 1
+        if not manager.generate_engine_settings():
+            print("Engine settings generation failed")
+            return 1
         
         print("Starting Palworld server...")
         startup_success = await manager.start_server_with_verification()

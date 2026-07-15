@@ -362,7 +362,12 @@ class IdleRestartManager:
     
     async def _force_resume(self) -> None:
         """Internal force resume implementation"""
-        await self.process_manager.resume_server()
-        self._paused = False
-        self._pause_start_time = None
-        self.logger.info("Server forcefully resumed")
+        resume_ok = await self.process_manager.resume_server()
+        if resume_ok:
+            self._paused = False
+            self._pause_start_time = None
+            self.logger.info("Server forcefully resumed")
+        else:
+            self.logger.warning(
+                "Force resume failed -- server did not resume successfully"
+            )
