@@ -71,30 +71,30 @@ class TestSteamCMDManager:
 
     def test_run_command_no_steamcmd(self, steamcmd_manager):
         with patch.object(steamcmd_manager, "validate_steamcmd", return_value=False):
-            assert steamcmd_manager.run_command(["+quit"]) is False
+            assert steamcmd_manager.run_command(["+quit"]) == (False, [])
 
     def test_run_command_success(self, steamcmd_manager):
         with patch.object(steamcmd_manager, "validate_steamcmd", return_value=True), \
              patch.object(steamcmd_manager, "_ensure_updated", return_value=True), \
              patch.object(steamcmd_manager, "_run_and_stream", return_value=(0, [])):
-            assert steamcmd_manager.run_command(["+quit"]) is True
+            assert steamcmd_manager.run_command(["+quit"]) == (True, [])
 
     def test_run_command_failure(self, steamcmd_manager):
         with patch.object(steamcmd_manager, "validate_steamcmd", return_value=True), \
              patch.object(steamcmd_manager, "_ensure_updated", return_value=True), \
              patch.object(steamcmd_manager, "_run_and_stream", return_value=(1, ["error"])):
-            assert steamcmd_manager.run_command(["+quit"]) is False
+            assert steamcmd_manager.run_command(["+quit"]) == (False, ["error"])
 
     def test_run_command_timeout(self, steamcmd_manager):
         with patch.object(steamcmd_manager, "validate_steamcmd", return_value=True), \
              patch.object(steamcmd_manager, "_ensure_updated", return_value=True), \
              patch.object(steamcmd_manager, "_run_and_stream") as mock_ras:
             mock_ras.side_effect = subprocess.TimeoutExpired("cmd", 1)
-            assert steamcmd_manager.run_command(["+quit"]) is False
+            assert steamcmd_manager.run_command(["+quit"]) == (False, [])
 
     def test_run_command_exception(self, steamcmd_manager):
         with patch.object(steamcmd_manager, "validate_steamcmd", return_value=True), \
              patch.object(steamcmd_manager, "_ensure_updated", return_value=True), \
              patch.object(steamcmd_manager, "_run_and_stream") as mock_ras:
             mock_ras.side_effect = Exception("Unexpected error")
-            assert steamcmd_manager.run_command(["+quit"]) is False
+            assert steamcmd_manager.run_command(["+quit"]) == (False, [])

@@ -65,7 +65,7 @@ class TestPalworldServerManager:
 
         # Mock steamcmd
         m.steamcmd_manager = MagicMock()
-        m.steamcmd_manager.run_command = MagicMock(return_value=True)
+        m.steamcmd_manager.run_command = MagicMock(return_value=(True, []))
 
         return m
 
@@ -163,7 +163,7 @@ class TestPalworldServerManager:
     async def test_download_server_files(self, manager):
         """FS-13.1.2: SteamCMD download."""
         result = await manager.download_server_files()
-        assert result is True
+        assert result == (True, True)
 
 
 class TestWaitForApiReady:
