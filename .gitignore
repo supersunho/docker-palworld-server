@@ -16,3 +16,13 @@ venv
 docker_palworld_server.egg-info
 cov_annotate
 docs
+
+# Docker runtime data directories (bind mount targets)
+palworld_data/
+palworld_backups/
+palworld_logs/
+palworld_config/
+palworld_grafana/
+palworld_prometheus/
+palworld_deployer/
+palworld_deployer_cert/
