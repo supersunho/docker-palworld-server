@@ -230,8 +230,12 @@ class PalworldServerManager:
         self._startup_completed = True
         return True
     
-    async def download_server_files(self) -> bool:
-        """Download/update Palworld server files via SteamCMD"""
+    async def download_server_files(self) -> tuple[bool, bool]:
+        """Download/update Palworld server files via SteamCMD.
+        
+        Returns (success, was_updated).
+        was_updated is True only when SteamCMD actually downloaded new files.
+        """
         log_server_event(self.logger, "server_download_start", 
                         "Starting Palworld server file download")
         
@@ -244,17 +248,25 @@ class PalworldServerManager:
         if self.config.steamcmd.validate:
             commands.append("validate")
         commands.append("+quit")
-        success = self.steamcmd_manager.run_command(commands, timeout=1800)
+        success, output_lines = self.steamcmd_manager.run_command(commands, timeout=1800)
         
         if success:
+            # Detect if an actual update was downloaded vs "already up to date"
+            was_updated = True
+            for line in output_lines:
+                if "already up to date" in line.lower():
+                    was_updated = False
+                    break
+            
             log_server_event(self.logger, "server_download_complete", 
                            "Server file download completed")
         else:
+            was_updated = False
             log_server_event(self.logger, "server_download_fail", 
                            "Server file download failed")
             await self.monitoring_manager.handle_error("Server file download failed")
         
-        return success
+        return success, was_updated
     
     def is_server_running(self) -> bool:
         """Check if server is currently running"""
@@ -409,18 +421,18 @@ class PalworldServerManager:
 async def run_server_loop(manager, sleep=asyncio.sleep, task_group=None):
     """Keep the manager and admin UI alive across server stop/start actions.
 
-    When AUTO_UPDATE is enabled, spawns a background task that periodically
-    checks for Palworld server updates and restarts the server when an update
-    is applied.
+    When CHECK_VERSION_UPDATE is enabled, spawns a background task that periodically
+    checks for Palworld server updates and sends notifications (via RCON and Discord)
+    without automatically restarting the server.
     """
     print("Server operational. Monitoring in progress...")
     last_status_time = 0
 
-    # Start auto-update background task if enabled
-    auto_update_task = None
-    if manager.config.steamcmd.auto_update:
-        async def _auto_update_loop():
-            """Periodically check for server updates and restart if found."""
+    # Start update-check background task if enabled
+    check_version_task = None
+    if manager.config.steamcmd.check_version_update:
+        async def _check_update_loop():
+            """Periodically check for server updates and notify if found."""
             check_interval = 6 * 3600  # Every 6 hours
             await sleep(5 * 60)  # Initial delay: wait 5 min after startup
             while True:
@@ -429,19 +441,33 @@ async def run_server_loop(manager, sleep=asyncio.sleep, task_group=None):
                         await sleep(check_interval)
                         continue
 
-                    print("Auto-update: Checking for Palworld server updates...")
+                    print("Version check: Searching for Palworld server updates...")
                     await manager.announce_message_any(
                         "Server update check in progress..."
                     )
-                    success = await manager.download_server_files()
-                    if success:
-                        print("Auto-update: Update applied, restarting server...")
-                        await manager.restart_server("Auto-update: Server update applied")
+                    success, was_updated = await manager.download_server_files()
+                    if success and was_updated:
+                        print("Version check: Palworld update detected!")
+                        # Notify in-game via RCON
+                        await manager.announce_message_any(
+                            "A new Palworld update has been downloaded. It will be applied on next server restart."
+                        )
+                        # Notify via Discord
+                        discord = manager.get_monitoring_manager().event_dispatcher.discord_notifier
+                        if discord and discord.enabled:
+                            async with discord as notifier:
+                                await notifier.notify_update_available(
+                                    current_version="current",
+                                    new_version="new",
+                                    language=manager.config.language
+                                )
+                    elif success and not was_updated:
+                        print("Version check: Server files are up to date.")
                 except Exception as e:
-                    print(f"Auto-update check failed: {e}")
+                    print(f"Version check failed: {e}")
                 await sleep(check_interval)
 
-        auto_update_task = asyncio.create_task(_auto_update_loop())
+        check_version_task = asyncio.create_task(_check_update_loop())
 
     while True:
         await sleep(60)
@@ -478,7 +504,7 @@ async def main():
     async with PalworldServerManager(config) as manager:
         if config.steamcmd.update_on_start:
             print("Downloading/updating server files...")
-            download_success = await manager.download_server_files()
+            download_success, _ = await manager.download_server_files()
             if not download_success:
                 print("Server file download failed")
                 return 1

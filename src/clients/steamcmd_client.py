@@ -194,16 +194,19 @@ class SteamCMDManager:
             )
             return True
 
-    def run_command(self, commands: List[str], timeout: int = 600) -> bool:
-        """Run SteamCMD commands with timeout"""
+    def run_command(self, commands: List[str], timeout: int = 600) -> tuple[bool, list[str]]:
+        """Run SteamCMD commands with timeout.
+        
+        Returns (success, output_lines).
+        """
         if not self.validate_steamcmd():
-            return False
+            return False, []
 
         # Warm up steamcmd first to handle any pending self-update
         # before running the real command.  If the binary was corrupted
         # during the warm-up, abort immediately.
         if not self._ensure_updated():
-            return False
+            return False, []
 
         steamcmd_command = shlex.join([str(self.steamcmd_script)] + commands)
         full_cmd = ["FEXBash", "-c", steamcmd_command]
@@ -224,7 +227,7 @@ class SteamCMDManager:
             if rc == 0:
                 log_server_event(self.logger, "steamcmd_complete",
                                  "SteamCMD commands completed successfully")
-                return True
+                return True, lines
             else:
                 fex_env_vars = {k: v for k, v in env.items()
                                 if 'FEX' in k or 'STEAM_COMPAT' in k}
@@ -235,11 +238,11 @@ class SteamCMDManager:
                     last_lines=lines[-100:],
                     env_vars=fex_env_vars,
                 )
-                return False
+                return False, lines
 
         except subprocess.TimeoutExpired:
             self.logger.error(f"SteamCMD timeout after {timeout} seconds", event_type="steamcmd_fail")
-            return False
+            return False, []
         except Exception as e:
             self.logger.error(f"SteamCMD execution error: {e}", event_type="steamcmd_fail")
-            return False
+            return False, []
