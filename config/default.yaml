@@ -229,7 +229,7 @@ paths:
     steamcmd_dir: "${STEAMCMD_DIR:/home/steam/steamcmd}"
 
 steamcmd:
-    app_id: 2394010
+    app_id: ${STEAMCMD_APP_ID:2394010}
     validate: ${STEAMCMD_VALIDATE:true}
     check_version_update: ${CHECK_VERSION_UPDATE:true}
     update_on_start: ${UPDATE_ON_START:true}
