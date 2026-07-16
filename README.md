@@ -543,13 +543,6 @@ docker run -it --rm \
 - [Unreal Engine — Configuration Files](https://dev.epicgames.com/documentation/en-us/unreal-engine/configuration-files-in-unreal-engine)
 - [Unreal Engine — Avoiding Hitches in Networking](https://dev.epicgames.com/community/learning/knowledge-base/eZyq/unreal-engine-avoiding-hitches-in-networking)
 
-### This project
-
-- [Docker Hub image](https://hub.docker.com/r/supersunho/palworld-server)
-- [GitHub repository](https://github.com/supersunho/docker-palworld-server)
-- [Issue tracker](https://github.com/supersunho/docker-palworld-server/issues)
-- [Discussions](https://github.com/supersunho/docker-palworld-server/discussions)
-
 ## License
 
 MIT License. See the repository for the complete license text.
