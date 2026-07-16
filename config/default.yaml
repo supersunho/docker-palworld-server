@@ -220,6 +220,7 @@ discord:
         backup_complete: ${DISCORD_EVENT_BACKUP:true}
         errors: ${DISCORD_EVENT_ERRORS:true}
         idle_restart: ${DISCORD_EVENT_IDLE_RESTART:true}
+        update: ${DISCORD_EVENT_UPDATE:true}
 
 paths:
     server_dir: "${SERVER_DIR:/home/steam/palworld_server}"
@@ -230,7 +231,7 @@ paths:
 steamcmd:
     app_id: 2394010
     validate: ${STEAMCMD_VALIDATE:true}
-    auto_update: ${AUTO_UPDATE:true}
+    check_version_update: ${CHECK_VERSION_UPDATE:true}
     update_on_start: ${UPDATE_ON_START:true}
 
 engine:

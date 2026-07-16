@@ -11,5 +11,5 @@ class SteamCMDConfig:
     """SteamCMD configuration data class"""
     app_id: int = 2394010
     validate: bool = True
-    auto_update: bool = True
+    check_version_update: bool = True
     update_on_start: bool = True

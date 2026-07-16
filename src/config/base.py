@@ -245,7 +245,7 @@ class ConfigLoader(IConfigProvider):
         steamcmd_config = SteamCMDConfig(
             app_id=config_dict.get('steamcmd', {}).get('app_id', 2394010),
             validate=config_dict.get('steamcmd', {}).get('validate', True),
-            auto_update=config_dict.get('steamcmd', {}).get('auto_update', True),
+            check_version_update=config_dict.get("steamcmd", {}).get("check_version_update", True),
             update_on_start=config_dict.get('steamcmd', {}).get('update_on_start', True),
         )
         

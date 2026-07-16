@@ -21,4 +21,5 @@ class DiscordConfig:
         "backup_complete": True,
         "errors": True,
         "idle_restart": True,
+        "update": True,
     })

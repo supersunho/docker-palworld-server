@@ -1,7 +1,15 @@
 {
     "server": {
-        "start": ["🎉 **Palworld server is now online!** 🏝️\nStart your adventure! 🚀", "🌟 **Server Online!** Pals are waiting for you! 🐾", "⚡ **Palworld Opens!** New adventures await! ⚔️"],
-        "stop": ["💤 **Server is taking a break!** 🌙\nSee you later~ 👋", "🌅 **Maintenance time!** Coming back better! 🔧", "😴 **Good night!** Server is sleeping~ 🌟"]
+        "start": [
+            "🎉 **Palworld server is now online!** 🏝️\nStart your adventure! 🚀",
+            "🌟 **Server Online!** Pals are waiting for you! 🐾",
+            "⚡ **Palworld Opens!** New adventures await! ⚔️"
+        ],
+        "stop": [
+            "💤 **Server is taking a break!** 🌙\nSee you later~ 👋",
+            "🌅 **Maintenance time!** Coming back better! 🔧",
+            "😴 **Good night!** Server is sleeping~ 🌟"
+        ]
     },
     "player": {
         "join": [
@@ -25,7 +33,11 @@
         ]
     },
     "error": {
-        "general": ["⚠️ **Server issue detected!** 🔧\nAdmin is fixing it~ 💪", "🚨 **Wait! Something's wrong!** Fixing quickly! ⚡", "😅 **Oops! Small issue!** Will fix soon! 🛠️"]
+        "general": [
+            "⚠️ **Server issue detected!** 🔧\nAdmin is fixing it~ 💪",
+            "🚨 **Wait! Something's wrong!** Fixing quickly! ⚡",
+            "😅 **Oops! Small issue!** Will fix soon! 🛠️"
+        ]
     },
     "status": {
         "alone": "Having fun alone! 🎮",
@@ -40,5 +52,11 @@
     },
     "idle": {
         "restart": "⏰ No players for {minutes} minutes. Restarting server ({server})."
+    },
+    "update": {
+        "available": [
+            "📢 **Palworld update available!**\nCurrent: {current} → New: {new}\nWill be applied after server restart. Contact the admin! 🔧",
+            "🆕 **New update detected!** ({new})\nThe admin will restart the server when ready! ⏳"
+        ]
     }
 }

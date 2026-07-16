@@ -232,6 +232,17 @@ class DiscordNotifier:
             language,
             error=error_message
         )
+
+    async def notify_update_available(self, current_version: str = "", new_version: str = "", language: str = None) -> bool:
+        """Send update available notification"""
+        return await self._send_notification(
+            "update",
+            "update.available",
+            NotificationLevel.INFO,
+            language,
+            current=current_version,
+            new=new_version
+        )
     
     def get_event_status(self) -> Dict[str, bool]:
         """Get current event configuration status"""
