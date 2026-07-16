@@ -16,7 +16,7 @@
 - **🔄 Smart Idle Restart**: Automatically restart when no players for configurable time
 - **📊 Advanced Health Monitoring**: CPU, memory, disk, and API health checks with auto-recovery
 - **💾 Enterprise Backup System**: Daily/weekly/monthly rotation with intelligent cleanup
-- **🎯 Zero-Downtime Updates**: SteamCMD integration with graceful server management
+- **🔔 Smart Update Notifications**: SteamCMD integration with in-game + Discord update alerts
 
 ### 🌍 **Multi-Language Discord Integration**
 
@@ -106,6 +106,16 @@ volumes:
 | `IDLE_RESTART_ENABLED`       | `true`  | 🔄 Enable auto-restart when no players    |
 | `IDLE_RESTART_MINUTES`       | `30`    | ⏱️ Minutes to wait before restart         |
 | `DISCORD_EVENT_IDLE_RESTART` | `true`  | 📣 Discord notification for idle restarts |
+
+### **🔔 Update Notification Feature**
+
+| Variable                     | Default | Description                                                  |
+| :--------------------------- | :------ | :----------------------------------------------------------- |
+| `CHECK_VERSION_UPDATE`       | `true`  | 🔍 Periodically check for Palworld updates (every 6 hours)   |
+| `UPDATE_ON_START`            | `true`  | 📥 Download server updates on container start                |
+| `DISCORD_EVENT_UPDATE`       | `true`  | 📣 Discord notification when an update is detected            |
+
+> **Safety First**: When an update is detected, notifications are sent via in-game RCON message and Discord webhook — but the server is **NOT** automatically restarted. This prevents disrupting active players.
 
 ### **🎮 Game Settings (150+ configurable options)**
 
