@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from ..config_loader import PalworldConfig
 from ..logging_setup import get_logger, log_server_event
-from ..notifications import get_discord_notifier
+from ..notifications import get_discord_notifier, NotificationLevel
 
 
 @dataclass
@@ -304,7 +304,7 @@ class IdleRestartManager:
                 await notifier._send_notification(
                     f"idle_{action}",
                     f"idle.{action}",
-                    level=notifier.NotificationLevel.WARNING,
+                    level=NotificationLevel.WARNING,
                     language=self.config.language,
                     minutes=self.idle_minutes,
                     server=self.config.server.name
