@@ -15,7 +15,7 @@ services:
             - "127.0.0.1:9090:9090/tcp" # Prometheus metrics (localhost only)
 
         volumes:
-            - ./palworld_data:/home/steam/palworld_server/Pal/Saved
+            - ./palworld_data:/home/steam/palworld_server
             - ./palworld_backups:/home/steam/backups
             - ./palworld_logs:/home/steam/logs
             - /etc/localtime:/etc/localtime:ro
