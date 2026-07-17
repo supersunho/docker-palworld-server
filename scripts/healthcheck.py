@@ -403,19 +403,20 @@ class HealthChecker:
                 'rcon-cli',
                 '--host', 'localhost',
                 '--port', str(self.rcon_port),
-                '--password', self.rcon_password,
+                '--password-stdin',
                 'Info'
             ]
-            
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+
             try:
                 stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), 
+                    process.communicate(input=self.rcon_password.encode('utf-8')),
                     timeout=10
                 )
                 
