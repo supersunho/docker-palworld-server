@@ -12,7 +12,7 @@ class PalworldSettings:
 
     ServerName: str = "Palworld Server"
     ServerDescription: str = "A Palworld dedicated server"
-    AdminPassword: str = "admin123"
+    AdminPassword: str = ""
     ServerPassword: str = ""
     PublicPort: int = 8211
     PublicIP: str = ""

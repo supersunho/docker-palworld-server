@@ -441,7 +441,7 @@ class ConfigLoader(IConfigProvider):
             ServerDescription=palworld_settings_dict.get(
                 "ServerDescription", "A Palworld dedicated server"
             ),
-            AdminPassword=palworld_settings_dict.get("AdminPassword", "admin123"),
+            AdminPassword=palworld_settings_dict.get("AdminPassword", ""),
             ServerPassword=palworld_settings_dict.get("ServerPassword", ""),
             PublicPort=palworld_settings_dict.get("PublicPort", 8211),
             PublicIP=palworld_settings_dict.get("PublicIP", ""),
