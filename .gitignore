@@ -26,3 +26,6 @@ palworld_grafana/
 palworld_prometheus/
 palworld_deployer/
 palworld_deployer_cert/
+
+# Git worktrees
+.worktrees/
