@@ -163,6 +163,7 @@ class ConfigLoader(IConfigProvider):
             enabled=config_dict.get("rest_api", {}).get("enabled", True),
             port=config_dict.get("rest_api", {}).get("port", 8212),
             host=config_dict.get("rest_api", {}).get("host", "localhost"),
+            tls_enabled=config_dict.get("rest_api", {}).get("tls_enabled", False),
         )
 
         rcon_config = RconConfig(

@@ -12,6 +12,7 @@ rest_api:
     enabled: ${REST_API_ENABLED:true}
     port: ${REST_API_PORT:8212}
     host: ${REST_API_HOST:localhost}
+    tls_enabled: ${REST_API_TLS_ENABLED:false}
 
 rcon:
     enabled: ${RCON_ENABLED:true}

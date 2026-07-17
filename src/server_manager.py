@@ -27,6 +27,7 @@ async def wait_for_api_ready(manager, max_wait_time: int = 60, check_interval: i
 
     api_host = manager.config.rest_api.host
     api_port = manager.config.rest_api.port
+    api_tls = manager.config.rest_api.tls_enabled
     admin_password = manager.config.server.admin_password
 
     logger.info(f"Checking REST API readiness at {api_host}:{api_port}")
@@ -45,7 +46,8 @@ async def wait_for_api_ready(manager, max_wait_time: int = 60, check_interval: i
             elapsed = int(time.time() - start_time)
 
             try:
-                test_url = f"http://{api_host}:{api_port}/v1/api/info"
+                scheme = "https" if api_tls else "http"
+                test_url = f"{scheme}://{api_host}:{api_port}/v1/api/info"
 
                 async with session.get(test_url) as response:
                     if response.status == 200:

@@ -13,3 +13,4 @@ class RestAPIConfig:
     enabled: bool = True
     port: int = 8212
     host: str = "localhost"
+    tls_enabled: bool = False

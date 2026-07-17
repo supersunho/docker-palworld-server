@@ -5,6 +5,7 @@ Handles server communication via official Palworld REST API
 """
 
 import asyncio
+import ssl
 import aiohttp
 import time
 from typing import Optional, Dict, List
@@ -20,7 +21,8 @@ class RestAPIClient:
         self.config = config
         self.logger = logger
         self.session: Optional[aiohttp.ClientSession] = None
-        self.base_url = f"http://{config.rest_api.host}:{config.rest_api.port}/v1/api"
+        scheme = "https" if config.rest_api.tls_enabled else "http"
+        self.base_url = f"{scheme}://{config.rest_api.host}:{config.rest_api.port}/v1/api"
         self._retry_count = 3
         self._retry_delay = 1.0
 
@@ -37,7 +39,12 @@ class RestAPIClient:
         )
         timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=20)
 
-        connector = aiohttp.TCPConnector(limit=10, limit_per_host=5, keepalive_timeout=60)
+        ssl_context = (
+            ssl.create_default_context() if self.config.rest_api.tls_enabled else None
+        )
+        connector = aiohttp.TCPConnector(
+            limit=10, limit_per_host=5, keepalive_timeout=60, ssl=ssl_context
+        )
 
         self.session = aiohttp.ClientSession(
             headers=headers,

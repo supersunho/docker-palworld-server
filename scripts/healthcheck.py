@@ -6,6 +6,7 @@ Comprehensive server health monitoring
 
 import sys
 import asyncio
+import ssl
 import aiohttp
 import os
 import time
@@ -41,6 +42,7 @@ class HealthChecker:
     def __init__(self): 
         self.rest_api_host = os.getenv('REST_API_HOST', 'localhost')
         self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
+        self.rest_api_tls = os.getenv('REST_API_TLS_ENABLED', '').lower() in ('true', '1', 'yes')
         self.server_port = int(os.getenv('SERVER_PORT', '8211'))
         self.rcon_host = os.getenv('RCON_HOST', 'localhost')
         self.rcon_port = int(os.getenv('RCON_PORT', '25575'))
@@ -60,11 +62,13 @@ class HealthChecker:
         try:
             _auth_h = aiohttp.encode_basic_auth("admin", self.rcon_password)
             _hdr = {"Authorization": _auth_h} if _auth_h else {}
-            
-            async with aiohttp.ClientSession(headers=_hdr) as session:   
+            scheme = "https" if self.rest_api_tls else "http"
+            _ssl = ssl.create_default_context() if self.rest_api_tls else None
+
+            async with aiohttp.ClientSession(headers=_hdr) as session:
                 endpoints = [
-                    f'http://{self.rest_api_host}:{self.rest_api_port}/v1/api/info',
-                    f'http://{self.rest_api_host}:{self.rest_api_port}/health'
+                    f'{scheme}://{self.rest_api_host}:{self.rest_api_port}/v1/api/info',
+                    f'{scheme}://{self.rest_api_host}:{self.rest_api_port}/health'
                 ]
                 for url in endpoints:
                     try:
