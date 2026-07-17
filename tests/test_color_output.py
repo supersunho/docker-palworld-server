@@ -3,9 +3,14 @@
 import pytest
 from io import StringIO
 from src.utils.color_output import (
+
+
     Color, print_info, print_warn, print_error,
     print_success, print_debug, colorize
 )
+
+pytestmark = pytest.mark.unit
+
 
 
 class TestColorOutput:

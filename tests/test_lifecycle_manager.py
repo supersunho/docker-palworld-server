@@ -3,8 +3,13 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from src.managers.lifecycle_manager import (
+
+
     ServerLifecycleManager, verify_server_startup
 )
+
+pytestmark = pytest.mark.unit
+
 
 
 class TestLifecycleManager:

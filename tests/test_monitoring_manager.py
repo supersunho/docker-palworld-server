@@ -7,6 +7,10 @@ from src.monitoring.monitoring_manager import MonitoringManager
 import asyncio
 from src.monitoring.player_monitor import PlayerEventType
 
+pytestmark = pytest.mark.unit
+
+
+
 
 
 class TestMonitoringManager:

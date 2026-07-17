@@ -12,6 +12,10 @@ from src.config.server.server import ServerConfig, ServerStartupConfig
 from src.config.server.rcon import RconConfig
 from src.config.server.rest_api import RestAPIConfig
 
+pytestmark = pytest.mark.unit
+
+
+
 
 class TestConfigLoader:
     """FS-1.1.x: Configuration loader behavior."""
@@ -278,8 +282,11 @@ class TestConfigLoaderBackwardsCompat:
 
     def test_reimport_from_config_loader(self):
         from src.config_loader import (
+
+
             ConfigLoader, ServerConfig, PalworldConfig, get_config, reload_config
         )
+
         assert ConfigLoader is not None
         assert ServerConfig is not None
         assert PalworldConfig is not None

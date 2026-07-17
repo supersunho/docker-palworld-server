@@ -10,6 +10,8 @@ from src.utils.helpers import (
     format_duration, retry_async
 )
 
+pytestmark = pytest.mark.unit
+
 
 class TestHelpers:
     """FS-22.x: Helper functions."""
@@ -169,6 +171,8 @@ class TestHelpers:
     def test_get_environment_info(self):
         """FS-22: Returns dict with expected keys."""
         from src.utils.helpers import get_environment_info
+
+
         info = get_environment_info()
         assert 'container_id' in info
         assert 'python_version' in info

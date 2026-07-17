@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from pathlib import Path
 from src.managers.process_manager import ProcessManager
 
+pytestmark = pytest.mark.unit
+
 
 class TestProcessManager:
     """FS-10.x: Process manager behavior."""
@@ -263,6 +265,8 @@ class TestProcessManager:
     def test_reload_config_signal_failure(self, manager):
         """FS-10.x: reload_config returns False when send_signal fails."""
         from unittest.mock import AsyncMock
+
+
         with patch.object(manager, 'send_signal', new=AsyncMock(return_value=False)):
             result = asyncio.run(manager.reload_config())
             assert result is False

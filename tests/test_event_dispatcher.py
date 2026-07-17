@@ -6,6 +6,8 @@ from src.monitoring.event_dispatcher import EventDispatcher
 from src.monitoring.player_monitor import PlayerEvent, PlayerEventType
 from src.monitoring.server_monitor import ServerEvent, ServerEventType
 
+pytestmark = pytest.mark.unit
+
 
 class TestEventDispatcher:
     """FS-13.2.5: Event dispatcher behavior."""
@@ -130,6 +132,8 @@ class TestEventDispatcher:
     async def test_performance_issue_discord(self, dispatcher):
         """FS-13.2.5: Performance issue dispatched."""
         from src.monitoring.server_monitor import ServerEventType
+
+
         event = ServerEvent(
             event_type=ServerEventType.PERFORMANCE_ISSUE,
             message="High CPU usage",

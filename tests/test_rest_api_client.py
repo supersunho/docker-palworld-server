@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.clients.rest_api_client import RestAPIClient
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def api_config():
@@ -73,6 +75,8 @@ class TestRestAPIClient:
     async def test_make_request_client_error(self, api_client):
         """_make_request handles aiohttp.ClientError."""
         import aiohttp
+
+
         api_client.session = MagicMock()
         api_client.session.request = MagicMock()
         cm = AsyncMock()

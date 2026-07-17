@@ -8,6 +8,8 @@ from src.monitoring.metrics_collector import (
     MetricsCollector, SystemMetrics, GameMetrics
 )
 
+pytestmark = pytest.mark.unit
+
 
 async def _noop():
     pass
@@ -249,6 +251,7 @@ class TestMetricsCollectorEdgeCases:
             assert collector._prometheus_server_started is False
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_stop_collection_with_prometheus_enabled(self, collector):
         """FS-17.x: stop_collection with collection_task and Prometheus enabled."""
         collector.enable_prometheus = True
@@ -304,6 +307,7 @@ class TestMetricsCollectorEdgeCases:
             assert metrics.load_average == []  # empty list on AttributeError
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_collection_loop_runs_one_iteration(self, collector):
         """FS-17.x: _collection_loop runs one iteration with Prometheus enabled."""
         collector.config.monitoring.metrics_interval = 0.01
@@ -326,6 +330,7 @@ class TestMetricsCollectorEdgeCases:
         collector._process_system_metrics.assert_called()
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_collection_loop_exception_handling(self, collector):
         """FS-17.x: _collection_loop handles exception and continues."""
         collector.config.monitoring.metrics_interval = 0.01
@@ -360,6 +365,7 @@ class TestMetricsCollectorEdgeCases:
 
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_collection_loop_cancellation(self, collector):
         """FS-17.x: _collection_loop handles CancelledError cleanly."""
         collector.config.monitoring.metrics_interval = 9999
@@ -408,6 +414,8 @@ class TestMetricsCollectorEdgeCases:
     def test_collect_game_metrics_sync_with_data(self, collector):
         """FS-17.x: collect_game_metrics_sync with player data."""
         from src.monitoring.metrics_collector import GameMetrics
+
+
         players = [{"name": "P1"}, {"name": "P2"}, {"name": "P3"}]
         metrics = collector.collect_game_metrics_sync(
             players_data=players,

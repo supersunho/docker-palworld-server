@@ -11,6 +11,10 @@ from src.managers.api_facade import ServerAPIFacade
 from src.managers.settings_generator import SettingsGenerator
 from src.managers.process_manager import ProcessManager
 
+pytestmark = pytest.mark.unit
+
+
+
 
 class TestPalworldServerManager:
     """FS-13.x: Server manager behavior."""

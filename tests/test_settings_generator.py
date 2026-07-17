@@ -7,6 +7,10 @@ from pathlib import Path
 from src.managers.settings_generator import SettingsGenerator
 from src.config.palworld.settings import PalworldSettings
 
+pytestmark = pytest.mark.unit
+
+
+
 
 class TestSettingsGenerator:
     """FS-12.x: Settings generator behavior."""

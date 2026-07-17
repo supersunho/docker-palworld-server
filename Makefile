@@ -1,4 +1,4 @@
-.PHONY: build test lint typecheck coverage clean dev precommit
+.PHONY: build test test-all test-integration test-slow lint typecheck coverage clean dev precommit
 
 # ── Build ───────────────────────────────────────────────────────────────
 
@@ -19,13 +19,25 @@ build-dev:
 
 # ── Test ────────────────────────────────────────────────────────────────
 
-## Run full test suite
+## Run unit tests (fast, default)
 test:
+	.venv/bin/python -m pytest --tb=short -v -m "unit and not slow"
+
+## Run full test suite (unit + integration + slow)
+test-all:
 	.venv/bin/python -m pytest --tb=short -v
+
+## Run integration tests only
+test-integration:
+	.venv/bin/python -m pytest --tb=short -v -m "integration"
+
+## Run slow tests only
+test-slow:
+	.venv/bin/python -m pytest --tb=short -v -m "slow"
 
 ## Run tests with coverage
 coverage:
-	.venv/bin/python -m pytest --cov=src --cov-report=term-missing
+	.venv/bin/python -m pytest --tb=short -v --cov=src --cov-report=term-missing
 
 ## Run tests matching keyword (e.g. make test-match k=backup)
 test-match:
@@ -76,9 +88,12 @@ help:
 	@echo "  build-nocache Full rebuild (no cache)"
 	@echo ""
 	@echo "Test:"
-	@echo "  test         Run full test suite"
-	@echo "  coverage     Run tests with coverage report"
-	@echo "  test-match   Run tests matching keyword (k=keyword)"
+	@echo "  test            Run unit tests (fast, default)"
+	@echo "  test-all        Run full test suite (unit + integration + slow)"
+	@echo "  test-integration Run integration tests only"
+	@echo "  test-slow       Run slow tests only"
+	@echo "  coverage        Run tests with coverage report"
+	@echo "  test-match      Run tests matching keyword (k=keyword)"
 	@echo ""
 	@echo "Lint:"
 	@echo "  lint         Run flake8"

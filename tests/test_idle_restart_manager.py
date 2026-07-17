@@ -6,6 +6,8 @@ import time
 from unittest.mock import MagicMock, patch, AsyncMock
 from src.monitoring.idle_restart_manager import IdleRestartManager, IdleRestartStats
 
+pytestmark = pytest.mark.unit
+
 
 async def _noop():
     pass
@@ -102,6 +104,7 @@ class TestIdleRestartManager:
         manager.process_manager.resume_server.assert_awaited_once()
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_force_resume(self, manager):
         """FS-18.11: force_resume resumes server."""
         manager._paused = True
@@ -165,6 +168,8 @@ class TestIdleRestartManagerEdgeCases:
     def manager_disabled(self, palworld_config, mock_player_monitor, mock_logger):
         """Create a manager with idle_restart disabled."""
         from src.config.monitoring.idle_restart import IdleRestartConfig
+
+
         palworld_config.monitoring.idle_restart = IdleRestartConfig(enabled=False, idle_minutes=30)
         pm = MagicMock()
         pm.is_server_running.return_value = True

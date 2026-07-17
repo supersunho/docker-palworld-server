@@ -8,6 +8,12 @@ from unittest.mock import patch
 
 from src.config.base import ConfigLoader
 from src.managers.settings_generator import SettingsGenerator
+import pytest
+
+pytestmark = pytest.mark.unit
+
+
+
 
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -3,6 +3,10 @@
 import pytest
 from src.container import ServiceContainer
 
+pytestmark = pytest.mark.unit
+
+
+
 
 class TestServiceContainer:
     """FS-3.x: Service container behavior."""

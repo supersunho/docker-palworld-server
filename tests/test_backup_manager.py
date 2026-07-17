@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 
 from src.backup.backup_manager import EnhancedBackupManager, BackupInfo
 
+pytestmark = pytest.mark.unit
+
 
 class TestEnhancedBackupManager:
     """FS-14.x: Backup manager behavior."""
@@ -98,6 +100,8 @@ class TestEnhancedBackupManager:
 
         (tmp_path / "daily_auto_old.tar.gz").write_text("data")
         import datetime
+
+
         old_time = datetime.datetime.now() - datetime.timedelta(days=10)
         mock_info = BackupInfo(
             filename="daily_auto_old.tar.gz",

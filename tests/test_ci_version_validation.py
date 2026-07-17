@@ -7,6 +7,12 @@ that version parsing, security gating, and output format work correctly.
 import subprocess
 import sys
 from pathlib import Path
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
+
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 VALIDATOR = SCRIPTS_DIR / "validate_ci_versions.sh"

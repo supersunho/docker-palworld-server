@@ -18,6 +18,10 @@ from src.logging_setup import (
 )
 from structlog.types import EventDict
 
+pytestmark = pytest.mark.unit
+
+
+
 
 class TestSetupLogging:
     """FS-2.1.x: Logging setup behavior."""

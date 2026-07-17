@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from pathlib import Path
 from src.managers.config_manager import ConfigManager
 
+pytestmark = pytest.mark.unit
+
 
 async def _noop():
     pass
@@ -87,6 +89,7 @@ class TestConfigManager:
             assert result is True
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_watch_config_detects_change(self, manager, tmp_path):
         """FS-11.7: watch_config detects YAML changes and triggers callback."""
         # Make config path point to temp
@@ -211,6 +214,8 @@ class TestConfigManager:
     def test_check_yaml_changed_no_change(self, manager):
         """FS-11.14: Returns False when content matches stored checksum."""
         import hashlib
+
+
         content = "same content"
         h = hashlib.sha256(content.encode('utf-8')).hexdigest()
         manager._checksums["yaml_config"] = h
@@ -238,6 +243,7 @@ class TestConfigManager:
         assert result is False
 
     @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_watch_config_stop_via_cancel(self, manager):
         """FS-11.10: watch_config stops when task is cancelled."""
         # watch_config catches CancelledError internally and breaks the loop

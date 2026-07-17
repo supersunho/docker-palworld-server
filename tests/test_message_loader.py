@@ -5,6 +5,8 @@ import json
 from unittest.mock import patch, mock_open
 from src.notifications.message_loader import MessageLoader
 
+pytestmark = pytest.mark.unit
+
 
 class TestMessageLoader:
     """FS-20.x: Message loader behavior."""
@@ -164,6 +166,8 @@ class TestMessageLoader:
         loader = MessageLoader(str(locales_dir))
         # Remove dir and check
         import shutil
+
+
         shutil.rmtree(str(locales_dir))
         langs = loader.get_available_languages()
         assert langs == []

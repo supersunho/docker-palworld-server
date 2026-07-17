@@ -4,6 +4,10 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.notifications.discord_notifier import DiscordNotifier, NotificationLevel
 
+pytestmark = pytest.mark.unit
+
+
+
 
 class TestDiscordNotifier:
     """FS-19.x: Discord notifier behavior."""

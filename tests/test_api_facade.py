@@ -5,6 +5,10 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from src.managers.api_facade import ServerAPIFacade, ServerInfo
 from src.protocols import IServerAPI
 
+pytestmark = pytest.mark.unit
+
+
+
 
 class TestServerAPIFacade:
     """FS-10.x: API facade behavior."""

@@ -7,6 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
 from src.clients.steamcmd_client import SteamCMDManager
 
+pytestmark = pytest.mark.unit
+
+
+
 
 @pytest.fixture
 def steamcmd_path(tmp_path):

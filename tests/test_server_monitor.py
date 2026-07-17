@@ -3,8 +3,12 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from src.monitoring.server_monitor import (
+
+
     ServerMonitor, ServerEventType, ServerEvent, ServerStatus
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestServerMonitor:
@@ -60,6 +64,7 @@ class TestServerMonitor:
 
     def test_server_event_dataclass(self):
         import time
+
         event = ServerEvent(
             event_type=ServerEventType.STATUS_CHANGED,
             message="Server started",

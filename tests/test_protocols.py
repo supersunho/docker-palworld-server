@@ -2,9 +2,15 @@
 
 from typing import Protocol
 from src.protocols import (
+
+
     IProcessManager, IConfigProvider, IServerAPI,
     ServerInfo
 )
+import pytest
+
+pytestmark = pytest.mark.unit
+
 
 
 class TestProtocolDefinitions:

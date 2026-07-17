@@ -6,6 +6,8 @@ from src.monitoring.player_monitor import (
     PlayerMonitor, PlayerEventType, PlayerEvent
 )
 
+pytestmark = pytest.mark.unit
+
 
 class TestPlayerMonitor:
     """FS-15.x: Player monitor behavior."""
@@ -108,6 +110,8 @@ class TestPlayerMonitor:
     def test_player_event_dataclass(self):
         """FS-15: PlayerEvent fields."""
         import time
+
+
         event = PlayerEvent(
             event_type=PlayerEventType.JOINED,
             player_name="Player1",
