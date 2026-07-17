@@ -98,23 +98,36 @@ class HealthManager:
     async def perform_health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check"""
         try:
-            result = subprocess.run(
-                ["python3", "/app/scripts/healthcheck.py", "--json"],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            process = await asyncio.create_subprocess_exec(
+                "python3", "/app/scripts/healthcheck.py", "--json",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
-            if result.returncode == 0:
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=30
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return {
+                    "check_success": False,
+                    "error": "healthcheck timed out after 30s",
+                    "overall_status": "critical",
+                    "timestamp": time.time(),
+                }
+
+            if process.returncode == 0:
                 import json
 
-                health_data = json.loads(result.stdout)
+                health_data = json.loads(stdout.decode("utf-8"))
                 health_data["check_success"] = True
                 return health_data
             else:
                 return {
                     "check_success": False,
-                    "error": result.stderr,
+                    "error": stderr.decode("utf-8") if stderr else "unknown error",
                     "overall_status": "critical",
                     "timestamp": time.time(),
                 }
