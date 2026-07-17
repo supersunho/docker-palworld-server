@@ -107,7 +107,7 @@ class ConfigManager:
 
     def _check_yaml_changed(self) -> bool:
         """Check if the source YAML config has changed since last generation"""
-        config_path = Path("config/default.yaml")
+        config_path = Path(__file__).resolve().parent.parent.parent / "config" / "default.yaml"
         if not config_path.exists():
             return False
         try:
