@@ -153,20 +153,20 @@ class DiscordNotifier:
             mention_on_error=(level in [NotificationLevel.ERROR, NotificationLevel.CRITICAL]),
         )
 
-    async def notify_server_start(self, language: str = None) -> bool:
+    async def notify_server_start(self, language: Optional[str] = None) -> bool:
         """Send server start notification"""
         return await self._send_notification(
             "server_start", "server.start", NotificationLevel.INFO, language
         )
 
-    async def notify_server_stop(self, reason: str = "", language: str = None) -> bool:
+    async def notify_server_stop(self, reason: str = "", language: Optional[str] = None) -> bool:
         """Send server stop notification"""
         return await self._send_notification(
             "server_stop", "server.stop", NotificationLevel.WARNING, language, reason=reason
         )
 
     async def notify_player_join(
-        self, player_name: str, player_count: int, language: str = None
+        self, player_name: str, player_count: int, language: Optional[str] = None
     ) -> bool:
         """Send player join notification"""
         lang = language or self._detect_language()
@@ -184,7 +184,7 @@ class DiscordNotifier:
         )
 
     async def notify_player_leave(
-        self, player_name: str, player_count: int, language: str = None
+        self, player_name: str, player_count: int, language: Optional[str] = None
     ) -> bool:
         """Send player leave notification"""
         return await self._send_notification(
@@ -196,20 +196,20 @@ class DiscordNotifier:
             count=player_count,
         )
 
-    async def notify_backup_complete(self, language: str = None) -> bool:
+    async def notify_backup_complete(self, language: Optional[str] = None) -> bool:
         """Send backup completion notification"""
         return await self._send_notification(
             "backup_complete", "backup.complete", NotificationLevel.INFO, language
         )
 
-    async def notify_error(self, error_message: str = "", language: str = None) -> bool:
+    async def notify_error(self, error_message: str = "", language: Optional[str] = None) -> bool:
         """Send error notification"""
         return await self._send_notification(
             "errors", "error.general", NotificationLevel.ERROR, language, error=error_message
         )
 
     async def notify_update_available(
-        self, current_version: str = "", new_version: str = "", language: str = None
+        self, current_version: str = "", new_version: str = "", language: Optional[str] = None
     ) -> bool:
         """Send update available notification"""
         return await self._send_notification(

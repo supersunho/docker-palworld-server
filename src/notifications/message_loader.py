@@ -14,7 +14,7 @@ from datetime import datetime
 class MessageLoader:
     """Load and manage multi-language messages from external JSON files"""
 
-    def __init__(self, locales_dir: str = None, default_language: str = "ko"):
+    def __init__(self, locales_dir: Optional[str] = None, default_language: str = "ko"):
         """
         Initialize message loader
 
@@ -55,7 +55,7 @@ class MessageLoader:
             else:
                 raise RuntimeError(f"Failed to load default language file: {e}")
 
-    def get_message(self, message_path: str, language: str = None, **format_kwargs) -> str:
+    def get_message(self, message_path: str, language: Optional[str] = None, **format_kwargs) -> str:
         """
         Get localized message with random variation support
 
@@ -100,7 +100,7 @@ class MessageLoader:
             # Return unformatted message if formatting fails
             return message
 
-    def get_status_message(self, player_count: int, language: str = None) -> str:
+    def get_status_message(self, player_count: int, language: Optional[str] = None) -> str:
         """Get player count status message"""
         if player_count == 1:
             return self.get_message("status.alone", language)
@@ -109,7 +109,7 @@ class MessageLoader:
         else:
             return self.get_message("status.many", language, count=player_count)
 
-    def get_greeting(self, language: str = None) -> str:
+    def get_greeting(self, language: Optional[str] = None) -> str:
         """Get time-based greeting message"""
         current_hour = datetime.now().hour
 
@@ -151,7 +151,7 @@ class MessageLoader:
 _message_loader: Optional[MessageLoader] = None
 
 
-def get_message_loader(locales_dir: str = None, default_language: str = "ko") -> MessageLoader:
+def get_message_loader(locales_dir: Optional[str] = None, default_language: str = "ko") -> MessageLoader:
     """Get global message loader instance (singleton pattern)"""
     global _message_loader
 

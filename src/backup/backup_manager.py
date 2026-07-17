@@ -168,7 +168,7 @@ class EnhancedBackupManager:
 
         return "daily"
 
-    async def create_backup(self, name: str = None, backup_type: str = "manual") -> Dict[str, Any]:
+    async def create_backup(self, name: Optional[str] = None, backup_type: str = "manual") -> Dict[str, Any]:
         """Create a backup with specified name and type"""
         start_time = time.time()
 

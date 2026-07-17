@@ -37,7 +37,7 @@ class SettingsGenerator:
         engine_content = self._generate_engine_content()
         return engine_content
 
-    def write_server_settings(self, output_path: Path = None) -> bool:
+    def write_server_settings(self, output_path: Optional[Path] = None) -> bool:
         """Generate and write server settings file"""
         try:
             if output_path is None:
@@ -65,7 +65,7 @@ class SettingsGenerator:
             )
             return False
 
-    def write_engine_settings(self, output_path: Path = None) -> bool:
+    def write_engine_settings(self, output_path: Optional[Path] = None) -> bool:
         """Generate and write engine settings file"""
         try:
             if output_path is None:
