@@ -418,74 +418,7 @@ class PalworldServerManager:
         return self._startup_completed
 
 
-async def run_server_loop(manager, sleep=asyncio.sleep, task_group=None):
-    """Keep the manager and admin UI alive across server stop/start actions.
 
-    When CHECK_VERSION_UPDATE is enabled, spawns a background task that periodically
-    checks for Palworld server updates and sends notifications (via RCON and Discord)
-    without automatically restarting the server.
-    """
-    print("Server operational. Monitoring in progress...")
-    last_status_time = 0
-
-    # Start update-check background task if enabled
-    check_version_task = None
-    if manager.config.steamcmd.check_version_update:
-        async def _check_update_loop():
-            """Periodically check for server updates and notify if found."""
-            check_interval = 6 * 3600  # Every 6 hours
-            await sleep(5 * 60)  # Initial delay: wait 5 min after startup
-            while True:
-                try:
-                    if not manager.is_server_running():
-                        await sleep(check_interval)
-                        continue
-
-                    print("Version check: Searching for Palworld server updates...")
-                    await manager.announce_message_any(
-                        "Server update check in progress..."
-                    )
-                    success, was_updated = await manager.download_server_files()
-                    if success and was_updated:
-                        print("Version check: Palworld update detected!")
-                        # Notify in-game via RCON
-                        await manager.announce_message_any(
-                            "A new Palworld update has been downloaded. It will be applied on next server restart."
-                        )
-                        # Notify via Discord
-                        discord = manager.get_monitoring_manager().event_dispatcher.discord_notifier
-                        if discord and discord.enabled:
-                            async with discord as notifier:
-                                await notifier.notify_update_available(
-                                    current_version="current",
-                                    new_version="new",
-                                    language=manager.config.language
-                                )
-                    elif success and not was_updated:
-                        print("Version check: Server files are up to date.")
-                except Exception as e:
-                    print(f"Version check failed: {e}")
-                await sleep(check_interval)
-
-        check_version_task = asyncio.create_task(_check_update_loop())
-
-    while True:
-        await sleep(60)
-
-        if not manager.is_server_running():
-            last_status_time = 0
-            continue
-
-        monitoring_status = manager.get_monitoring_manager().get_monitoring_status()
-        current_players = monitoring_status.get("player_count", 0)
-        current_time = time.time()
-
-        if last_status_time == 0:
-            last_status_time = current_time
-
-        if (current_time - last_status_time) >= 300:
-            print(f"Server operational - Players: {current_players}")
-            last_status_time = current_time
 async def main():
     """Main production server function with API readiness verification"""
     config = get_config()
@@ -549,6 +482,48 @@ async def main():
                 print("Config hot-reload watcher started (30s polling)")
             
             try:
+                # Start update-check background task if enabled
+                check_version_task = None
+                if manager.config.steamcmd.check_version_update:
+                    async def _check_update_loop():
+                        """Periodically check for server updates and notify if found."""
+                        check_interval = 6 * 3600  # Every 6 hours
+                        await asyncio.sleep(5 * 60)  # Initial delay: wait 5 min after startup
+                        while True:
+                            try:
+                                if not manager.is_server_running():
+                                    await asyncio.sleep(check_interval)
+                                    continue
+
+                                print("Version check: Searching for Palworld server updates...")
+                                await manager.announce_message_any(
+                                    "Server update check in progress..."
+                                )
+                                success, was_updated = await manager.download_server_files()
+                                if success and was_updated:
+                                    print("Version check: Palworld update detected!")
+                                    # Notify in-game via RCON
+                                    await manager.announce_message_any(
+                                        "A new Palworld update has been downloaded. "
+                                        "It will be applied on next server restart."
+                                    )
+                                    # Notify via Discord
+                                    discord = manager.get_monitoring_manager().event_dispatcher.discord_notifier
+                                    if discord and discord.enabled:
+                                        async with discord as notifier:
+                                            await notifier.notify_update_available(
+                                                current_version="current",
+                                                new_version="new",
+                                                language=manager.config.language
+                                            )
+                                elif success and not was_updated:
+                                    print("Version check: Server files are up to date.")
+                            except Exception as e:
+                                print(f"Version check failed: {e}")
+                            await asyncio.sleep(check_interval)
+
+                    check_version_task = asyncio.create_task(_check_update_loop())
+
                 print("Server operational. Monitoring in progress...")
                 
                 _last_status_time = 0
