@@ -108,25 +108,14 @@ class PalworldServerManager:
         # Register services if not already registered
         self._setup_container_services()
 
-        # Resolve dependencies from container
+        # Resolve all dependencies from container
         self.lifecycle_manager = self.container.resolve(ServerLifecycleManager)
+        self.process_manager = self.container.resolve(ProcessManager)
         self.api_facade = self.container.resolve(ServerAPIFacade)
         self.settings_generator = self.container.resolve(SettingsGenerator)
-
-        # Get process manager from lifecycle manager if available, otherwise resolve from container
-        if hasattr(self.lifecycle_manager, "process_manager"):
-            self.process_manager = self.lifecycle_manager.process_manager
-        else:
-            self.process_manager = self.container.resolve(ProcessManager)
-
-        # Initialize remaining components
-        self.steamcmd_manager = SteamCMDManager(self.config.paths.steamcmd_dir, self.logger)
-        self.config_manager = ConfigManager(self.config, self.logger)
-
-        # Use api_facade as the single API integration point
-        self.monitoring_manager = MonitoringManager(
-            self.config, self.process_manager, self.api_facade
-        )
+        self.steamcmd_manager = self.container.resolve(SteamCMDManager)
+        self.config_manager = self.container.resolve(ConfigManager)
+        self.monitoring_manager = self.container.resolve(MonitoringManager)
 
         self._backup_manager: Optional[Any] = None
         self._startup_completed = False
@@ -134,20 +123,36 @@ class PalworldServerManager:
     def _setup_container_services(self):
         """Setup default services in the container if not already registered"""
         if not self.container.has_service(ProcessManager):
-            process_manager = ProcessManager(self.config, self.logger)
-            self.container.register(ProcessManager, process_manager)
+            pm = ProcessManager(self.config, self.logger)
+            self.container.register(ProcessManager, pm)
 
         if not self.container.has_service(ServerLifecycleManager):
-            lifecycle_manager = ServerLifecycleManager(self.config, self.logger)
-            self.container.register(ServerLifecycleManager, lifecycle_manager)
+            # Let LifecycleManager create or accept the ProcessManager
+            pm = self.container.resolve(ProcessManager)
+            lm = ServerLifecycleManager(self.config, self.logger, pm)
+            self.container.register(ServerLifecycleManager, lm)
 
         if not self.container.has_service(ServerAPIFacade):
-            api_facade = ServerAPIFacade(self.config, self.logger)
-            self.container.register(ServerAPIFacade, api_facade)
+            af = ServerAPIFacade(self.config, self.logger)
+            self.container.register(ServerAPIFacade, af)
 
         if not self.container.has_service(SettingsGenerator):
-            settings_generator = SettingsGenerator(self.config, self.logger)
-            self.container.register(SettingsGenerator, settings_generator)
+            sg = SettingsGenerator(self.config, self.logger)
+            self.container.register(SettingsGenerator, sg)
+
+        if not self.container.has_service(SteamCMDManager):
+            sc = SteamCMDManager(self.config.paths.steamcmd_dir, self.logger)
+            self.container.register(SteamCMDManager, sc)
+
+        if not self.container.has_service(ConfigManager):
+            cm = ConfigManager(self.config, self.logger)
+            self.container.register(ConfigManager, cm)
+
+        if not self.container.has_service(MonitoringManager):
+            pm = self.container.resolve(ProcessManager)
+            af = self.container.resolve(ServerAPIFacade)
+            mm = MonitoringManager(self.config, pm, af)
+            self.container.register(MonitoringManager, mm)
 
     async def __aenter__(self):
         """Initialize all components"""
