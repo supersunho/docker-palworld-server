@@ -5,10 +5,9 @@ Handles server file downloads and updates via SteamCMD.
 """
 
 import os
-import threading
 import shlex
-import subprocess
 import hashlib
+import asyncio
 from pathlib import Path
 from typing import List
 
@@ -63,61 +62,68 @@ class SteamCMDManager:
 
         return True
 
-    def _run_and_stream(
+    def _make_env(self) -> dict:
+        """Build environment dict for SteamCMD subprocess."""
+        env = {
+            **dict(os.environ),
+            "STEAM_COMPAT_DATA_PATH": str(self.steamcmd_path / "steam_compat"),
+            "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.steamcmd_path),
+        }
+        (self.steamcmd_path / "steam_compat").mkdir(parents=True, exist_ok=True)
+        return env
+
+    async def _run_and_stream(
         self, cmd: list, env: dict, cwd: str, timeout: int, label: str = "SteamCMD"
     ) -> tuple[int, list[str]]:
         """Run a process and stream stdout/stderr line by line in real-time.
 
         Returns (returncode, all_output_lines). Raises on timeout.
+        Uses asyncio.create_subprocess_exec for non-blocking execution.
         """
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
+        output_lines: list[str] = []
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             env=env,
             cwd=cwd,
         )
 
-        output_lines: list[str] = []
-        lock = threading.Lock()
-
-        def _reader(stream, label_prefix: str):
-            for line in iter(stream.readline, ""):
-                line = line.rstrip("\n\r")
-                if line:
-                    with lock:
-                        output_lines.append(line)
-                    self.logger.info(f"[{label}][{label_prefix}] {line}")
-            stream.close()
-
-        stdout_t = threading.Thread(target=_reader, args=(process.stdout, "out"))
-        stderr_t = threading.Thread(target=_reader, args=(process.stderr, "err"))
-        stdout_t.daemon = True
-        stderr_t.daemon = True
-        stdout_t.start()
-        stderr_t.start()
+        async def _reader(stream, label_prefix: str):
+            assert stream is not None
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded = line.decode("utf-8", errors="replace").rstrip("\n\r")
+                if decoded:
+                    output_lines.append(decoded)
+                    self.logger.info(f"[{label}][{label_prefix}] {decoded}")
 
         try:
-            returncode = process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(_reader(process.stdout, "out"))
+                tg.create_task(_reader(process.stderr, "err"))
+
+                try:
+                    returncode = await asyncio.wait_for(process.wait(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    raise
+
+            return returncode, output_lines
+
+        except* asyncio.CancelledError:
             process.kill()
-            process.wait()
-            stdout_t.join(timeout=5)
-            stderr_t.join(timeout=5)
-            process.stdout.close()
-            process.stderr.close()
+            await process.wait()
+            raise
+        except* subprocess.TimeoutExpired:
+            process.kill()
+            await process.wait()
             raise
 
-        stdout_t.join()
-        stderr_t.join()
-        process.stdout.close()
-        process.stderr.close()
-
-        return returncode, output_lines
-
-    def _ensure_updated(self) -> bool:
+    async def _ensure_updated(self) -> bool:
         """Lightweight warm-up to trigger any pending self-update.
 
         Returns True if it is safe to proceed with the main command.
@@ -132,26 +138,19 @@ class SteamCMDManager:
         if not self.validate_steamcmd():
             return False
 
-        # Snapshot the binary before warming up so we can detect
-        # whether the SteamCMD self-updater actually wrote to disk.
         before = self._steamcmd_digest()
 
         warmup_parts = [str(self.steamcmd_script), "+login", "anonymous", "+quit"]
         full_cmd = ["FEXBash", "-c", shlex.join(warmup_parts)]
 
-        env = {
-            **dict(os.environ),
-            "STEAM_COMPAT_DATA_PATH": str(self.steamcmd_path / "steam_compat"),
-            "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.steamcmd_path),
-        }
-        (self.steamcmd_path / "steam_compat").mkdir(parents=True, exist_ok=True)
+        env = self._make_env()
 
         self.logger.info(
             "Running SteamCMD warm-up to trigger any pending self-update",
             event_type="steamcmd_warmup",
         )
         try:
-            rc, lines = self._run_and_stream(
+            rc, lines = await self._run_and_stream(
                 full_cmd,
                 env,
                 str(self.steamcmd_path),
@@ -162,9 +161,6 @@ class SteamCMDManager:
                 self.logger.info("SteamCMD warm-up completed successfully")
                 return True
 
-            # Non-zero exit.  Check whether the binary changed -- a
-            # changed binary means a partial self-update landed on
-            # disk and likely corrupted the installation.
             after = self._steamcmd_digest()
             if after is not None and after != before:
                 self.logger.error(
@@ -185,14 +181,14 @@ class SteamCMDManager:
             )
             return True
 
-        except subprocess.TimeoutExpired:
+        except (asyncio.TimeoutError, subprocess.TimeoutExpired):
             self.logger.warning(
                 "SteamCMD warm-up timed out (the main command has a "
                 "longer timeout, so this may still work -- continuing)."
             )
             return True
 
-    def run_command(self, commands: List[str], timeout: int = 600) -> tuple[bool, list[str]]:
+    async def run_command(self, commands: List[str], timeout: int = 600) -> tuple[bool, list[str]]:
         """Run SteamCMD commands with timeout.
 
         Returns (success, output_lines).
@@ -200,10 +196,7 @@ class SteamCMDManager:
         if not self.validate_steamcmd():
             return False, []
 
-        # Warm up steamcmd first to handle any pending self-update
-        # before running the real command.  If the binary was corrupted
-        # during the warm-up, abort immediately.
-        if not self._ensure_updated():
+        if not await self._ensure_updated():
             return False, []
 
         steamcmd_command = shlex.join([str(self.steamcmd_script)] + commands)
@@ -214,13 +207,9 @@ class SteamCMDManager:
         )
 
         try:
-            env = {
-                **dict(os.environ),
-                "STEAM_COMPAT_DATA_PATH": str(self.steamcmd_path / "steam_compat"),
-                "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.steamcmd_path),
-            }
+            env = self._make_env()
 
-            rc, lines = self._run_and_stream(
+            rc, lines = await self._run_and_stream(
                 full_cmd, env, str(self.steamcmd_path), timeout=timeout, label="SteamCMD"
             )
 
@@ -240,7 +229,7 @@ class SteamCMDManager:
                 )
                 return False, lines
 
-        except subprocess.TimeoutExpired:
+        except (asyncio.TimeoutError, subprocess.TimeoutExpired):
             self.logger.error(
                 f"SteamCMD timeout after {timeout} seconds", event_type="steamcmd_fail"
             )
