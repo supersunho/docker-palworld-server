@@ -50,7 +50,7 @@ spec:
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "server.existingSecret is required" .Values.server.existingSecret }}
+                  name: {{ .Values.server.existingSecret | default (printf "%s-password" (include "palworld-server.fullname" .)) }}
                   key: {{ .Values.server.adminPasswordKey }}
             - name: MAX_PLAYERS
               value: {{ .Values.server.maxPlayers | quote }}

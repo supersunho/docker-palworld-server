@@ -18,10 +18,14 @@ server:
   description: "A Palworld dedicated server"
   publicPort: 8211
   publicIp: ""
+  # Admin password for REST API and RCON authentication.
+  # When empty and existingSecret is not set, a random 24-char
+  # password is generated during 'helm install'.
+  adminPassword: ""
   # Reference an existing Kubernetes Secret for ADMIN_PASSWORD.
   # The secret must have the key specified by adminPasswordKey.
   existingSecret: ""
-  adminPasswordKey: "admin-password" 
+  adminPasswordKey: "admin-password"
 
 # REST API configuration (port moved to managementService)
 restApi:
