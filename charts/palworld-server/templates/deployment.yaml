@@ -33,7 +33,7 @@ spec:
             - containerPort: {{ .Values.server.port }}
               protocol: UDP
               name: game
-            - containerPort: 27015
+            - containerPort: {{ .Values.service.queryPort }}
               protocol: UDP
               name: query
             - containerPort: {{ .Values.managementService.restApiPort }}
