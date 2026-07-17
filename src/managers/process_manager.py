@@ -27,6 +27,8 @@ class ProcessManager(IProcessManager):
         self.server_process: Optional[subprocess.Popen] = None
         self._process_start_time: Optional[float] = None
         """Timestamp (time.time) when the server process was last started."""
+        self._lifecycle_lock = asyncio.Lock()
+        """Lock protecting start_server / stop_server concurrency."""
 
     def is_server_running(self) -> bool:
         """Check if server is currently running"""
@@ -89,59 +91,66 @@ class ProcessManager(IProcessManager):
 
     async def start_server(self) -> bool:
         """Start Palworld server with dynamic configuration options"""
-        if self.is_server_running():
-            log_server_event(self.logger, "server_start", "Server is already running")
-            return True
+        async with self._lifecycle_lock:
+            # Double-check after acquiring lock — a concurrent stop_server
+            # may have just cleared server_process.
+            if self.is_server_running():
+                log_server_event(self.logger, "server_start", "Server is already running")
+                return True
 
-        server_executable = self.server_path / "PalServer.sh"
+            server_executable = self.server_path / "PalServer.sh"
 
-        if not server_executable.exists():
-            log_server_event(
-                self.logger,
-                "server_start_fail",
-                f"Server executable not found: {server_executable}",
-            )
-            return False
-
-        try:
-            log_server_event(
-                self.logger, "server_start", "Starting Palworld server with dynamic options"
-            )
-
-            full_cmd = self._build_server_command()
-
-            # Inherit parent stdout/stderr to avoid pipe deadlock with long-running process.
-            # Output is captured by Docker/Supervisor logging.
-            self.server_process = subprocess.Popen(
-                full_cmd,
-                cwd=str(self.server_path),
-                stdout=None,
-                stderr=None,
-                text=True,
-                start_new_session=True,
-            )
-            self._process_start_time = time.time()
-
-            await asyncio.sleep(10)
-
-            if not self.is_server_running():
-                self._process_start_time = None
+            if not server_executable.exists():
                 log_server_event(
-                    self.logger, "server_start_fail", "Server start failed - check logs for details"
+                    self.logger,
+                    "server_start_fail",
+                    f"Server executable not found: {server_executable}",
                 )
                 return False
 
-            log_server_event(
-                self.logger,
-                "server_start_complete",
-                "Server started successfully with configured options",
-                pid=self.server_process.pid,
-            )
-            return True
+            try:
+                log_server_event(
+                    self.logger, "server_start", "Starting Palworld server with dynamic options"
+                )
 
-        except Exception as e:
-            log_server_event(self.logger, "server_start_fail", f"Server start error: {e}")
+                full_cmd = self._build_server_command()
+
+                # Inherit parent stdout/stderr to avoid pipe deadlock with long-running process.
+                # Output is captured by Docker/Supervisor logging.
+                self.server_process = subprocess.Popen(
+                    full_cmd,
+                    cwd=str(self.server_path),
+                    stdout=None,
+                    stderr=None,
+                    text=True,
+                    start_new_session=True,
+                )
+                self._process_start_time = time.time()
+
+            except Exception as e:
+                self.server_process = None
+                self._process_start_time = None
+                log_server_event(self.logger, "server_start_fail", f"Server start error: {e}")
+                return False
+
+        # Lock released — wait for startup without holding the lock so
+        # concurrent stop_server can still stop the process on startup failure.
+        await asyncio.sleep(10)
+
+        if not self.is_server_running():
+            self._process_start_time = None
+            log_server_event(
+                self.logger, "server_start_fail", "Server start failed - check logs for details"
+            )
             return False
+
+        log_server_event(
+            self.logger,
+            "server_start_complete",
+            "Server started successfully with configured options",
+            pid=self.server_process.pid,
+        )
+        return True
 
     async def stop_server(
         self,
@@ -149,33 +158,33 @@ class ProcessManager(IProcessManager):
         api_client: Optional[Any] = None,
     ) -> bool:
         """Stop Palworld server gracefully and clean up zombie processes"""
-        if not self.is_server_running():
-            log_server_event(self.logger, "server_stop", "Server is already stopped")
-            return True
+        async with self._lifecycle_lock:
+            if not self.is_server_running():
+                log_server_event(self.logger, "server_stop", "Server is already stopped")
+                return True
 
-        # Keep a local strong reference after the running check. Another
-        # shutdown task may clear self.server_process while this coroutine
-        # awaits the API graceful-shutdown calls.
-        process = self.server_process
-        if process is None:
-            log_server_event(self.logger, "server_stop", "Server is already stopped")
-            return True
+            # Capture and clear the process reference atomically under lock
+            # to prevent a concurrent start_server from racing with cleanup.
+            process = self.server_process
+            self.server_process = None
+            self._process_start_time = None
 
+        # Lock released — the API wait is long, so don't hold the lock.
         try:
-            if api_client:
+            if api_client and process is not None:
                 try:
                     await api_client.announce_message(f"{message}. Shutting down in 30 seconds.")
                     await asyncio.sleep(30)
                     await api_client.shutdown_server(1, message)
 
                     for _ in range(60):
-                        if not self.is_server_running():
+                        if process.poll() is not None:
                             break
                         await asyncio.sleep(1)
                 except Exception as e:
                     self.logger.warning(f"API graceful shutdown failed: {e}")
 
-            if process.poll() is None:
+            if process is not None and process.poll() is None:
                 log_server_event(
                     self.logger,
                     "server_force_stop",
@@ -189,21 +198,22 @@ class ProcessManager(IProcessManager):
                         process.wait(timeout=10)
                     except subprocess.TimeoutExpired:
                         os.killpg(process.pid, signal.SIGKILL)
-                        process.wait()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            pass
                 except ProcessLookupError:
                     # Process group already terminated
                     pass
 
             # Clean up zombie process
-            try:
-                process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                pass
-            except Exception:
-                pass
-            if self.server_process is process:
-                self.server_process = None
-            self._process_start_time = None
+            if process is not None:
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+                except Exception:
+                    pass
 
             log_server_event(self.logger, "server_stop_complete", "Server stopped successfully")
             return True
