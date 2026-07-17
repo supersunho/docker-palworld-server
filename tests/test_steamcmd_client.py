@@ -2,7 +2,6 @@
 
 import asyncio
 import pytest
-import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
@@ -51,11 +50,11 @@ class TestSteamCMDManager:
         """_run_and_stream raises on timeout."""
         with patch("asyncio.create_subprocess_exec") as mock_create:
             process = AsyncMock()
-            process.wait.side_effect = subprocess.TimeoutExpired("cmd", 1)
+            process.wait.side_effect = asyncio.TimeoutError("timed out")
             process.stdout.readline = AsyncMock(return_value=b"")
             process.stderr.readline = AsyncMock(return_value=b"")
             mock_create.return_value = process
-            with pytest.raises((subprocess.TimeoutExpired, asyncio.TimeoutError)):
+            with pytest.raises(asyncio.TimeoutError):
                 await steamcmd_manager._run_and_stream(
                     ["test"], {}, str(steamcmd_manager.steamcmd_path), 1
                 )
@@ -69,7 +68,7 @@ class TestSteamCMDManager:
             patch.object(steamcmd_manager, "validate_steamcmd", return_value=True),
             patch.object(steamcmd_manager, "_run_and_stream") as mock_ras,
         ):
-            mock_ras.side_effect = subprocess.TimeoutExpired("cmd", 1)
+            mock_ras.side_effect = asyncio.TimeoutError("timed out")
             assert await steamcmd_manager._ensure_updated() is True
 
     async def test_run_command_no_steamcmd(self, steamcmd_manager):
@@ -98,7 +97,7 @@ class TestSteamCMDManager:
             patch.object(steamcmd_manager, "_ensure_updated", AsyncMock(return_value=True)),
             patch.object(steamcmd_manager, "_run_and_stream") as mock_ras,
         ):
-            mock_ras.side_effect = subprocess.TimeoutExpired("cmd", 1)
+            mock_ras.side_effect = asyncio.TimeoutError("timed out")
             assert await steamcmd_manager.run_command(["+quit"]) == (False, [])
 
     async def test_run_command_exception(self, steamcmd_manager):

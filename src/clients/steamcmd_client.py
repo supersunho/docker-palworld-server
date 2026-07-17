@@ -118,7 +118,7 @@ class SteamCMDManager:
             process.kill()
             await process.wait()
             raise
-        except* subprocess.TimeoutExpired:
+        except* asyncio.TimeoutError:
             process.kill()
             await process.wait()
             raise
@@ -181,7 +181,7 @@ class SteamCMDManager:
             )
             return True
 
-        except (asyncio.TimeoutError, subprocess.TimeoutExpired):
+        except (asyncio.TimeoutError,):
             self.logger.warning(
                 "SteamCMD warm-up timed out (the main command has a "
                 "longer timeout, so this may still work -- continuing)."
@@ -229,7 +229,7 @@ class SteamCMDManager:
                 )
                 return False, lines
 
-        except (asyncio.TimeoutError, subprocess.TimeoutExpired):
+        except (asyncio.TimeoutError,):
             self.logger.error(
                 f"SteamCMD timeout after {timeout} seconds", event_type="steamcmd_fail"
             )

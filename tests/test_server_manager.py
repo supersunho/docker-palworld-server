@@ -19,17 +19,21 @@ class TestPalworldServerManager:
     def manager(self, palworld_config):
         container = ServiceContainer()
 
+        # Register a mock ProcessManager so the container resolves it
+        # instead of creating a real one.
+        mock_pm = MagicMock(spec=ProcessManager)
+        mock_pm.is_server_running = MagicMock(return_value=True)
+        mock_pm.stop_server = AsyncMock(return_value=True)
+        mock_pm.start_server = AsyncMock(return_value=True)
+        mock_pm.get_server_status = MagicMock(
+            return_value={"running": True, "pid": 12345, "uptime": 3600}
+        )
+        container.register(ProcessManager, mock_pm)
+
         lifecycle = MagicMock(spec=ServerLifecycleManager)
         lifecycle.start = AsyncMock(return_value=True)
         lifecycle.verify_startup = AsyncMock(return_value=True)
         lifecycle.get_server_status = MagicMock(
-            return_value={"running": True, "pid": 12345, "uptime": 3600}
-        )
-        lifecycle.process_manager = MagicMock(spec=ProcessManager)
-        lifecycle.process_manager.is_server_running = MagicMock(return_value=True)
-        lifecycle.process_manager.stop_server = AsyncMock(return_value=True)
-        lifecycle.process_manager.start_server = AsyncMock(return_value=True)
-        lifecycle.process_manager.get_server_status = MagicMock(
             return_value={"running": True, "pid": 12345, "uptime": 3600}
         )
         container.register(ServerLifecycleManager, lifecycle)
@@ -65,7 +69,7 @@ class TestPalworldServerManager:
 
         # Mock steamcmd
         m.steamcmd_manager = MagicMock()
-        m.steamcmd_manager.run_command = MagicMock(return_value=(True, []))
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(True, []))
 
         return m
 
