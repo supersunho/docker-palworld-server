@@ -39,7 +39,7 @@ class TestIdleRestartManager:
     @pytest.mark.asyncio
     async def test_start_stop_monitoring(self, manager):
         """FS-18.4: Start/stop monitoring lifecycle."""
-        with patch.object(manager, '_monitoring_loop', side_effect=_noop):
+        with patch.object(manager, "_monitoring_loop", side_effect=_noop):
             await manager.start_monitoring()
             assert manager._running is True
             await manager.stop_monitoring()
@@ -57,7 +57,7 @@ class TestIdleRestartManager:
     async def test_handle_active_players_resets_idle(self, manager):
         """FS-18.6: Players online reset idle timer."""
         manager._idle_start = 100.0
-        with patch.object(manager.logger, 'info'):
+        with patch.object(manager.logger, "info"):
             await manager._handle_active_players(3)
         assert manager._idle_start is None
 
@@ -75,7 +75,7 @@ class TestIdleRestartManager:
         """FS-18.8: Pause mode calls pause_server."""
         manager.mode = "pause"
         manager.process_manager.pause_server = AsyncMock(return_value=True)
-        
+
         success = await manager._perform_pause()
         assert success is True
         assert manager._paused is True
@@ -86,7 +86,7 @@ class TestIdleRestartManager:
         """FS-18.9: Pause failure doesn't set paused state."""
         manager.mode = "pause"
         manager.process_manager.pause_server = AsyncMock(return_value=False)
-        
+
         success = await manager._perform_pause()
         assert success is False
         assert manager._paused is False
@@ -97,9 +97,9 @@ class TestIdleRestartManager:
         manager._paused = True
         manager.process_manager.resume_server = AsyncMock(return_value=True)
 
-        with patch.object(manager, '_send_discord_notification', AsyncMock()):
+        with patch.object(manager, "_send_discord_notification", AsyncMock()):
             await manager._handle_active_players(1)
-        
+
         assert manager._paused is False
         manager.process_manager.resume_server.assert_awaited_once()
 
@@ -108,8 +108,8 @@ class TestIdleRestartManager:
     async def test_force_resume(self, manager):
         """FS-18.11: force_resume resumes server."""
         manager._paused = True
-        
-        with patch.object(manager, '_force_resume', AsyncMock()) as mock_fr:
+
+        with patch.object(manager, "_force_resume", AsyncMock()) as mock_fr:
             result = manager.force_resume()
             assert result is True
             await asyncio.sleep(0.01)
@@ -136,8 +136,10 @@ class TestIdleRestartManager:
         """FS-18.14: Paused state triggers full restart after 24h."""
         manager._paused = True
         manager._pause_start_time = 0.0
-        
-        with patch.object(manager, '_perform_restart', AsyncMock(return_value=True)) as mock_restart:
+
+        with patch.object(
+            manager, "_perform_restart", AsyncMock(return_value=True)
+        ) as mock_restart:
             await manager._handle_paused_state(time.time())
             mock_restart.assert_awaited_once()
 
@@ -146,10 +148,10 @@ class TestIdleRestartManager:
         """FS-18.15: Triggering pause action increments pause stats."""
         manager.mode = "pause"
         manager.process_manager.pause_server = AsyncMock(return_value=True)
-        
-        with patch.object(manager, '_send_discord_notification', AsyncMock()):
+
+        with patch.object(manager, "_send_discord_notification", AsyncMock()):
             await manager._trigger_idle_action()
-        
+
         assert manager.stats.total_pauses == 1
         assert manager.stats.last_pause_time is not None
         assert manager._paused is True
@@ -169,7 +171,6 @@ class TestIdleRestartManagerEdgeCases:
         """Create a manager with idle_restart disabled."""
         from src.config.monitoring.idle_restart import IdleRestartConfig
 
-
         palworld_config.monitoring.idle_restart = IdleRestartConfig(enabled=False, idle_minutes=30)
         pm = MagicMock()
         pm.is_server_running.return_value = True
@@ -183,9 +184,11 @@ class TestIdleRestartManagerEdgeCases:
         mgr = IdleRestartManager(palworld_config, mock_player_monitor, pm)
         assert mgr.enabled is True
         assert mgr.idle_minutes == 30
-        assert mgr.mode == 'restart'
+        assert mgr.mode == "restart"
 
-    def test_init_with_non_int_idle_minutes(self, palworld_config, mock_player_monitor, mock_logger):
+    def test_init_with_non_int_idle_minutes(
+        self, palworld_config, mock_player_monitor, mock_logger
+    ):
         """FS-18.x: Init when idle_minutes can't convert to int."""
         palworld_config.monitoring.idle_restart.idle_minutes = "abc"
         pm = MagicMock()
@@ -196,7 +199,7 @@ class TestIdleRestartManagerEdgeCases:
     @pytest.mark.asyncio
     async def test_start_monitoring_disabled(self, manager_disabled):
         """FS-18.x: start_monitoring logs warning when disabled."""
-        with patch.object(manager_disabled.logger, 'warning') as mock_warn:
+        with patch.object(manager_disabled.logger, "warning") as mock_warn:
             await manager_disabled.start_monitoring()
             mock_warn.assert_called_once_with("Idle restart monitoring is disabled")
         assert manager_disabled._running is False
@@ -205,7 +208,7 @@ class TestIdleRestartManagerEdgeCases:
     async def test_start_monitoring_already_running(self, manager):
         """FS-18.x: start_monitoring logs warning when already running."""
         manager._running = True
-        with patch.object(manager.logger, 'warning') as mock_warn:
+        with patch.object(manager.logger, "warning") as mock_warn:
             await manager.start_monitoring()
             mock_warn.assert_called_once_with("Idle restart monitoring already running")
 
@@ -214,7 +217,7 @@ class TestIdleRestartManagerEdgeCases:
         """FS-18.x: _check_idle_status resets timer when server not running."""
         manager.process_manager.is_server_running.return_value = False
         manager._idle_start = 100.0
-        with patch.object(manager.logger, 'debug') as mock_debug:
+        with patch.object(manager.logger, "debug") as mock_debug:
             await manager._check_idle_status()
             mock_debug.assert_called_once_with("Server not running, resetting idle timer")
         assert manager._idle_start is None
@@ -223,7 +226,7 @@ class TestIdleRestartManagerEdgeCases:
     async def test_handle_zero_players_with_paused_state(self, manager):
         """FS-18.x: _handle_zero_players calls _handle_paused_state when paused."""
         manager._paused = True
-        with patch.object(manager, '_handle_paused_state', AsyncMock()) as mock_hps:
+        with patch.object(manager, "_handle_paused_state", AsyncMock()) as mock_hps:
             await manager._handle_zero_players(100.0)
             mock_hps.assert_awaited_once_with(100.0)
 
@@ -232,8 +235,8 @@ class TestIdleRestartManagerEdgeCases:
         """FS-18.x: _handle_zero_players triggers idle action when duration exceeds threshold."""
         manager.idle_seconds = 10
         manager._idle_start = time.time() - 15
-        with patch.object(manager, '_trigger_idle_action', AsyncMock()) as mock_trigger:
-            with patch.object(manager.stats, 'current_idle_duration', 15.0):
+        with patch.object(manager, "_trigger_idle_action", AsyncMock()) as mock_trigger:
+            with patch.object(manager.stats, "current_idle_duration", 15.0):
                 await manager._handle_zero_players(time.time())
                 mock_trigger.assert_awaited_once()
 
@@ -249,7 +252,7 @@ class TestIdleRestartManagerEdgeCases:
         """FS-18.x: _perform_restart logs error when start fails."""
         manager.process_manager.stop_server = AsyncMock(return_value=True)
         manager.process_manager.start_server = AsyncMock(return_value=False)
-        with patch('asyncio.sleep', AsyncMock(return_value=None)):
+        with patch("asyncio.sleep", AsyncMock(return_value=None)):
             success = await manager._perform_restart()
         assert success is False
 
@@ -264,7 +267,7 @@ class TestIdleRestartManagerEdgeCases:
         """FS-18.x: force_resume handles create_task failure."""
         manager._paused = True
         manager._force_resume = MagicMock(return_value=None)
-        with patch('asyncio.create_task', side_effect=RuntimeError("loop closed")):
+        with patch("asyncio.create_task", side_effect=RuntimeError("loop closed")):
             result = manager.force_resume()
             assert result is False
 
@@ -280,8 +283,8 @@ class TestIdleRestartManagerEdgeCases:
     async def test_trigger_idle_action_restart_success(self, manager):
         """FS-18.x: trigger_idle_action with restart mode updates restart stats."""
         manager.mode = "restart"
-        with patch.object(manager, '_send_discord_notification', AsyncMock()):
-            with patch.object(manager, '_perform_restart', AsyncMock(return_value=True)) as mock_pr:
+        with patch.object(manager, "_send_discord_notification", AsyncMock()):
+            with patch.object(manager, "_perform_restart", AsyncMock(return_value=True)) as mock_pr:
                 await manager._trigger_idle_action()
                 mock_pr.assert_awaited_once()
                 assert manager.stats.total_restarts == 1
@@ -294,13 +297,12 @@ class TestIdleRestartManagerEdgeCases:
         await manager._send_discord_notification("restart", "test")
         # No exception means early return worked
 
-
     @pytest.mark.asyncio
     async def test_check_idle_status_active_players(self, manager):
         """FS-18.x: _check_idle_status handles active players path."""
         manager.process_manager.is_server_running.return_value = True
         manager.player_monitor.get_current_player_count.return_value = 3
-        with patch.object(manager, '_handle_active_players', AsyncMock()) as mock_ha:
+        with patch.object(manager, "_handle_active_players", AsyncMock()) as mock_ha:
             await manager._check_idle_status()
             mock_ha.assert_awaited_once_with(3)
 
@@ -310,7 +312,9 @@ class TestIdleRestartManagerEdgeCases:
         manager._paused = True
         manager._pause_start_time = None
         current = time.time()
-        with patch.object(manager, '_handle_paused_state', AsyncMock(wraps=manager._handle_paused_state)) as wrapped:
+        with patch.object(
+            manager, "_handle_paused_state", AsyncMock(wraps=manager._handle_paused_state)
+        ) as wrapped:
             await manager._handle_zero_players(current)
             # Should have set pause_start_time
             assert manager._pause_start_time is not None

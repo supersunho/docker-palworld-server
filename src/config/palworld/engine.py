@@ -9,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class EngineConfig:
     """Engine.ini configuration data class"""
+
     lan_server_max_tick_rate: int = 120
     net_server_max_tick_rate: int = 120
     configured_internet_speed: int = 104857600

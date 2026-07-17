@@ -76,7 +76,6 @@ class TestRestAPIClient:
         """_make_request handles aiohttp.ClientError."""
         import aiohttp
 
-
         api_client.session = MagicMock()
         api_client.session.request = MagicMock()
         cm = AsyncMock()
@@ -152,7 +151,9 @@ class TestRestAPIClient:
 
     @pytest.mark.asyncio
     async def test_get_players(self, api_client):
-        api_client._make_request_with_retry = AsyncMock(return_value={"players": [{"name": "P1"}, {"name": "P2"}]})
+        api_client._make_request_with_retry = AsyncMock(
+            return_value={"players": [{"name": "P1"}, {"name": "P2"}]}
+        )
         result = await api_client.get_players()
         assert result == [{"name": "P1"}, {"name": "P2"}]
 

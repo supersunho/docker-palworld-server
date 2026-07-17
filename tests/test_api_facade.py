@@ -8,8 +8,6 @@ from src.protocols import IServerAPI
 pytestmark = pytest.mark.unit
 
 
-
-
 class TestServerAPIFacade:
     """FS-10.x: API facade behavior."""
 
@@ -62,7 +60,7 @@ class TestServerAPIFacade:
         result = await facade.get_players()
         assert result is not None
         assert len(result) == 2
-        assert result[0]['name'] == 'Player1'
+        assert result[0]["name"] == "Player1"
 
     @pytest.mark.asyncio
     async def test_announce_rest_first(self, facade):
@@ -173,7 +171,7 @@ class TestServerAPIFacadeInitialization:
     async def test_initialize_clients_rest_enabled(self, palworld_config, mock_logger):
         """FS-10.6: Initialize REST client when enabled."""
         facade = ServerAPIFacade(palworld_config, mock_logger)
-        with patch('src.managers.api_facade.RestAPIClient') as mock_rest_cls:
+        with patch("src.managers.api_facade.RestAPIClient") as mock_rest_cls:
             mock_instance = MagicMock()
             mock_instance.__aenter__ = AsyncMock()
             mock_instance.session = MagicMock()

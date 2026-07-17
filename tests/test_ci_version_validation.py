@@ -12,8 +12,6 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-
-
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 VALIDATOR = SCRIPTS_DIR / "validate_ci_versions.sh"
 
@@ -42,6 +40,7 @@ def _parse_output(stdout):
 # ------------------------------------------------------------------
 # Happy path — valid version strings
 # ------------------------------------------------------------------
+
 
 class TestValidVersions:
     def test_latest_default(self):
@@ -99,6 +98,7 @@ class TestValidVersions:
 # Rejection — malicious or malformed inputs
 # ------------------------------------------------------------------
 
+
 class TestInvalidVersions:
     def test_sql_injection_attempt(self):
         """Values with semicolons and quotes are rejected."""
@@ -150,19 +150,24 @@ class TestInvalidVersions:
 # Output format guarantees
 # ------------------------------------------------------------------
 
+
 class TestOutputFormat:
     def test_all_six_keys_present(self):
         """Stdout contains exactly the 6 expected keys."""
         rc, out, err = _run_validator("v1.2.3", "v2.0")
         assert rc == 0, f"expected 0, got {rc}: {err}"
         expected_keys = {
-            "source_version", "source_version_clean", "source_version_base",
-            "build_version", "build_version_clean", "build_version_base",
+            "source_version",
+            "source_version_clean",
+            "source_version_base",
+            "build_version",
+            "build_version_clean",
+            "build_version_base",
         }
         parsed = _parse_output(out)
-        assert set(parsed.keys()) == expected_keys, (
-            f"missing keys: {expected_keys - set(parsed.keys())}"
-        )
+        assert (
+            set(parsed.keys()) == expected_keys
+        ), f"missing keys: {expected_keys - set(parsed.keys())}"
 
     def test_single_line_values(self):
         """Each output value is a single line (no embedded newlines)."""

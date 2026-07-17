@@ -15,28 +15,28 @@ from ..logging_setup import log_server_event
 
 class SettingsGenerator:
     """INI file generator for Palworld server configurations"""
-    
+
     def __init__(self, config: PalworldConfig, logger=None):
         self.config = config
         self.logger = logger
         self.server_path = config.paths.server_dir
         self.config_dir = self.server_path / "Pal" / "Saved" / "Config" / "LinuxServer"
-        
+
         self.default_settings_path = self.server_path / "DefaultPalWorldSettings.ini"
         self.default_engine_path = self.server_path / "DefaultEngine.ini"
-        
+
         self._default_settings_cache = None
-    
+
     def generate_server_settings(self) -> str:
         """Generate Palworld server settings content as string"""
         settings_content = self._generate_settings_content_auto()
         return settings_content
-    
+
     def generate_engine_settings(self) -> str:
         """Generate Palworld engine settings content as string"""
         engine_content = self._generate_engine_content()
         return engine_content
-    
+
     def write_server_settings(self, output_path: Path = None) -> bool:
         """Generate and write server settings file"""
         try:
@@ -44,23 +44,27 @@ class SettingsGenerator:
                 settings_file = self.config_dir / "PalWorldSettings.ini"
             else:
                 settings_file = output_path
-            
+
             self.config_dir.mkdir(parents=True, exist_ok=True)
-            
+
             settings_content = self.generate_server_settings()
-            
-            settings_file.write_text(settings_content, encoding='utf-8')
-            
-            log_server_event(self.logger, "config_generate", 
-                           "Server settings file generated successfully", 
-                           settings_file=str(settings_file))
+
+            settings_file.write_text(settings_content, encoding="utf-8")
+
+            log_server_event(
+                self.logger,
+                "config_generate",
+                "Server settings file generated successfully",
+                settings_file=str(settings_file),
+            )
             return True
-            
+
         except Exception as e:
-            log_server_event(self.logger, "config_generate_fail", 
-                           f"Failed to generate settings file: {e}")
+            log_server_event(
+                self.logger, "config_generate_fail", f"Failed to generate settings file: {e}"
+            )
             return False
-    
+
     def write_engine_settings(self, output_path: Path = None) -> bool:
         """Generate and write engine settings file"""
         try:
@@ -68,41 +72,45 @@ class SettingsGenerator:
                 engine_file = self.config_dir / "Engine.ini"
             else:
                 engine_file = output_path
-            
+
             self.config_dir.mkdir(parents=True, exist_ok=True)
-            
+
             engine_content = self.generate_engine_settings()
-            
-            engine_file.write_text(engine_content, encoding='utf-8')
-            
-            log_server_event(self.logger, "config_generate", 
-                           "Engine settings file generated successfully", 
-                           engine_file=str(engine_file))
+
+            engine_file.write_text(engine_content, encoding="utf-8")
+
+            log_server_event(
+                self.logger,
+                "config_generate",
+                "Engine settings file generated successfully",
+                engine_file=str(engine_file),
+            )
             return True
-            
+
         except Exception as e:
-            log_server_event(self.logger, "config_generate_fail", 
-                           f"Failed to generate engine settings file: {e}")
+            log_server_event(
+                self.logger, "config_generate_fail", f"Failed to generate engine settings file: {e}"
+            )
             return False
-    
+
     def _generate_settings_content_auto(self) -> str:
         """Generate settings content using automatic conversion with fallback"""
         try:
             defaults = self._get_default_settings()
-            
+
             if not defaults:
                 if self.logger:
                     self.logger.warning("No default settings found, falling back to legacy method")
                 return self._generate_settings_content_legacy()
-            
+
             user_settings = {}
             palworld_settings_dict = asdict(self.config.palworld_settings)
-            
+
             for key, value in palworld_settings_dict.items():
                 user_settings[key] = self._format_ini_value(value)
-            
+
             final_settings = {**defaults, **user_settings}
-            
+
             override_count = 0
             new_setting_count = 0
             for key, value in user_settings.items():
@@ -110,110 +118,118 @@ class SettingsGenerator:
                     override_count += 1
                 elif key not in defaults:
                     new_setting_count += 1
-            
+
             if self.logger:
-                self.logger.info(f"Auto settings generation successful: {len(defaults)} defaults, "
-                               f"{override_count} overrides, {new_setting_count} new settings")
-            
+                self.logger.info(
+                    f"Auto settings generation successful: {len(defaults)} defaults, "
+                    f"{override_count} overrides, {new_setting_count} new settings"
+                )
+
             return self._dict_to_ini_optionsettings(final_settings)
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Auto settings generation failed: {e}")
                 self.logger.info("Falling back to legacy settings generation")
             return self._generate_settings_content_legacy()
-    
+
     def _get_default_settings(self) -> Dict[str, str]:
         """Get cached default settings from DefaultPalWorldSettings.ini"""
         if self._default_settings_cache is None:
             self._default_settings_cache = self._parse_default_settings()
         return self._default_settings_cache
-    
+
     def _parse_default_settings(self) -> Dict[str, str]:
         """Parse DefaultPalWorldSettings.ini with comprehensive error handling"""
         possible_paths = [
             self.default_settings_path,
             self.server_path / "Pal" / "DefaultPalWorldSettings.ini",
-            Path(__file__).parent.parent.parent / "config" / "DefaultPalWorldSettings.ini"
+            Path(__file__).parent.parent.parent / "config" / "DefaultPalWorldSettings.ini",
         ]
-        
+
         for sample_path in possible_paths:
             if sample_path.exists():
                 try:
-                    content = sample_path.read_text(encoding='utf-8')
+                    content = sample_path.read_text(encoding="utf-8")
                     defaults = self._extract_option_settings(content)
-                    
+
                     if defaults:
                         if self.logger:
-                            self.logger.info(f"Parsed {len(defaults)} default settings from: {sample_path}")
+                            self.logger.info(
+                                f"Parsed {len(defaults)} default settings from: {sample_path}"
+                            )
                         return defaults
                     else:
                         if self.logger:
                             self.logger.warning(f"No valid settings found in: {sample_path}")
-                            
+
                 except UnicodeDecodeError as e:
                     if self.logger:
                         self.logger.warning(f"Unicode decode error in {sample_path}: {e}")
                     try:
-                        content = sample_path.read_text(encoding='utf-8-sig')
+                        content = sample_path.read_text(encoding="utf-8-sig")
                         defaults = self._extract_option_settings(content)
                         if defaults:
                             if self.logger:
-                                self.logger.info(f"Parsed {len(defaults)} settings after BOM handling: {sample_path}")
+                                self.logger.info(
+                                    f"Parsed {len(defaults)} settings after BOM handling: {sample_path}"
+                                )
                             return defaults
                     except Exception as bom_e:
                         if self.logger:
-                            self.logger.warning(f"BOM handling also failed for {sample_path}: {bom_e}")
-                            
+                            self.logger.warning(
+                                f"BOM handling also failed for {sample_path}: {bom_e}"
+                            )
+
                 except Exception as e:
                     if self.logger:
                         self.logger.warning(f"Failed to parse {sample_path}: {e}")
                     continue
-        
+
         if self.logger:
             self.logger.warning("No DefaultPalWorldSettings.ini found or parsed successfully")
         return {}
-    
+
     def _extract_option_settings(self, content: str) -> Dict[str, str]:
         """Extract OptionSettings values from DefaultPalWorldSettings.ini content"""
         defaults = {}
-        
+
         try:
-            pattern = r'OptionSettings=\(([^)]+)\)'
+            pattern = r"OptionSettings=\(([^)]+)\)"
             match = re.search(pattern, content, re.DOTALL)
-            
+
             if not match:
                 if self.logger:
                     self.logger.error("Could not find OptionSettings in default file")
                 return defaults
-            
+
             options_content = match.group(1)
-            
-            settings_pattern = r'(\w+)=([^,)]+(?:\([^)]*\))?[^,)]*)'
+
+            settings_pattern = r"(\w+)=([^,)]+(?:\([^)]*\))?[^,)]*)"
             settings_matches = re.findall(settings_pattern, options_content)
-            
+
             for setting_name, setting_value in settings_matches:
                 cleaned_value = self._clean_setting_value(setting_value.strip())
                 defaults[setting_name] = cleaned_value
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Failed to extract OptionSettings: {e}")
-        
+
         return defaults
-    
+
     def _clean_setting_value(self, value: str) -> str:
         """Clean and normalize setting values"""
         if value.startswith('"') and value.endswith('"'):
             value = value[1:-1]
-        
+
         if value == "None":
             return "None"
         elif value.lower() in ["true", "false"]:
             return value.capitalize()
-        
+
         return value
-    
+
     def _format_ini_value(self, value) -> str:
         """Format Python value for INI file"""
         if isinstance(value, bool):
@@ -224,21 +240,21 @@ class SettingsGenerator:
             return str(value)
         else:
             return str(value)
-    
+
     def _dict_to_ini_optionsettings(self, settings: Dict[str, str]) -> str:
         """Convert settings dictionary to INI OptionSettings format"""
         settings_list = []
         for key, value in settings.items():
             settings_list.append(f"{key}={value}")
-        
+
         return f"""[/Script/Pal.PalGameWorldSettings]
 OptionSettings=({','.join(settings_list)})"""
-    
+
     def _generate_settings_content_legacy(self) -> str:
         """Legacy settings generation method (fallback for when auto method fails)"""
         if self.logger:
             self.logger.info("Using legacy settings generation method")
-        
+
         server_cfg = self.config.server
         api_cfg = self.config.rest_api
         rcon_cfg = self.config.rcon
@@ -249,7 +265,7 @@ OptionSettings=({','.join(settings_list)})"""
         pal_cfg = self.config.pal_settings
         building_cfg = self.config.building
         difficulty_cfg = self.config.difficulty
-        
+
         settings = f"""[/Script/Pal.PalGameWorldSettings]
 OptionSettings=(
     Difficulty={difficulty_cfg.level},
@@ -318,34 +334,34 @@ OptionSettings=(
     RESTAPIPort={api_cfg.port}
 )"""
         return settings
-    
+
     def _generate_engine_content(self) -> str:
         """Generate complete Engine.ini file content using sample + performance settings with fallback"""
         try:
             base_content = self._read_engine_base_content()
             performance_settings = self._generate_performance_settings()
-            
+
             return self._combine_engine_content(base_content, performance_settings)
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Engine content generation failed: {e}")
                 self.logger.info("Using fallback engine content generation")
             return self._generate_engine_content_fallback()
-    
+
     def _read_engine_base_content(self) -> str:
         """Read base Engine.ini content from sample file with comprehensive error handling"""
         possible_paths = [
             self.default_engine_path,
             self.server_path / "Engine" / "Config" / "BaseEngine.ini",
             self.server_path / "Engine" / "Config" / "DefaultEngine.ini",
-            Path(__file__).parent.parent.parent / "config" / "DefaultEngine.ini"
+            Path(__file__).parent.parent.parent / "config" / "DefaultEngine.ini",
         ]
-        
+
         for sample_path in possible_paths:
             if sample_path.exists():
                 try:
-                    base_content = sample_path.read_text(encoding='utf-8')
+                    base_content = sample_path.read_text(encoding="utf-8")
                     if base_content.strip():
                         if self.logger:
                             self.logger.info(f"Using Engine.ini base from: {sample_path}")
@@ -353,29 +369,33 @@ OptionSettings=(
                     else:
                         if self.logger:
                             self.logger.warning(f"Engine.ini file is empty: {sample_path}")
-                            
+
                 except UnicodeDecodeError as e:
                     if self.logger:
                         self.logger.warning(f"Unicode decode error in {sample_path}: {e}")
                     try:
-                        base_content = sample_path.read_text(encoding='utf-8-sig')
+                        base_content = sample_path.read_text(encoding="utf-8-sig")
                         if base_content.strip():
                             if self.logger:
-                                self.logger.info(f"Using Engine.ini base after BOM handling: {sample_path}")
+                                self.logger.info(
+                                    f"Using Engine.ini base after BOM handling: {sample_path}"
+                                )
                             return base_content
                     except Exception as bom_e:
                         if self.logger:
-                            self.logger.warning(f"BOM handling also failed for {sample_path}: {bom_e}")
-                            
+                            self.logger.warning(
+                                f"BOM handling also failed for {sample_path}: {bom_e}"
+                            )
+
                 except Exception as e:
                     if self.logger:
                         self.logger.warning(f"Failed to read {sample_path}: {e}")
                     continue
-        
+
         if self.logger:
             self.logger.warning("No Engine.ini sample found, using hardcoded fallback")
         return self._get_fallback_engine_content()
-    
+
     def _get_fallback_engine_content(self) -> str:
         """Fallback hardcoded content (current implementation)"""
         return """[Core.System]
@@ -440,20 +460,20 @@ Paths=../../../Pal/Plugins/PocketpairUser/Content
 Paths=../../../Pal/Plugins/SpreadSheetToCsv/Content
 Paths=../../../Pal/Plugins/WwiseNiagara/Content
 Paths=../../../Pal/Plugins/Wwise/Content"""
-    
+
     def _combine_engine_content(self, base_content: str, performance_settings: str) -> str:
         """Combine base Engine.ini content with performance settings"""
-        if not base_content.endswith('\n'):
-            base_content += '\n'
-        
+        if not base_content.endswith("\n"):
+            base_content += "\n"
+
         separator = "\n# Performance optimization settings (auto-generated)\n"
-        
+
         return base_content + separator + performance_settings
-    
+
     def _generate_performance_settings(self) -> str:
         """Generate performance settings section using config values"""
         engine_cfg = self.config.engine
-        
+
         return f"""
 [/script/onlinesubsystemutils.ipnetdriver]
 LanServerMaxTickRate={engine_cfg.lan_server_max_tick_rate}
@@ -474,53 +494,46 @@ SmoothedFrameRateRange=(LowerBound=(Type=Inclusive,Value={engine_cfg.frame_rate_
 MinDesiredFrameRate={engine_cfg.min_desired_frame_rate}
 FixedFrameRate={engine_cfg.fixed_frame_rate}
 NetClientTicksPerSecond={engine_cfg.net_client_ticks_per_second}"""
-    
+
     def _generate_engine_content_fallback(self) -> str:
         """Fallback engine content generation (legacy method)"""
         base_content = self._get_fallback_engine_content()
         performance_settings = self._generate_performance_settings()
         return self._combine_engine_content(base_content, performance_settings)
-    
+
     def get_config_summary(self) -> Dict[str, Any]:
         """Get configuration summary for debugging and monitoring"""
         try:
             defaults = self._get_default_settings()
             user_settings = asdict(self.config.palworld_settings)
-            
+
             overrides = {}
             new_settings = {}
-            
+
             for key, value in user_settings.items():
                 formatted_value = self._format_ini_value(value)
                 if key in defaults:
                     if defaults[key] != formatted_value:
-                        overrides[key] = {
-                            'default': defaults[key],
-                            'override': formatted_value
-                        }
+                        overrides[key] = {"default": defaults[key], "override": formatted_value}
                 else:
                     new_settings[key] = formatted_value
-            
+
             return {
-                'parsing_status': 'success' if defaults else 'failed',
-                'total_defaults_found': len(defaults),
-                'total_user_settings': len(user_settings),
-                'total_overrides': len(overrides),
-                'total_new_settings': len(new_settings),
-                'overrides': overrides,
-                'new_settings': new_settings,
-                'sample_file_locations': {
-                    'settings_file': str(self.default_settings_path),
-                    'engine_file': str(self.default_engine_path),
-                    'settings_exists': self.default_settings_path.exists(),
-                    'engine_exists': self.default_engine_path.exists()
+                "parsing_status": "success" if defaults else "failed",
+                "total_defaults_found": len(defaults),
+                "total_user_settings": len(user_settings),
+                "total_overrides": len(overrides),
+                "total_new_settings": len(new_settings),
+                "overrides": overrides,
+                "new_settings": new_settings,
+                "sample_file_locations": {
+                    "settings_file": str(self.default_settings_path),
+                    "engine_file": str(self.default_engine_path),
+                    "settings_exists": self.default_settings_path.exists(),
+                    "engine_exists": self.default_engine_path.exists(),
                 },
-                'fallback_used': len(defaults) == 0
+                "fallback_used": len(defaults) == 0,
             }
-            
+
         except Exception as e:
-            return {
-                'parsing_status': 'error',
-                'error': str(e),
-                'fallback_used': True
-            }
+            return {"parsing_status": "error", "error": str(e), "fallback_used": True}

@@ -27,6 +27,7 @@ from .settings import PalworldSettings
 @dataclass
 class PalworldConfig:
     """Complete Palworld configuration"""
+
     server: ServerConfig = field(default_factory=ServerConfig)
     rest_api: RestAPIConfig = field(default_factory=RestAPIConfig)
     rcon: RconConfig = field(default_factory=RconConfig)

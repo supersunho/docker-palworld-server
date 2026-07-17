@@ -2,14 +2,9 @@
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from src.managers.lifecycle_manager import (
-
-
-    ServerLifecycleManager, verify_server_startup
-)
+from src.managers.lifecycle_manager import ServerLifecycleManager, verify_server_startup
 
 pytestmark = pytest.mark.unit
-
 
 
 class TestLifecycleManager:
@@ -21,9 +16,9 @@ class TestLifecycleManager:
         pm.start_server = AsyncMock(return_value=True)
         pm.stop_server = AsyncMock(return_value=True)
         pm.is_server_running = MagicMock(return_value=True)
-        pm.get_server_status = MagicMock(return_value={
-            'running': True, 'pid': 12345, 'uptime': 3600
-        })
+        pm.get_server_status = MagicMock(
+            return_value={"running": True, "pid": 12345, "uptime": 3600}
+        )
         pm.server_process = MagicMock()
         pm.server_process.pid = 12345
         return ServerLifecycleManager(palworld_config, mock_logger, process_manager=pm)
@@ -75,8 +70,6 @@ class TestLifecycleManager:
         status = manager.get_server_status()
         assert status["running"] is True
 
-
-
     @pytest.mark.asyncio
     async def test_stop_already_stopped(self, manager):
         """FS-9.3: Stop returns True when already stopped."""
@@ -91,6 +84,7 @@ class TestLifecycleManager:
         manager.process_manager.start_server = AsyncMock(return_value=False)
         result = await manager.restart()
         assert result is False
+
 
 class TestVerifyServerStartup:
     """FS-9.5: verify_server_startup function."""

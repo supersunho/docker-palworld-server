@@ -12,15 +12,18 @@ import pytest
 import structlog
 
 from src.logging_setup import (
-    setup_logging, get_logger, log_server_event, log_player_event,
-    log_api_call, log_backup_event, ContextProcessor,
-    CustomConsoleRenderer
+    setup_logging,
+    get_logger,
+    log_server_event,
+    log_player_event,
+    log_api_call,
+    log_backup_event,
+    ContextProcessor,
+    CustomConsoleRenderer,
 )
 from structlog.types import EventDict
 
 pytestmark = pytest.mark.unit
-
-
 
 
 class TestSetupLogging:
@@ -35,13 +38,11 @@ class TestSetupLogging:
     def test_setup_file_logging(self):
         """FS-2.1.2: File handlers are added with log dir."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            setup_logging(
-                log_level="INFO", log_dir=tmpdir,
-                enable_console=False, enable_file=True
-            )
+            setup_logging(log_level="INFO", log_dir=tmpdir, enable_console=False, enable_file=True)
             root_logger = logging.getLogger()
             file_handlers = [
-                h for h in root_logger.handlers
+                h
+                for h in root_logger.handlers
                 if isinstance(h, logging.handlers.RotatingFileHandler)
             ]
             assert len(file_handlers) == 2
@@ -113,9 +114,7 @@ class TestConvenienceFunctions:
     def test_log_server_event(self):
         logger = MagicMock()
         log_server_event(logger, "test_event", "Test message", extra="data")
-        logger.info.assert_called_with(
-            "Test message", event_type="test_event", extra="data"
-        )
+        logger.info.assert_called_with("Test message", event_type="test_event", extra="data")
 
     def test_log_player_event(self):
         logger = MagicMock()
@@ -139,13 +138,12 @@ class TestConvenienceFunctions:
         args, kwargs = logger.info.call_args
         assert kwargs["backup_file"] == "backup.tar.gz"
 
-
     def test_formats_with_stdout(self):
         renderer = CustomConsoleRenderer()
         event_dict: EventDict = {
             "level": "info",
             "event": "server output",
-            "stdout": "line1\nline2"
+            "stdout": "line1\nline2",
         }
         result = renderer(None, "test", event_dict)
         assert "stdout" in result
@@ -157,7 +155,7 @@ class TestConvenienceFunctions:
         event_dict: EventDict = {
             "level": "error",
             "event": "error output",
-            "stderr": "traceback line1\ntraceback line2"
+            "stderr": "traceback line1\ntraceback line2",
         }
         result = renderer(None, "test", event_dict)
         assert "stderr" in result
@@ -168,7 +166,7 @@ class TestConvenienceFunctions:
         event_dict: EventDict = {
             "level": "info",
             "event": "config",
-            "env_vars": {"SERVER_NAME": "Test", "PORT": "8211"}
+            "env_vars": {"SERVER_NAME": "Test", "PORT": "8211"},
         }
         result = renderer(None, "test", event_dict)
         assert "env_vars" in result

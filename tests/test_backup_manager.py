@@ -29,12 +29,13 @@ class TestEnhancedBackupManager:
     def test_backup_info_dataclass(self):
         """FS-14.4: BackupInfo fields."""
         import datetime
+
         info = BackupInfo(
             filename="test.tar.gz",
             filepath=Path("/backups/test.tar.gz"),
             size_bytes=1024,
             created_time=datetime.datetime.now(),
-            backup_type="daily"
+            backup_type="daily",
         )
         assert info.filename == "test.tar.gz"
         assert info.backup_type == "daily"
@@ -42,12 +43,14 @@ class TestEnhancedBackupManager:
     def test_determine_backup_type_daily(self, manager):
         """FS-14.2: Default is daily."""
         import datetime
+
         dt = datetime.datetime(2024, 6, 15, 10, 0)
         assert manager._determine_backup_type(dt) == "daily"
 
     def test_determine_backup_type_weekly(self, manager):
         """FS-14.2: Sunday 3am is weekly."""
         import datetime
+
         # Sunday = weekday 6
         dt = datetime.datetime(2024, 6, 16, 3, 0)
         assert manager._determine_backup_type(dt) == "weekly"
@@ -55,6 +58,7 @@ class TestEnhancedBackupManager:
     def test_determine_backup_type_monthly(self, manager):
         """FS-14.2: 1st 2am is monthly."""
         import datetime
+
         dt = datetime.datetime(2024, 7, 1, 2, 0)
         assert manager._determine_backup_type(dt) == "monthly"
 
@@ -63,6 +67,7 @@ class TestEnhancedBackupManager:
         palworld_config.backup.enabled = False
         manager = EnhancedBackupManager(palworld_config)
         import asyncio
+
         asyncio.run(manager.start_backup_scheduler())
         assert manager._running is False
 
@@ -101,16 +106,15 @@ class TestEnhancedBackupManager:
         (tmp_path / "daily_auto_old.tar.gz").write_text("data")
         import datetime
 
-
         old_time = datetime.datetime.now() - datetime.timedelta(days=10)
         mock_info = BackupInfo(
             filename="daily_auto_old.tar.gz",
             filepath=tmp_path / "daily_auto_old.tar.gz",
             size_bytes=100,
             created_time=old_time,
-            backup_type="daily"
+            backup_type="daily",
         )
-        with patch.object(manager, 'list_backups', return_value=[mock_info]):
+        with patch.object(manager, "list_backups", return_value=[mock_info]):
             count = manager.cleanup_old_backups()
             assert count == 1
             assert not (tmp_path / "daily_auto_old.tar.gz").exists()

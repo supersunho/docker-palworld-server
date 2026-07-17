@@ -3,14 +3,16 @@
 import pytest
 from io import StringIO
 from src.utils.color_output import (
-
-
-    Color, print_info, print_warn, print_error,
-    print_success, print_debug, colorize
+    Color,
+    print_info,
+    print_warn,
+    print_error,
+    print_success,
+    print_debug,
+    colorize,
 )
 
 pytestmark = pytest.mark.unit
-
 
 
 class TestColorOutput:
@@ -18,9 +20,9 @@ class TestColorOutput:
 
     def test_color_enum_values(self):
         """FS-23: ANSI codes defined."""
-        assert Color.RED.value == '\033[0;31m'
-        assert Color.GREEN.value == '\033[0;32m'
-        assert Color.RESET.value == '\033[0m'
+        assert Color.RED.value == "\033[0;31m"
+        assert Color.GREEN.value == "\033[0;32m"
+        assert Color.RESET.value == "\033[0m"
 
     def test_print_info(self, capsys):
         """FS-23: Info format."""
@@ -58,6 +60,6 @@ class TestColorOutput:
     def test_colorize(self):
         """FS-23: Colorize wraps with ANSI."""
         result = colorize("hello", Color.RED)
-        assert '\033[0;31m' in result
-        assert '\033[0m' in result
+        assert "\033[0;31m" in result
+        assert "\033[0m" in result
         assert "hello" in result

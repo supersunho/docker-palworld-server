@@ -9,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class RestAPIConfig:
     """REST API configuration data class"""
+
     enabled: bool = True
     port: int = 8212
     host: str = "localhost"

@@ -32,16 +32,16 @@ class SteamCMDManager:
         treats None as "unchanged").
         """
         try:
-            return hashlib.sha256(
-                self.steamcmd_script.read_bytes()
-            ).hexdigest()
+            return hashlib.sha256(self.steamcmd_script.read_bytes()).hexdigest()
         except OSError:
             return None
 
     def validate_steamcmd(self) -> bool:
         """Check if SteamCMD executable exists and is executable"""
         if not self.steamcmd_script.exists():
-            self.logger.error("SteamCMD executable not found", script_path=str(self.steamcmd_script))
+            self.logger.error(
+                "SteamCMD executable not found", script_path=str(self.steamcmd_script)
+            )
             return False
 
         if not self.steamcmd_script.is_file():
@@ -49,9 +49,12 @@ class SteamCMDManager:
             return False
 
         import stat
+
         mode = self.steamcmd_script.stat().st_mode
         if not (mode & stat.S_IEXEC):
-            self.logger.warning("SteamCMD executable lacks execute permission, attempting to set it")
+            self.logger.warning(
+                "SteamCMD executable lacks execute permission, attempting to set it"
+            )
             try:
                 self.steamcmd_script.chmod(mode | stat.S_IEXEC)
             except PermissionError:
@@ -60,8 +63,9 @@ class SteamCMDManager:
 
         return True
 
-    def _run_and_stream(self, cmd: list, env: dict, cwd: str, timeout: int,
-                        label: str = "SteamCMD") -> tuple[int, list[str]]:
+    def _run_and_stream(
+        self, cmd: list, env: dict, cwd: str, timeout: int, label: str = "SteamCMD"
+    ) -> tuple[int, list[str]]:
         """Run a process and stream stdout/stderr line by line in real-time.
 
         Returns (returncode, all_output_lines). Raises on timeout.
@@ -80,8 +84,8 @@ class SteamCMDManager:
         lock = threading.Lock()
 
         def _reader(stream, label_prefix: str):
-            for line in iter(stream.readline, ''):
-                line = line.rstrip('\n\r')
+            for line in iter(stream.readline, ""):
+                line = line.rstrip("\n\r")
                 if line:
                     with lock:
                         output_lines.append(line)
@@ -137,12 +141,8 @@ class SteamCMDManager:
 
         env = {
             **dict(os.environ),
-            "STEAM_COMPAT_DATA_PATH": str(
-                self.steamcmd_path / "steam_compat"
-            ),
-            "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(
-                self.steamcmd_path
-            ),
+            "STEAM_COMPAT_DATA_PATH": str(self.steamcmd_path / "steam_compat"),
+            "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.steamcmd_path),
         }
         (self.steamcmd_path / "steam_compat").mkdir(parents=True, exist_ok=True)
 
@@ -159,9 +159,7 @@ class SteamCMDManager:
                 label="warmup",
             )
             if rc == 0:
-                self.logger.info(
-                    "SteamCMD warm-up completed successfully"
-                )
+                self.logger.info("SteamCMD warm-up completed successfully")
                 return True
 
             # Non-zero exit.  Check whether the binary changed -- a
@@ -196,7 +194,7 @@ class SteamCMDManager:
 
     def run_command(self, commands: List[str], timeout: int = 600) -> tuple[bool, list[str]]:
         """Run SteamCMD commands with timeout.
-        
+
         Returns (success, output_lines).
         """
         if not self.validate_steamcmd():
@@ -211,7 +209,9 @@ class SteamCMDManager:
         steamcmd_command = shlex.join([str(self.steamcmd_script)] + commands)
         full_cmd = ["FEXBash", "-c", steamcmd_command]
 
-        log_server_event(self.logger, "steamcmd_start", f"Executing: FEXBash -c '{steamcmd_command}'")
+        log_server_event(
+            self.logger, "steamcmd_start", f"Executing: FEXBash -c '{steamcmd_command}'"
+        )
 
         try:
             env = {
@@ -225,12 +225,12 @@ class SteamCMDManager:
             )
 
             if rc == 0:
-                log_server_event(self.logger, "steamcmd_complete",
-                                 "SteamCMD commands completed successfully")
+                log_server_event(
+                    self.logger, "steamcmd_complete", "SteamCMD commands completed successfully"
+                )
                 return True, lines
             else:
-                fex_env_vars = {k: v for k, v in env.items()
-                                if 'FEX' in k or 'STEAM_COMPAT' in k}
+                fex_env_vars = {k: v for k, v in env.items() if "FEX" in k or "STEAM_COMPAT" in k}
                 self.logger.error(
                     "SteamCMD commands failed",
                     event_type="steamcmd_fail",
@@ -241,7 +241,9 @@ class SteamCMDManager:
                 return False, lines
 
         except subprocess.TimeoutExpired:
-            self.logger.error(f"SteamCMD timeout after {timeout} seconds", event_type="steamcmd_fail")
+            self.logger.error(
+                f"SteamCMD timeout after {timeout} seconds", event_type="steamcmd_fail"
+            )
             return False, []
         except Exception as e:
             self.logger.error(f"SteamCMD execution error: {e}", event_type="steamcmd_fail")

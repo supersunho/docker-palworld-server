@@ -9,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class SteamCMDConfig:
     """SteamCMD configuration data class"""
+
     app_id: int = 2394010
     validate: bool = True
     check_version_update: bool = True

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class PalSettingsConfig:
     """Pal and gameplay rate configuration data class"""
+
     egg_default_hatching_time: float = 72.0
     work_speed_rate: float = 1.0
     day_time_speed_rate: float = 1.0

@@ -1,16 +1,10 @@
 """Tests for protocol definitions."""
 
 from typing import Protocol
-from src.protocols import (
-
-
-    IProcessManager, IConfigProvider, IServerAPI,
-    ServerInfo
-)
+from src.protocols import IProcessManager, IConfigProvider, IServerAPI, ServerInfo
 import pytest
 
 pytestmark = pytest.mark.unit
-
 
 
 class TestProtocolDefinitions:
@@ -26,7 +20,7 @@ class TestProtocolDefinitions:
             version="1.0",
             ip="127.0.0.1",
             port=8211,
-            info="RCON raw data"
+            info="RCON raw data",
         )
         assert info.name == "Test"
         assert info.players == 5

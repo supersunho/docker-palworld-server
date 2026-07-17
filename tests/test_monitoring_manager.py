@@ -10,17 +10,12 @@ from src.monitoring.player_monitor import PlayerEventType
 pytestmark = pytest.mark.unit
 
 
-
-
-
 class TestMonitoringManager:
     """FS-13.2.x: Monitoring manager behavior."""
 
     @pytest.fixture
     def manager(self, palworld_config, mock_process_manager, mock_api_facade):
-        return MonitoringManager(
-            palworld_config, mock_process_manager, mock_api_facade
-        )
+        return MonitoringManager(palworld_config, mock_process_manager, mock_api_facade)
 
     def test_initialization(self, manager):
         """FS-13.2.1: All monitors initialized."""
@@ -32,9 +27,7 @@ class TestMonitoringManager:
     def test_setup_event_callbacks(self, manager):
         """FS-13.2.5: Event callbacks registered (system callbacks only)."""
         # Verify that after init, callbacks are set up properly
-        cb_count = len(manager.player_monitor._event_callbacks.get(
-            PlayerEventType.JOINED, []
-        ))
+        cb_count = len(manager.player_monitor._event_callbacks.get(PlayerEventType.JOINED, []))
         assert cb_count > 0
 
     def test_get_monitoring_status(self, manager):
@@ -42,9 +35,7 @@ class TestMonitoringManager:
         manager.player_monitor.get_current_players = MagicMock(return_value=set())
         manager.player_monitor.get_current_player_count = MagicMock(return_value=0)
         manager.server_monitor.get_last_status = MagicMock(return_value=None)
-        manager.idle_restart_manager.get_idle_status = MagicMock(
-            return_value={"enabled": True}
-        )
+        manager.idle_restart_manager.get_idle_status = MagicMock(return_value={"enabled": True})
         manager._monitoring_active = True
 
         status = manager.get_monitoring_status()
@@ -56,7 +47,11 @@ class TestMonitoringManager:
     @pytest.mark.asyncio
     async def test_start_stop_monitoring(self, manager):
         """FS-13.2.1: Start and stop monitoring lifecycle."""
-        with patch.object(manager.player_monitor, 'start_monitoring', AsyncMock()),              patch.object(manager.server_monitor, 'start_monitoring', AsyncMock()),              patch.object(manager.idle_restart_manager, 'start_monitoring', AsyncMock()):
+        with (
+            patch.object(manager.player_monitor, "start_monitoring", AsyncMock()),
+            patch.object(manager.server_monitor, "start_monitoring", AsyncMock()),
+            patch.object(manager.idle_restart_manager, "start_monitoring", AsyncMock()),
+        ):
 
             await manager.start_monitoring()
             assert manager._monitoring_active is True
@@ -107,14 +102,19 @@ class TestMonitoringManager:
     async def test_start_monitoring_already_active(self, manager):
         """FS-13.2.2: start_monitoring warns when already active."""
         manager._monitoring_active = True
-        with patch.object(manager.logger, 'warning') as mock_warn:
+        with patch.object(manager.logger, "warning") as mock_warn:
             await manager.start_monitoring()
             mock_warn.assert_called_once_with("Monitoring already active")
 
     @pytest.mark.asyncio
     async def test_start_monitoring_discord_enabled(self, manager):
         """FS-13.2.2: start_monitoring starts player monitor when discord enabled."""
-        with patch.object(manager.config.discord, 'enabled', True),              patch.object(manager.player_monitor, 'start_monitoring', AsyncMock()),              patch.object(manager.server_monitor, 'start_monitoring', AsyncMock()),              patch.object(manager.idle_restart_manager, 'start_monitoring', AsyncMock()):
+        with (
+            patch.object(manager.config.discord, "enabled", True),
+            patch.object(manager.player_monitor, "start_monitoring", AsyncMock()),
+            patch.object(manager.server_monitor, "start_monitoring", AsyncMock()),
+            patch.object(manager.idle_restart_manager, "start_monitoring", AsyncMock()),
+        ):
 
             await manager.start_monitoring()
             await asyncio.sleep(0)
@@ -131,7 +131,6 @@ class TestMonitoringManager:
         await manager.stop_monitoring()  # should not raise
         assert manager._monitoring_active is False
 
-
     @pytest.mark.asyncio
     async def test_start_monitoring_exception_cleanup(self, manager):
         """FS-13.2.x: start_monitoring calls stop_monitoring when create_task fails."""
@@ -139,9 +138,9 @@ class TestMonitoringManager:
         manager.player_monitor.start_monitoring = MagicMock(return_value=AsyncMock())
         manager.server_monitor.start_monitoring = MagicMock(return_value=AsyncMock())
         manager.idle_restart_manager.start_monitoring = MagicMock(return_value=AsyncMock())
-        with patch.object(manager, 'stop_monitoring', AsyncMock()) as mock_stop:
-            with patch('asyncio.create_task', side_effect=Exception('task failed')):
-                with pytest.raises(Exception, match='task failed'):
+        with patch.object(manager, "stop_monitoring", AsyncMock()) as mock_stop:
+            with patch("asyncio.create_task", side_effect=Exception("task failed")):
+                with pytest.raises(Exception, match="task failed"):
                     await manager.start_monitoring()
                 mock_stop.assert_awaited_once()
 

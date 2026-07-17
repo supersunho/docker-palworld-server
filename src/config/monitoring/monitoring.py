@@ -11,6 +11,7 @@ from .idle_restart import IdleRestartConfig
 @dataclass
 class MonitoringConfig:
     """Monitoring configuration data class"""
+
     mode: str = "both"
     log_level: str = "INFO"
     metrics_interval: int = 60

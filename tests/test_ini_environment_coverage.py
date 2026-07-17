@@ -13,9 +13,6 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
-
-
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SETTINGS = ROOT / "config" / "DefaultPalWorldSettings.ini"
 DEFAULT_YAML = ROOT / "config" / "default.yaml"
@@ -38,9 +35,7 @@ def _palworld_ini_keys() -> set[str]:
     assert option_settings, "DefaultPalWorldSettings.ini has no OptionSettings tuple"
     return {
         match.group(1)
-        for match in re.finditer(
-            r"(?:^|,)([A-Za-z][A-Za-z0-9_]*)=", option_settings.group(1)
-        )
+        for match in re.finditer(r"(?:^|,)([A-Za-z][A-Za-z0-9_]*)=", option_settings.group(1))
     }
 
 
@@ -124,9 +119,7 @@ def test_example_steamcmd_app_id_is_consumed():
 
 def test_environment_overrides_reach_generated_ini(palworld_config, mock_logger):
     """Environment overrides reach both generated INI files end to end."""
-    palworld_fields = {
-        field.name: field for field in fields(palworld_config.palworld_settings)
-    }
+    palworld_fields = {field.name: field for field in fields(palworld_config.palworld_settings)}
     engine_fields = {field.name: field for field in fields(palworld_config.engine)}
     palworld_mappings = _palworld_environment_mappings()
     engine_mappings = _engine_environment_mappings()
@@ -147,9 +140,7 @@ def test_environment_overrides_reach_generated_ini(palworld_config, mock_logger)
 
     for ini_key, env_name in palworld_mappings.items():
         field_type = palworld_fields[ini_key].type
-        assert getattr(config.palworld_settings, ini_key) == _expected_override(
-            field_type
-        ), ini_key
+        assert getattr(config.palworld_settings, ini_key) == _expected_override(field_type), ini_key
 
     for field_name, env_name in engine_mappings.items():
         field_type = engine_fields[field_name].type

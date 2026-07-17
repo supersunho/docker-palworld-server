@@ -7,9 +7,6 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-
-
-
 ROOT = Path(__file__).parents[1]
 COMPOSE_FILE = ROOT / "docker-compose.yml"
 VALIDATOR = ROOT / "scripts" / "validate_env_files.sh"
@@ -53,9 +50,7 @@ def run_validator(tmp_path: Path) -> subprocess.CompletedProcess[str]:
 
 
 def test_tracked_hidden_entries_are_repository_files_only() -> None:
-    hidden_entries = {
-        path.split("/", 1)[0] for path in tracked_paths() if path.startswith(".")
-    }
+    hidden_entries = {path.split("/", 1)[0] for path in tracked_paths() if path.startswith(".")}
 
     assert hidden_entries == {
         ".dockerignore",
@@ -65,9 +60,7 @@ def test_tracked_hidden_entries_are_repository_files_only() -> None:
         ".gitignore",
         ".pre-commit-config.yaml",
     }
-    assert not any(
-        path == "docs" or path.startswith("docs/") for path in tracked_paths()
-    )
+    assert not any(path == "docs" or path.startswith("docs/") for path in tracked_paths())
 
 
 def test_compose_uses_isolated_env_files_without_inline_environment() -> None:
@@ -83,17 +76,13 @@ def test_compose_uses_isolated_env_files_without_inline_environment() -> None:
 
 
 def test_palworld_template_does_not_contain_grafana_credentials() -> None:
-    lines = ROOT.joinpath(".env.palworld.example").read_text(
-        encoding="utf-8"
-    ).splitlines()
+    lines = ROOT.joinpath(".env.palworld.example").read_text(encoding="utf-8").splitlines()
 
     assert not any(line.startswith(("GRAFANA_", "GF_")) for line in lines)
 
 
 def test_grafana_template_uses_only_native_grafana_names() -> None:
-    lines = ROOT.joinpath(".env.grafana.example").read_text(
-        encoding="utf-8"
-    ).splitlines()
+    lines = ROOT.joinpath(".env.grafana.example").read_text(encoding="utf-8").splitlines()
     keys = {line.split("=", 1)[0] for line in lines if "=" in line}
 
     assert keys == {

@@ -2,9 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from src.server_manager import (
-    PalworldServerManager, wait_for_api_ready
-)
+from src.server_manager import PalworldServerManager, wait_for_api_ready
 from src.container import ServiceContainer
 from src.managers.lifecycle_manager import ServerLifecycleManager
 from src.managers.api_facade import ServerAPIFacade
@@ -12,8 +10,6 @@ from src.managers.settings_generator import SettingsGenerator
 from src.managers.process_manager import ProcessManager
 
 pytestmark = pytest.mark.unit
-
-
 
 
 class TestPalworldServerManager:
@@ -26,16 +22,16 @@ class TestPalworldServerManager:
         lifecycle = MagicMock(spec=ServerLifecycleManager)
         lifecycle.start = AsyncMock(return_value=True)
         lifecycle.verify_startup = AsyncMock(return_value=True)
-        lifecycle.get_server_status = MagicMock(return_value={
-            'running': True, 'pid': 12345, 'uptime': 3600
-        })
+        lifecycle.get_server_status = MagicMock(
+            return_value={"running": True, "pid": 12345, "uptime": 3600}
+        )
         lifecycle.process_manager = MagicMock(spec=ProcessManager)
         lifecycle.process_manager.is_server_running = MagicMock(return_value=True)
         lifecycle.process_manager.stop_server = AsyncMock(return_value=True)
         lifecycle.process_manager.start_server = AsyncMock(return_value=True)
-        lifecycle.process_manager.get_server_status = MagicMock(return_value={
-            'running': True, 'pid': 12345, 'uptime': 3600
-        })
+        lifecycle.process_manager.get_server_status = MagicMock(
+            return_value={"running": True, "pid": 12345, "uptime": 3600}
+        )
         container.register(ServerLifecycleManager, lifecycle)
 
         api_facade = MagicMock(spec=ServerAPIFacade)
@@ -63,9 +59,9 @@ class TestPalworldServerManager:
         m.monitoring_manager.start_monitoring = AsyncMock()
         m.monitoring_manager.stop_monitoring = AsyncMock()
         m.monitoring_manager.handle_error = AsyncMock()
-        m.monitoring_manager.get_monitoring_status = MagicMock(return_value={
-            'monitoring_active': True, 'player_count': 0
-        })
+        m.monitoring_manager.get_monitoring_status = MagicMock(
+            return_value={"monitoring_active": True, "player_count": 0}
+        )
 
         # Mock steamcmd
         m.steamcmd_manager = MagicMock()
@@ -77,7 +73,7 @@ class TestPalworldServerManager:
     async def test_server_startup_success(self, manager):
         """FS-13.1.4: Full startup succeeds (wait_for_api_ready mocked)."""
         mock_readiness = AsyncMock(return_value=True)
-        with patch('src.server_manager.wait_for_api_ready', new=mock_readiness):
+        with patch("src.server_manager.wait_for_api_ready", new=mock_readiness):
             result = await manager.start_server_with_verification()
         assert result is True
         assert manager._startup_completed is True
@@ -88,7 +84,7 @@ class TestPalworldServerManager:
         """FS-13.1.4: REST API disabled skips readiness check."""
         manager.config.rest_api.enabled = False
         mock_readiness = AsyncMock(return_value=True)
-        with patch('src.server_manager.wait_for_api_ready', new=mock_readiness):
+        with patch("src.server_manager.wait_for_api_ready", new=mock_readiness):
             result = await manager.start_server_with_verification()
         assert result is True
         assert manager._startup_completed is True
@@ -194,7 +190,7 @@ class TestWaitForApiReady:
         manager.config.rest_api.port = 8212
         manager.config.server.admin_password = "admin"
 
-        with patch('aiohttp.ClientSession') as mock_cls:
+        with patch("aiohttp.ClientSession") as mock_cls:
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
             result = await wait_for_api_ready(manager, max_wait_time=1, check_interval=1)
@@ -214,7 +210,7 @@ class TestWaitForApiReady:
         manager.config.rest_api.port = 8212
         manager.config.server.admin_password = "admin"
 
-        with patch('aiohttp.ClientSession') as mock_cls:
+        with patch("aiohttp.ClientSession") as mock_cls:
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
             result = await wait_for_api_ready(manager, max_wait_time=1, check_interval=1)
@@ -231,7 +227,7 @@ class TestWaitForApiReady:
         manager.config.rest_api.port = 8212
         manager.config.server.admin_password = "admin"
 
-        with patch('aiohttp.ClientSession') as mock_cls:
+        with patch("aiohttp.ClientSession") as mock_cls:
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
             result = await wait_for_api_ready(manager, max_wait_time=1, check_interval=1)

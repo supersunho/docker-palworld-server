@@ -25,8 +25,8 @@ class TestMessageLoader:
                 "morning": "좋은 아침",
                 "afternoon": "좋은 오후",
                 "evening": "좋은 저녁",
-                "night": "안녕히 주무세요"
-            }
+                "night": "안녕히 주무세요",
+            },
         }
         (locales_dir / "ko.json").write_text(json.dumps(ko_data, ensure_ascii=False))
 
@@ -38,8 +38,8 @@ class TestMessageLoader:
                 "morning": "Good morning",
                 "afternoon": "Good afternoon",
                 "evening": "Good evening",
-                "night": "Good night"
-            }
+                "night": "Good night",
+            },
         }
         (locales_dir / "en.json").write_text(json.dumps(en_data))
 
@@ -76,13 +76,13 @@ class TestMessageLoader:
 
     def test_get_greeting(self, loader):
         """FS-20.6: Time-based greeting."""
-        with patch('src.notifications.message_loader.datetime') as mock_dt:
+        with patch("src.notifications.message_loader.datetime") as mock_dt:
             mock_dt.now.return_value.hour = 9
             greeting = loader.get_greeting("ko")
             assert greeting == "좋은 아침"
 
     def test_get_greeting_night(self, loader):
-        with patch('src.notifications.message_loader.datetime') as mock_dt:
+        with patch("src.notifications.message_loader.datetime") as mock_dt:
             mock_dt.now.return_value.hour = 23
             greeting = loader.get_greeting("ko")
             assert greeting == "안녕히 주무세요"
@@ -110,7 +110,6 @@ class TestMessageLoader:
         with pytest.raises(FileNotFoundError):
             MessageLoader(str(tmp_path / "nonexistent"))
 
-
     def test_get_status_message_many(self, loader):
         """FS-20.6: Status for many players."""
         msg = loader.get_status_message(10, "ko")
@@ -118,14 +117,14 @@ class TestMessageLoader:
 
     def test_get_greeting_afternoon(self, loader):
         """FS-20.6: Afternoon greeting."""
-        with patch('src.notifications.message_loader.datetime') as mock_dt:
+        with patch("src.notifications.message_loader.datetime") as mock_dt:
             mock_dt.now.return_value.hour = 14
             greeting = loader.get_greeting("ko")
             assert greeting == "좋은 오후"
 
     def test_get_greeting_evening(self, loader):
         """FS-20.6: Evening greeting."""
-        with patch('src.notifications.message_loader.datetime') as mock_dt:
+        with patch("src.notifications.message_loader.datetime") as mock_dt:
             mock_dt.now.return_value.hour = 20
             greeting = loader.get_greeting("ko")
             assert greeting == "좋은 저녁"
@@ -150,6 +149,7 @@ class TestMessageLoader:
         """FS-20.7: reload_language returns False on failure."""
         # Remove the language file so reload fails
         import os
+
         ko_path = loader.locales_dir / "ko.json"
         if ko_path.exists():
             os.remove(str(ko_path))
@@ -166,7 +166,6 @@ class TestMessageLoader:
         loader = MessageLoader(str(locales_dir))
         # Remove dir and check
         import shutil
-
 
         shutil.rmtree(str(locales_dir))
         langs = loader.get_available_languages()

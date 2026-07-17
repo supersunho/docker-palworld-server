@@ -7,9 +7,10 @@ from dataclasses import dataclass, field
 from typing import Dict, Any
 
 
-@dataclass  
+@dataclass
 class GameplayConfig:
     """Gameplay configuration data class"""
+
     region: str = ""
     banlist_url: str = "https://api.palworldgame.com/api/banlist.txt"
     enable_player_to_player_damage: bool = False

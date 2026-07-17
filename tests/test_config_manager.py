@@ -67,8 +67,10 @@ class TestConfigManager:
 
     def test_reload_and_apply_calls_both_generators(self, manager):
         """FS-11.4: reload_and_apply regenerates both config files."""
-        with patch.object(manager, 'generate_server_settings', return_value=True) as mock_srv, \
-             patch.object(manager, 'generate_engine_settings', return_value=True) as mock_eng:
+        with (
+            patch.object(manager, "generate_server_settings", return_value=True) as mock_srv,
+            patch.object(manager, "generate_engine_settings", return_value=True) as mock_eng,
+        ):
             result = manager.reload_and_apply()
             assert result is True
             mock_srv.assert_called_once()
@@ -76,15 +78,19 @@ class TestConfigManager:
 
     def test_reload_and_apply_failure_returns_false(self, manager):
         """FS-11.5: reload_and_apply returns False when both fail."""
-        with patch.object(manager, 'generate_server_settings', return_value=False) as mock_srv, \
-             patch.object(manager, 'generate_engine_settings', return_value=False) as mock_eng:
+        with (
+            patch.object(manager, "generate_server_settings", return_value=False) as mock_srv,
+            patch.object(manager, "generate_engine_settings", return_value=False) as mock_eng,
+        ):
             result = manager.reload_and_apply()
             assert result is False
 
     def test_reload_and_apply_partial_ok(self, manager):
         """FS-11.6: reload_and_apply returns True if at least one succeeds."""
-        with patch.object(manager, 'generate_server_settings', return_value=True) as mock_srv, \
-             patch.object(manager, 'generate_engine_settings', return_value=False) as mock_eng:
+        with (
+            patch.object(manager, "generate_server_settings", return_value=True) as mock_srv,
+            patch.object(manager, "generate_engine_settings", return_value=False) as mock_eng,
+        ):
             result = manager.reload_and_apply()
             assert result is True
 
@@ -96,19 +102,17 @@ class TestConfigManager:
         config_path = tmp_path / "config" / "default.yaml"
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("initial: value\n")
-        
+
         # Monkey-patch _check_yaml_changed to simulate change
         manager._check_yaml_changed = MagicMock(side_effect=[False, True])
-        
+
         callback = AsyncMock()
-        
+
         # Run watch for a limited time
         import asyncio
-        task = asyncio.create_task(manager.watch_config(
-            check_interval=0.1,
-            on_change=callback
-        ))
-        
+
+        task = asyncio.create_task(manager.watch_config(check_interval=0.1, on_change=callback))
+
         # Let it run a couple cycles
         await asyncio.sleep(0.3)
         task.cancel()
@@ -116,7 +120,7 @@ class TestConfigManager:
             await task
         except asyncio.CancelledError:
             pass
-        
+
         # Callback should have been invoked when _check_yaml_changed returned True
         assert callback.called
 
@@ -127,7 +131,7 @@ class TestConfigManager:
     @pytest.mark.asyncio
     async def test_start_stop_watching(self, manager):
         """FS-11.9: start_watching and stop_watching lifecycle."""
-        with patch.object(manager, 'watch_config', side_effect=_noop):
+        with patch.object(manager, "watch_config", side_effect=_noop):
             await manager.start_watching()
             # Task was created and cancelled immediately
             await manager.stop_watching()
@@ -135,9 +139,9 @@ class TestConfigManager:
     @pytest.mark.asyncio
     async def test_start_watching_twice_warns(self, manager):
         """FS-11.10: Starting watcher twice logs warning."""
-        with patch.object(manager, 'watch_config', side_effect=_noop):
+        with patch.object(manager, "watch_config", side_effect=_noop):
             await manager.start_watching()
-            with patch.object(manager.logger, 'warning') as mock_warn:
+            with patch.object(manager.logger, "warning") as mock_warn:
                 await manager.start_watching()
                 mock_warn.assert_called_once()
             await manager.stop_watching()
@@ -166,14 +170,16 @@ class TestConfigManager:
         manager._update_checksum("test_key", "some content")
         assert "test_key" in manager._checksums
         import hashlib
+
         expected = hashlib.sha256(b"some content").hexdigest()
         assert manager._checksums["test_key"] == expected
 
     def test_reload_and_apply_exception(self, manager):
         """FS-11.12: reload_and_apply returns False on generator exception."""
         """FS-11.12: reload_and_apply returns False on generator exception."""
-        with patch.object(manager, 'generate_server_settings',
-                          side_effect=RuntimeError("unexpected")):
+        with patch.object(
+            manager, "generate_server_settings", side_effect=RuntimeError("unexpected")
+        ):
             result = manager.reload_and_apply()
             assert result is False
 
@@ -185,7 +191,7 @@ class TestConfigManager:
 
     def test_check_yaml_changed_not_found(self, manager):
         """FS-11.14: _check_yaml_changed returns False when config file missing."""
-        with patch('src.managers.config_manager.Path.exists', return_value=False):
+        with patch("src.managers.config_manager.Path.exists", return_value=False):
             assert manager._check_yaml_changed() is False
 
     def test_check_yaml_changed_first_call(self, manager, tmp_path):
@@ -193,21 +199,24 @@ class TestConfigManager:
         config_path = tmp_path / "config" / "default.yaml"
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("some: config\n")
-        with patch('src.managers.config_manager.Path.exists', return_value=True), \
-             patch('src.managers.config_manager.Path.read_text',
-                   return_value="some: config\n"):
+        with (
+            patch("src.managers.config_manager.Path.exists", return_value=True),
+            patch("src.managers.config_manager.Path.read_text", return_value="some: config\n"),
+        ):
             assert manager._check_yaml_changed() is False
             assert "yaml_config" in manager._checksums
 
     def test_check_yaml_changed_detects_change(self, manager):
         """FS-11.14: Returns True when content differs from stored checksum."""
         import hashlib
+
         old_hash = hashlib.sha256(b"old content").hexdigest()
         new_hash = hashlib.sha256(b"new content").hexdigest()
         manager._checksums["yaml_config"] = old_hash
-        with patch('src.managers.config_manager.Path.exists', return_value=True), \
-             patch('src.managers.config_manager.Path.read_text',
-                   return_value="new content"):
+        with (
+            patch("src.managers.config_manager.Path.exists", return_value=True),
+            patch("src.managers.config_manager.Path.read_text", return_value="new content"),
+        ):
             assert manager._check_yaml_changed() is True
             assert manager._checksums["yaml_config"] == new_hash
 
@@ -215,26 +224,27 @@ class TestConfigManager:
         """FS-11.14: Returns False when content matches stored checksum."""
         import hashlib
 
-
         content = "same content"
-        h = hashlib.sha256(content.encode('utf-8')).hexdigest()
+        h = hashlib.sha256(content.encode("utf-8")).hexdigest()
         manager._checksums["yaml_config"] = h
-        with patch('src.managers.config_manager.Path.exists', return_value=True), \
-             patch('src.managers.config_manager.Path.read_text',
-                   return_value=content):
+        with (
+            patch("src.managers.config_manager.Path.exists", return_value=True),
+            patch("src.managers.config_manager.Path.read_text", return_value=content),
+        ):
             assert manager._check_yaml_changed() is False
 
     def test_check_yaml_changed_read_error(self, manager):
         """FS-11.14: Returns False on read error."""
         manager._checksums["yaml_config"] = "old_hash"
-        with patch('src.managers.config_manager.Path.exists', return_value=True), \
-             patch('src.managers.config_manager.Path.read_text',
-                   side_effect=PermissionError("denied")):
+        with (
+            patch("src.managers.config_manager.Path.exists", return_value=True),
+            patch(
+                "src.managers.config_manager.Path.read_text", side_effect=PermissionError("denied")
+            ),
+        ):
             assert manager._check_yaml_changed() is False
             # checksum should NOT be updated on error
             assert manager._checksums["yaml_config"] == "old_hash"
-
-
 
     def test_check_yaml_changed_no_config(self, manager):
         """FS-11.7: _check_yaml_changed returns False when no config file."""

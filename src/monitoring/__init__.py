@@ -11,12 +11,12 @@ from .monitoring_manager import MonitoringManager
 from .metrics_collector import get_metrics_collector, MetricsCollector
 
 __all__ = [
-    'PlayerMonitor',
-    'ServerMonitor', 
-    'EventDispatcher',
-    'MonitoringManager',
-    'get_metrics_collector', 
-    'MetricsCollector'
+    "PlayerMonitor",
+    "ServerMonitor",
+    "EventDispatcher",
+    "MonitoringManager",
+    "get_metrics_collector",
+    "MetricsCollector",
 ]
 
-__version__ = '1.1.3'
+__version__ = "1.1.3"

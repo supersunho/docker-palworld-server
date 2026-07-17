@@ -47,7 +47,6 @@ class TestProcessManager:
         assert status["running"] is False
         assert status["pid"] is None
 
-
     # ---- Security regression tests (Phase 3) ----
 
     def test_additional_options_shlex_split_preserves_tokens(self, manager):
@@ -56,9 +55,9 @@ class TestProcessManager:
         # These would be split into multiple tokens by str.split(),
         # but shlex.split preserves them as single arguments.
         test_cases = [
-            ('arg1 arg2', ['arg1', 'arg2']),
-            ('"; echo INJECTED; "', ['; echo INJECTED; ']),
-            ('arg1 | arg2', ['arg1', '|', 'arg2']),
+            ("arg1 arg2", ["arg1", "arg2"]),
+            ('"; echo INJECTED; "', ["; echo INJECTED; "]),
+            ("arg1 | arg2", ["arg1", "|", "arg2"]),
         ]
         for payload, expected in test_cases:
             startup_cfg.additional_options = payload
@@ -78,78 +77,82 @@ class TestProcessManager:
         startup_cfg = manager.config.server_startup
         startup_cfg.additional_options = '--foo=bar --baz "quoted arg"'
         options = manager._build_startup_options()
-        assert '--foo=bar' in options
-        assert '--baz' in options
-        assert 'quoted arg' in options
+        assert "--foo=bar" in options
+        assert "--baz" in options
+        assert "quoted arg" in options
 
     def test_build_server_command_uses_shlex_join(self, manager):
         """SEC-3.4: Server command uses shlex.join for safe serialization."""
         startup_cfg = manager.config.server_startup
-        startup_cfg.additional_options = '--opt-with=some value'
+        startup_cfg.additional_options = "--opt-with=some value"
         cmd = manager._build_server_command()
         # The command should be a list starting with FEXBash
-        assert cmd[0] == 'FEXBash'
-        assert cmd[1] == '-c'
+        assert cmd[0] == "FEXBash"
+        assert cmd[1] == "-c"
         # The shell command string should preserve the quoted value
-        assert 'some value' in cmd[2] or "'some value'" in cmd[2] or '"some value"' in cmd[2]
+        assert "some value" in cmd[2] or "'some value'" in cmd[2] or '"some value"' in cmd[2]
 
     def test_start_server_no_pipe(self, manager):
         """SEC-3.5: start_server Popen does not use stdout=PIPE or stderr=PIPE."""
         import subprocess
         from src.managers.process_manager import ProcessManager
-        
+
         # Verify via source code inspection
         import inspect
+
         source = inspect.getsource(ProcessManager.start_server)
-        assert 'stdout=subprocess.PIPE' not in source
-        assert 'stderr=subprocess.PIPE' not in source
-            
+        assert "stdout=subprocess.PIPE" not in source
+        assert "stderr=subprocess.PIPE" not in source
+
     def test_server_output_not_captured_in_pipe(self, manager):
         """SEC-3.6: Server Popen does not use stdout=PIPE or stderr=PIPE."""
         # Verify by checking the source code of start_server
         import inspect
         from src.managers.process_manager import ProcessManager
-        source = inspect.getsource(ProcessManager.start_server)
-        assert 'subprocess.PIPE' not in source,             "start_server must not use PIPE for long-running process" 
 
+        source = inspect.getsource(ProcessManager.start_server)
+        assert (
+            "subprocess.PIPE" not in source
+        ), "start_server must not use PIPE for long-running process"
 
     def test_build_server_command_no_options_explicit(self, manager):
         """FS-10.x: Empty additional_options produces no extras."""
         startup_cfg = manager.config.server_startup
-        startup_cfg.additional_options = ''
+        startup_cfg.additional_options = ""
         startup_cfg.use_performance_threads = False
         startup_cfg.disable_async_loading = False
         startup_cfg.use_multithread_for_ds = False
         startup_cfg.query_port = 27015
-        startup_cfg.log_format = 'text'
+        startup_cfg.log_format = "text"
         startup_cfg.enable_public_lobby = False
         opts = manager._build_startup_options()
         assert len(opts) == 0
 
-
     def test_build_server_command_path_with_spaces(self, manager):
         """SEC-3.7: Path with spaces is properly quoted via shlex.join."""
-        manager.server_path = Path('/tmp/pal world/server dir')
+        manager.server_path = Path("/tmp/pal world/server dir")
         startup_cfg = manager.config.server_startup
-        startup_cfg.additional_options = ''
+        startup_cfg.additional_options = ""
         startup_cfg.use_performance_threads = False
         startup_cfg.disable_async_loading = False
         startup_cfg.use_multithread_for_ds = False
         cmd = manager._build_server_command()
-        assert cmd[0] == 'FEXBash'
-        assert cmd[1] == '-c'
+        assert cmd[0] == "FEXBash"
+        assert cmd[1] == "-c"
         # shlex.join should quote the path with spaces
         cmd_str = cmd[2]
-        assert 'PalServer.sh' in cmd_str
+        assert "PalServer.sh" in cmd_str
         # The quoted path should appear as a single token
         quoted_repr = repr(cmd_str)
-        assert 'pal world' in cmd_str.replace(chr(39), '') or 'pal world' in cmd_str.replace(chr(34), '')
+        assert "pal world" in cmd_str.replace(chr(39), "") or "pal world" in cmd_str.replace(
+            chr(34), ""
+        )
 
     def test_build_server_command_path_with_semicolon(self, manager):
         """SEC-3.8: Path with semicolon is shell-quoted, not executed."""
         manager.server_path = Path("/tmp/server;echo INJECTED")
         startup_cfg = manager.config.server_startup
-        startup_cfg.additional_options = ''
+        startup_cfg.additional_options = ""
         startup_cfg.use_performance_threads = False
         startup_cfg.disable_async_loading = False
         startup_cfg.use_multithread_for_ds = False
@@ -157,15 +160,15 @@ class TestProcessManager:
         cmd_str = cmd[2]
         # The path with semicolon must be shell-quoted so FEXBash -c
         # treats it as a single token, not a command separator.
-        assert "'/tmp/server;echo INJECTED/PalServer.sh'" in cmd_str, (
-            f"Expected shell-quoted path in command, got: {cmd_str!r}"
-        )
+        assert (
+            "'/tmp/server;echo INJECTED/PalServer.sh'" in cmd_str
+        ), f"Expected shell-quoted path in command, got: {cmd_str!r}"
 
     def test_additional_options_injection_separator(self, manager):
         """SEC-3.9: Shell separators in additional_options are not executed."""
         startup_cfg = manager.config.server_startup
         # shlex.split preserves metacharacters as tokens; shlex.join quotes them
-        startup_cfg.additional_options = '; echo INJECTED'
+        startup_cfg.additional_options = "; echo INJECTED"
         cmd = manager._build_server_command()
         cmd_str = cmd[2]
         # The semicolon must be shell-quoted so it's not a command separator
@@ -177,13 +180,13 @@ class TestProcessManager:
         mock_process.pid = 12345
         mock_process.poll.return_value = None
         manager.server_process = mock_process
-        with patch('os.killpg', side_effect=OSError("permission denied")):
+        with patch("os.killpg", side_effect=OSError("permission denied")):
             result = asyncio.run(manager.send_signal(signal.SIGTERM))
             assert result is False
 
     def test_reload_config_sends_sighup(self, manager):
         """FS-10.x: reload_config delegates to send_signal with SIGHUP."""
-        with patch.object(manager, 'send_signal', new=AsyncMock(return_value=True)) as mock_send:
+        with patch.object(manager, "send_signal", new=AsyncMock(return_value=True)) as mock_send:
             result = asyncio.run(manager.reload_config())
             assert result is True
             mock_send.assert_called_once_with(signal.SIGHUP)
@@ -194,7 +197,7 @@ class TestProcessManager:
         mock_process.pid = 12345
         mock_process.poll.return_value = None
         manager.server_process = mock_process
-        with patch('os.killpg') as mock_kill:
+        with patch("os.killpg") as mock_kill:
             result_pause = asyncio.run(manager.pause_server())
             assert result_pause is True
             mock_kill.assert_called_with(12345, signal.SIGSTOP)
@@ -213,24 +216,26 @@ class TestProcessManager:
         """FS-10.x: is_server_running returns False when server_process is None."""
         manager.server_process = None
         assert manager.is_server_running() is False
+
     # ---- Additional coverage tests ----
 
     def test_build_server_command_no_options(self, manager):
         """FS-10.x: _build_server_command works without startup options."""
         startup_cfg = manager.config.server_startup
-        startup_cfg.additional_options = ''
+        startup_cfg.additional_options = ""
         startup_cfg.use_performance_threads = False
         startup_cfg.disable_async_loading = False
         startup_cfg.use_multithread_for_ds = False
         cmd = manager._build_server_command()
-        assert cmd[0] == 'FEXBash'
-        assert cmd[1] == '-c'
+        assert cmd[0] == "FEXBash"
+        assert cmd[1] == "-c"
         # Should reference the server executable path
-        assert 'PalServer.sh' in cmd[2]
+        assert "PalServer.sh" in cmd[2]
 
     def test_get_server_status_running(self, manager):
         """FS-10.x: get_server_status returns running info when process active."""
         import time
+
         mock_process = MagicMock()
         mock_process.poll.return_value = None
         manager.server_process = mock_process
@@ -257,7 +262,7 @@ class TestProcessManager:
         startup_cfg.disable_async_loading = False
         startup_cfg.use_multithread_for_ds = False
         startup_cfg.query_port = 27015
-        startup_cfg.additional_options = ''
+        startup_cfg.additional_options = ""
         summary = manager.get_startup_options_summary()
         assert summary["performance_optimization"] is False
         assert summary["options_count"] == 0
@@ -266,10 +271,10 @@ class TestProcessManager:
         """FS-10.x: reload_config returns False when send_signal fails."""
         from unittest.mock import AsyncMock
 
-
-        with patch.object(manager, 'send_signal', new=AsyncMock(return_value=False)):
+        with patch.object(manager, "send_signal", new=AsyncMock(return_value=False)):
             result = asyncio.run(manager.reload_config())
             assert result is False
+
     def test_get_startup_options_summary(self, manager):
         """FS-10.6: Options summary returns dict."""
         summary = manager.get_startup_options_summary()
@@ -289,8 +294,8 @@ class TestProcessManager:
         mock_process.pid = 12345
         mock_process.poll.return_value = None
         manager.server_process = mock_process
-        
-        with patch('os.killpg') as mock_killpg:
+
+        with patch("os.killpg") as mock_killpg:
             result = asyncio.run(manager.send_signal(signal.SIGHUP))
             assert result is True
             mock_killpg.assert_called_once_with(12345, signal.SIGHUP)
@@ -301,8 +306,8 @@ class TestProcessManager:
         mock_process.pid = 12345
         mock_process.poll.return_value = None
         manager.server_process = mock_process
-        
-        with patch('os.killpg', side_effect=ProcessLookupError):
+
+        with patch("os.killpg", side_effect=ProcessLookupError):
             result = asyncio.run(manager.send_signal(signal.SIGHUP))
             assert result is False
 
@@ -317,8 +322,8 @@ class TestProcessManager:
         mock_process.pid = 12345
         mock_process.poll.return_value = None
         manager.server_process = mock_process
-        
-        with patch('os.killpg') as mock_killpg:
+
+        with patch("os.killpg") as mock_killpg:
             result = asyncio.run(manager.reload_config())
             assert result is True
             mock_killpg.assert_called_once_with(12345, signal.SIGHUP)
@@ -331,8 +336,8 @@ class TestProcessManager:
         mock_process.pid = 12345
         mock_process.poll.return_value = None
         manager.server_process = mock_process
-        
-        with patch('os.killpg') as mock_killpg:
+
+        with patch("os.killpg") as mock_killpg:
             result = asyncio.run(manager.pause_server())
             assert result is True
             mock_killpg.assert_called_once_with(12345, signal.SIGSTOP)
@@ -343,8 +348,8 @@ class TestProcessManager:
         mock_process.pid = 12345
         mock_process.poll.return_value = None
         manager.server_process = mock_process
-        
-        with patch('os.killpg') as mock_killpg:
+
+        with patch("os.killpg") as mock_killpg:
             result = asyncio.run(manager.resume_server())
             assert result is True
             mock_killpg.assert_called_once_with(12345, signal.SIGCONT)
@@ -353,7 +358,6 @@ class TestProcessManager:
         """FS-10.14: pause_server returns False when not running."""
         result = asyncio.run(manager.pause_server())
         assert result is False
-
 
 
 class TestProcessManagerEdgeCases:
@@ -408,7 +412,7 @@ class TestProcessManagerEdgeCases:
     async def test_start_server_executable_not_found(self, manager):
         """FS-10.x: start_server returns False when executable missing."""
         # Patch server_path to a non-existent directory
-        with patch('pathlib.Path.exists', return_value=False):
+        with patch("pathlib.Path.exists", return_value=False):
             result = await manager.start_server()
         assert result is False
 
@@ -448,11 +452,14 @@ class TestProcessManagerEdgeCases:
             manager.server_process = None
             return True
 
-        with patch.object(
-            manager,
-            "is_server_running",
-            side_effect=report_running_then_clear_process,
-        ), patch("os.killpg") as mock_killpg:
+        with (
+            patch.object(
+                manager,
+                "is_server_running",
+                side_effect=report_running_then_clear_process,
+            ),
+            patch("os.killpg") as mock_killpg,
+        ):
             result = await manager.send_signal(signal.SIGTERM)
 
         assert result is False
@@ -479,12 +486,11 @@ class TestProcessManagerEdgeCases:
         assert status["pid"] == 12345
         assert status["uptime"] > 0
 
-
     @pytest.mark.asyncio
     async def test_start_server_popen_raises_exception(self, manager):
         """FS-10.x: start_server handles Popen exceptions."""
-        with patch('pathlib.Path.exists', return_value=True):
-            with patch('subprocess.Popen', side_effect=Exception("exec failed")):
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("subprocess.Popen", side_effect=Exception("exec failed")):
                 result = await manager.start_server()
         assert result is False
 
@@ -493,9 +499,9 @@ class TestProcessManagerEdgeCases:
         """FS-10.x: start_server detects when process dies right after start."""
         mock_proc = MagicMock()
         mock_proc.poll.return_value = 1  # process exited
-        with patch('pathlib.Path.exists', return_value=True):
-            with patch('subprocess.Popen', return_value=mock_proc):
-                with patch('asyncio.sleep', AsyncMock(return_value=None)):
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("subprocess.Popen", return_value=mock_proc):
+                with patch("asyncio.sleep", AsyncMock(return_value=None)):
                     result = await manager.start_server()
         assert result is False
 
@@ -508,8 +514,8 @@ class TestProcessManagerEdgeCases:
         manager.server_process = mock_proc
         mock_api = MagicMock()
         mock_api.announce_message = AsyncMock(side_effect=Exception("api error"))
-        with patch('os.killpg') as mock_kill:
-            with patch('signal.SIGTERM', 15):
+        with patch("os.killpg") as mock_kill:
+            with patch("signal.SIGTERM", 15):
                 result = await manager.stop_server(api_client=mock_api)
                 assert result is True
                 mock_kill.assert_called()

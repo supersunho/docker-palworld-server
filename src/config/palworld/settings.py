@@ -9,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class PalworldSettings:
     """Direct Palworld settings with INI key names for automatic conversion"""
+
     ServerName: str = "Palworld Server"
     ServerDescription: str = "A Palworld dedicated server"
     AdminPassword: str = "admin123"
@@ -17,31 +18,31 @@ class PalworldSettings:
     PublicIP: str = ""
     ServerPlayerMaxNum: int = 32
     CoopPlayerMaxNum: int = 4
-    
+
     RESTAPIEnabled: bool = True
     RESTAPIPort: int = 8212
     RCONEnabled: bool = True
     RCONPort: int = 25575
-    
+
     bUseAuth: bool = True
     Region: str = ""
     BanListURL: str = "https://api.palworldgame.com/api/banlist.txt"
-    
+
     Difficulty: str = "None"
     bIsMultiplay: bool = True
     bIsPvP: bool = False
     bHardcore: bool = False
     DeathPenalty: str = "All"
-    
+
     RandomizerType: str = "None"
     RandomizerSeed: str = ""
     bIsRandomizerPalLevelRandom: bool = False
-    
+
     DayTimeSpeedRate: float = 1.0
     NightTimeSpeedRate: float = 1.0
     ExpRate: float = 1.0
     WorkSpeedRate: float = 1.0
-    
+
     PalCaptureRate: float = 1.0
     PalSpawnNumRate: float = 1.0
     PalDamageRateAttack: float = 1.0
@@ -51,18 +52,18 @@ class PalworldSettings:
     PalAutoHPRegeneRate: float = 1.0
     PalAutoHpRegeneRateInSleep: float = 1.0
     PalEggDefaultHatchingTime: float = 72.0
-    
+
     PlayerDamageRateAttack: float = 1.0
     PlayerDamageRateDefense: float = 1.0
     PlayerStomachDecreaceRate: float = 1.0
     PlayerStaminaDecreaceRate: float = 1.0
     PlayerAutoHPRegeneRate: float = 1.0
     PlayerAutoHpRegeneRateInSleep: float = 1.0
-    
+
     bEnablePlayerToPlayerDamage: bool = False
     bEnableFriendlyFire: bool = False
     bEnableInvaderEnemy: bool = True
-    
+
     BuildObjectHpRate: float = 1.0
     BuildObjectDamageRate: float = 1.0
     BuildObjectDeteriorationDamageRate: float = 1.0
@@ -72,21 +73,21 @@ class PalworldSettings:
     bBuildAreaLimit: bool = False
     MaxBuildingLimitNum: int = 0
     EnemyDropItemRate: float = 1.0
-    
+
     BaseCampMaxNum: int = 128
     BaseCampWorkerMaxNum: int = 15
     BaseCampMaxNumInGuild: int = 4
-    
+
     GuildPlayerMaxNum: int = 20
     bAutoResetGuildNoOnlinePlayers: bool = False
     AutoResetGuildTimeNoOnlinePlayers: float = 72.0
-    
+
     DropItemMaxNum: int = 3000
     DropItemMaxNum_UNKO: int = 100
     DropItemAliveMaxHours: float = 1.0
     ItemWeightRate: float = 1.0
     EquipmentDurabilityDamageRate: float = 1.0
-    
+
     bActiveUNKO: bool = False
     bEnableAimAssistPad: bool = True
     bEnableAimAssistKeyboard: bool = False
@@ -97,30 +98,30 @@ class PalworldSettings:
     bExistPlayerAfterLogout: bool = False
     bEnableDefenseOtherGuildPlayer: bool = False
     bInvisibleOtherGuildBaseCampAreaFX: bool = False
-    
+
     AutoSaveSpan: float = 30.0
     bIsUseBackupSaveData: bool = True
-    
+
     bShowPlayerList: bool = False
     ChatPostLimitPerMinute: int = 30
-    
+
     bPalLost: bool = False
     bCharacterRecreateInHardcore: bool = False
-    
+
     LogFormatType: str = "Text"
-    
+
     SupplyDropSpan: int = 180
     EnablePredatorBossPal: bool = True
-    
+
     CrossplayPlatforms: str = "(Steam,Xbox,PS5,Mac)"
-    
+
     bAllowGlobalPalboxExport: bool = True
     bAllowGlobalPalboxImport: bool = False
-    
+
     ServerReplicatePawnCullDistance: float = 15000.0
     ItemContainerForceMarkDirtyInterval: float = 1.0
 
-    # New settings 
+    # New settings
     bAllowClientMod: bool = True
     bEnableFastTravelOnlyBaseCamp: bool = False
     PhysicsActiveDropItemMaxNum: int = -1

@@ -34,7 +34,7 @@ class TestEventDispatcher:
             event_type=PlayerEventType.JOINED,
             player_name="Player1",
             player_count=5,
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_player_event(event)
         dispatcher.discord_notifier.notify_player_join.assert_awaited_with(
@@ -45,10 +45,7 @@ class TestEventDispatcher:
     async def test_player_leave_discord(self, dispatcher):
         """FS-13.2.5: Player leave dispatches to Discord."""
         event = PlayerEvent(
-            event_type=PlayerEventType.LEFT,
-            player_name="Player1",
-            player_count=4,
-            timestamp=100.0
+            event_type=PlayerEventType.LEFT, player_name="Player1", player_count=4, timestamp=100.0
         )
         await dispatcher.handle_player_event(event)
         dispatcher.discord_notifier.notify_player_leave.assert_awaited_with(
@@ -62,7 +59,7 @@ class TestEventDispatcher:
             event_type=ServerEventType.STATUS_CHANGED,
             message="Server started successfully",
             details={},
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_server_event(event)
         dispatcher.discord_notifier.notify_server_start.assert_awaited_with(
@@ -76,7 +73,7 @@ class TestEventDispatcher:
             event_type=ServerEventType.STATUS_CHANGED,
             message="Server stopped",
             details={},
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_server_event(event)
         dispatcher.discord_notifier.notify_server_stop.assert_awaited()
@@ -89,7 +86,7 @@ class TestEventDispatcher:
             event_type=ServerEventType.HEALTH_WARNING,
             message="High memory",
             details={"issues": ["High memory"]},
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_server_event(event)
         dispatcher.discord_notifier.notify_error.assert_awaited()
@@ -110,7 +107,7 @@ class TestEventDispatcher:
             event_type=PlayerEventType.JOINED,
             player_name="Player1",
             player_count=1,
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_player_event(event)
         dispatcher.discord_notifier.notify_player_join.assert_not_called()
@@ -119,11 +116,12 @@ class TestEventDispatcher:
     async def test_server_restart_discord(self, dispatcher):
         """FS-13.2.5: Unexpected restart dispatched as error."""
         from src.monitoring.server_monitor import ServerEventType
+
         event = ServerEvent(
             event_type=ServerEventType.STATUS_CHANGED,
             message="Server restarted unexpectedly",
-            details={'reason': 'crash'},
-            timestamp=100.0
+            details={"reason": "crash"},
+            timestamp=100.0,
         )
         await dispatcher.handle_server_event(event)
         dispatcher.discord_notifier.notify_error.assert_awaited()
@@ -133,12 +131,11 @@ class TestEventDispatcher:
         """FS-13.2.5: Performance issue dispatched."""
         from src.monitoring.server_monitor import ServerEventType
 
-
         event = ServerEvent(
             event_type=ServerEventType.PERFORMANCE_ISSUE,
             message="High CPU usage",
             details={},
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_server_event(event)
         dispatcher.discord_notifier.notify_error.assert_awaited()
@@ -175,7 +172,7 @@ class TestEventDispatcher:
             event_type=PlayerEventType.JOINED,
             player_name="Player1",
             player_count=1,
-            timestamp=100.0
+            timestamp=100.0,
         )
         # Should not raise
         await dispatcher.handle_player_event(event)
@@ -190,7 +187,7 @@ class TestEventDispatcher:
             event_type=ServerEventType.STATUS_CHANGED,
             message="Server started",
             details={},
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_server_event(event)
 
@@ -201,7 +198,7 @@ class TestEventDispatcher:
             event_type=ServerEventType.STATUS_CHANGED,
             message="Server status update - running",
             details={},
-            timestamp=100.0
+            timestamp=100.0,
         )
         await dispatcher.handle_server_event(event)
         # No notification methods should be called

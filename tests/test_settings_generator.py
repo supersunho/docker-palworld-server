@@ -10,8 +10,6 @@ from src.config.palworld.settings import PalworldSettings
 pytestmark = pytest.mark.unit
 
 
-
-
 class TestSettingsGenerator:
     """FS-12.x: Settings generator behavior."""
 
@@ -49,14 +47,14 @@ class TestSettingsGenerator:
     def test_empty_default_settings_fallback(self, generator):
         """FS-12.2: Falls back to legacy when no default file."""
         generator._default_settings_cache = {}
-        with patch.object(generator, '_parse_default_settings', return_value={}):
+        with patch.object(generator, "_parse_default_settings", return_value={}):
             content = generator._generate_settings_content_auto()
             assert content is not None
             assert "OptionSettings=(" in content
 
     def test_parse_default_settings_not_found(self, generator):
         """FS-12.6: Graceful handling of missing default file."""
-        with patch.object(generator, '_parse_default_settings', return_value={}) as mock_parse:
+        with patch.object(generator, "_parse_default_settings", return_value={}) as mock_parse:
             result = generator._parse_default_settings()
             assert result == {}
 
@@ -135,8 +133,7 @@ class TestSettingsGeneratorEdgeCases:
     def test_auto_fallback_on_exception(self, generator):
         """_generate_settings_content_auto falls back to legacy when exception occurs."""
         generator._default_settings_cache = None
-        with patch.object(generator, '_parse_default_settings',
-                          side_effect=ValueError("broken")):
+        with patch.object(generator, "_parse_default_settings", side_effect=ValueError("broken")):
             content = generator._generate_settings_content_auto()
             assert "[/Script/Pal.PalGameWorldSettings]" in content
             assert "ServerName=" in content
@@ -147,12 +144,11 @@ class TestSettingsGeneratorEdgeCases:
         result = generator._extract_option_settings("[SomeSection]\nkey=value\n")
         assert result == {}
 
-
     def test_parse_default_unicode_decode_bom(self, generator, tmp_path):
         """_parse_default_settings handles UnicodeDecodeError and retries with BOM."""
         f = tmp_path / "DefaultPalWorldSettings.ini"
         f.write_bytes(
-            b'\xef\xbb\xbf[/Script/Pal.PalGameWorldSettings]\n'
+            b"\xef\xbb\xbf[/Script/Pal.PalGameWorldSettings]\n"
             b'OptionSettings=(ServerName="test",Difficulty=None)\n'
         )
         generator.default_settings_path = f
@@ -180,8 +176,7 @@ class TestSettingsGeneratorEdgeCases:
 
     def test_engine_fallback_on_exception(self, generator):
         """_generate_engine_content falls back when _read_engine_base_content raises."""
-        with patch.object(generator, '_read_engine_base_content',
-                          side_effect=ValueError("broken")):
+        with patch.object(generator, "_read_engine_base_content", side_effect=ValueError("broken")):
             content = generator._generate_engine_content()
             assert "Core.System" in content
 
@@ -197,7 +192,7 @@ class TestSettingsGeneratorEdgeCases:
     def test_read_engine_base_unicode_decode_bom(self, generator, tmp_path):
         """_read_engine_base_content retries with BOM on UnicodeDecodeError."""
         f = tmp_path / "BaseEngine.ini"
-        f.write_bytes(b'\xef\xbb\xbf[/script/engine.engine]\nNetServerMaxTickRate=60\n')
+        f.write_bytes(b"\xef\xbb\xbf[/script/engine.engine]\nNetServerMaxTickRate=60\n")
         generator.default_engine_path = f
         generator.server_path = tmp_path
         content = generator._read_engine_base_content()
@@ -213,13 +208,12 @@ class TestSettingsGeneratorEdgeCases:
     def test_config_summary_exception(self, generator):
         """get_config_summary returns error dict on exception."""
         generator._default_settings_cache = None
-        with patch.object(generator, '_get_default_settings',
-                          side_effect=Exception("summary error")):
+        with patch.object(
+            generator, "_get_default_settings", side_effect=Exception("summary error")
+        ):
             summary = generator.get_config_summary()
             assert summary["parsing_status"] == "error"
             assert "error" in summary
-
-
 
 
 class TestSettingsGeneratorFileErrors:
@@ -234,12 +228,14 @@ class TestSettingsGeneratorFileErrors:
     def test_parse_default_unicode_decode_bom_failure(self, generator, tmp_path):
         """_parse_default_settings: UnicodeDecodeError, BOM retry also fails."""
         with patch("pathlib.Path.read_text") as mock_read:
+
             def se(encoding="utf-8", **kw):
                 if encoding == "utf-8":
                     raise UnicodeDecodeError("utf-8", b"\xff\xfe", 0, 1, "test")
                 elif encoding == "utf-8-sig":
                     raise UnicodeDecodeError("utf-8-sig", b"\xff\xfe", 0, 1, "test bom")
                 raise ValueError(f"unexpected encoding {encoding}")
+
             mock_read.side_effect = se
 
             with patch("pathlib.Path.exists", return_value=True):
@@ -248,8 +244,10 @@ class TestSettingsGeneratorFileErrors:
 
     def test_parse_default_generic_exception(self, generator, tmp_path):
         """_parse_default_settings: generic Exception caught and continues."""
-        with patch("pathlib.Path.read_text", side_effect=PermissionError("denied")), \
-             patch("pathlib.Path.exists", return_value=True):
+        with (
+            patch("pathlib.Path.read_text", side_effect=PermissionError("denied")),
+            patch("pathlib.Path.exists", return_value=True),
+        ):
             result = generator._parse_default_settings()
             assert result == {}
 
@@ -257,56 +255,71 @@ class TestSettingsGeneratorFileErrors:
         """_parse_default_settings: verify extract_option_settings empty-result path."""
         result = generator._extract_option_settings("No OptionSettings here")
         assert result == {}
+
     def test_read_engine_empty_file(self, generator, tmp_path):
         """_read_engine_base_content: empty file, continues to fallback."""
         f = tmp_path / "BaseEngine.ini"
         f.write_text("")
-        with patch.object(generator, 'default_engine_path', f), \
-             patch.object(generator, 'server_path', tmp_path / "nope"):
+        with (
+            patch.object(generator, "default_engine_path", f),
+            patch.object(generator, "server_path", tmp_path / "nope"),
+        ):
             content = generator._read_engine_base_content()
             assert "Core.System" in content
 
     def test_read_engine_unicode_decode_then_bom(self, generator, tmp_path):
         """_read_engine_base_content: UnicodeDecodeError, BOM retry succeeds."""
         f = tmp_path / "BaseEngine.ini"
-        f.write_bytes(b'\xef\xbb\xbf[/script/engine.engine]\nNetServerMaxTickRate=60\n')
+        f.write_bytes(b"\xef\xbb\xbf[/script/engine.engine]\nNetServerMaxTickRate=60\n")
 
         # Patch read_text at class level to simulate UnicodeDecodeError for utf-8
         original_read = f.read_text
+
         def mock_read(encoding="utf-8", **kw):
             if encoding == "utf-8-sig":
                 return original_read(encoding="utf-8-sig")
             raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "test")
-        with patch.object(generator, 'default_engine_path', f), \
-             patch.object(generator, 'server_path', tmp_path / "nope"), \
-             patch("pathlib.Path.read_text", side_effect=mock_read):
+
+        with (
+            patch.object(generator, "default_engine_path", f),
+            patch.object(generator, "server_path", tmp_path / "nope"),
+            patch("pathlib.Path.read_text", side_effect=mock_read),
+        ):
             content = generator._read_engine_base_content()
             assert "NetServerMaxTickRate" in content
 
     def test_read_engine_bom_also_fails(self, generator, tmp_path):
         """_read_engine_base_content: UnicodeDecodeError, BOM also fails."""
         f = tmp_path / "BaseEngine.ini"
-        f.write_bytes(b'\xef\xbb\xbf[/script/engine.engine]\n')
+        f.write_bytes(b"\xef\xbb\xbf[/script/engine.engine]\n")
+
         def mock_read(encoding="utf-8", **kw):
             if encoding == "utf-8":
                 raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "test")
             raise UnicodeDecodeError("utf-8-sig", b"\xff\xfe", 0, 1, "bom fail")
-        with patch.object(generator, 'default_engine_path', f), \
-             patch.object(generator, 'server_path', tmp_path / "nope"), \
-             patch("pathlib.Path.read_text", side_effect=mock_read):
+
+        with (
+            patch.object(generator, "default_engine_path", f),
+            patch.object(generator, "server_path", tmp_path / "nope"),
+            patch("pathlib.Path.read_text", side_effect=mock_read),
+        ):
             content = generator._read_engine_base_content()
             assert "Core.System" in content
 
     def test_read_engine_generic_exception(self, generator, tmp_path):
         """_read_engine_base_content: generic Exception caught."""
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", side_effect=PermissionError("denied")):
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.read_text", side_effect=PermissionError("denied")),
+        ):
             content = generator._read_engine_base_content()
             assert "Core.System" in content
 
     def test_format_ini_nonstandard_type(self, generator):
         """_format_ini_value with type that falls through to else branch."""
+
         class Custom:
             def __str__(self):
                 return "custom_val"
+
         assert generator._format_ini_value(Custom()) == "custom_val"

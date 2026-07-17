@@ -15,8 +15,6 @@ from src.config.server.rest_api import RestAPIConfig
 pytestmark = pytest.mark.unit
 
 
-
-
 class TestConfigLoader:
     """FS-1.1.x: Configuration loader behavior."""
 
@@ -29,11 +27,14 @@ class TestConfigLoader:
     def test_env_var_substitution(self, config_loader, tmp_path):
         """FS-1.1.2: ${ENV_VAR:default} substitution."""
         config_file = tmp_path / "env_test.yaml"
-        config_file.write_text("""server:
+        config_file.write_text(
+            """server:
   name: "${TEST_SERVER_NAME:DefaultName}"
   max_players: ${TEST_MAX_PLAYERS:16}
 language: ko
-""", encoding='utf-8')
+""",
+            encoding="utf-8",
+        )
         loader = ConfigLoader(config_file)
         config = loader.load_config()
         assert config.server.name == "DefaultName"
@@ -42,10 +43,13 @@ language: ko
     def test_env_var_override(self, config_loader, tmp_path):
         """FS-1.1.2: Environment variable override via ${ENV_VAR}."""
         config_file = tmp_path / "env_override.yaml"
-        config_file.write_text("""server:
+        config_file.write_text(
+            """server:
   name: "${TEST_SERVER_NAME_OVERRIDE:Default}"
 language: ko
-""", encoding='utf-8')
+""",
+            encoding="utf-8",
+        )
         with patch.dict(os.environ, {"TEST_SERVER_NAME_OVERRIDE": "EnvName"}):
             loader = ConfigLoader(config_file)
             config = loader.load_config()
@@ -54,7 +58,8 @@ language: ko
     def test_type_conversion_bool(self, tmp_path):
         """FS-1.1.3: String-to-bool conversion for true/false/yes/no/1/0/on/off."""
         config_file = tmp_path / "type_test.yaml"
-        config_file.write_text("""rest_api:
+        config_file.write_text(
+            """rest_api:
   enabled: "true"
 rcon:
   enabled: "false"
@@ -77,7 +82,9 @@ server:
   admin_password: pass
   max_players: 8
   port: 8211
-""", encoding='utf-8')
+""",
+            encoding="utf-8",
+        )
         loader = ConfigLoader(config_file)
         config = loader.load_config()
         assert config.rest_api.enabled is True
@@ -88,7 +95,8 @@ server:
     def test_type_conversion_int_float(self, tmp_path):
         """FS-1.1.3: String-to-int and string-to-float conversion."""
         config_file = tmp_path / "type_int.yaml"
-        config_file.write_text("""server:
+        config_file.write_text(
+            """server:
   name: Test
   admin_password: pass
   max_players: "16"
@@ -105,7 +113,9 @@ paths:
   log_dir: /tmp
   steamcmd_dir: /tmp
 language: ko
-""", encoding='utf-8')
+""",
+            encoding="utf-8",
+        )
         loader = ConfigLoader(config_file)
         config = loader.load_config()
         assert config.server.max_players == 16
@@ -128,8 +138,16 @@ language: ko
             "server": {"name": "Test", "admin_password": "pass", "max_players": 8, "port": 80},
             "rest_api": {"enabled": True, "port": 8212, "host": "localhost"},
             "rcon": {"enabled": False, "port": 25575, "host": "localhost"},
-            "server_startup": {"query_port": 27018, "log_format": "text", "worker_threads_count": 4},
-            "monitoring": {"mode": "logs", "log_level": "INFO", "idle_restart": {"enabled": True, "idle_minutes": 30}},
+            "server_startup": {
+                "query_port": 27018,
+                "log_format": "text",
+                "worker_threads_count": 4,
+            },
+            "monitoring": {
+                "mode": "logs",
+                "log_level": "INFO",
+                "idle_restart": {"enabled": True, "idle_minutes": 30},
+            },
             "backup": {"enabled": False},
             "discord": {"enabled": False},
             "steamcmd": {"app_id": 2394010},
@@ -143,7 +161,7 @@ language: ko
             "difficulty": {},
             "engine": {},
             "palworld_settings": {},
-            "language": "ko"
+            "language": "ko",
         }
         with pytest.raises(ValueError, match="Invalid server port"):
             config = config_loader._create_config_instance()
@@ -155,8 +173,16 @@ language: ko
             "server": {"name": "Test", "admin_password": "pass", "max_players": 8, "port": 8211},
             "rest_api": {"enabled": True, "port": 8212, "host": "localhost"},
             "rcon": {"enabled": False, "port": 25575, "host": "localhost"},
-            "server_startup": {"query_port": 27018, "log_format": "text", "worker_threads_count": 4},
-            "monitoring": {"mode": "logs", "log_level": "INFO", "idle_restart": {"enabled": True, "idle_minutes": 30}},
+            "server_startup": {
+                "query_port": 27018,
+                "log_format": "text",
+                "worker_threads_count": 4,
+            },
+            "monitoring": {
+                "mode": "logs",
+                "log_level": "INFO",
+                "idle_restart": {"enabled": True, "idle_minutes": 30},
+            },
             "backup": {"enabled": False},
             "discord": {"enabled": False},
             "steamcmd": {"app_id": 2394010},
@@ -170,7 +196,7 @@ language: ko
             "difficulty": {},
             "engine": {},
             "palworld_settings": {},
-            "language": "xx"
+            "language": "xx",
         }
         config = config_loader._create_config_instance()
         with pytest.raises(ValueError, match="Invalid language"):
@@ -179,7 +205,8 @@ language: ko
     def test_singleton_get_config(self, config_loader, tmp_path):
         """FS-1.1.5: get_config() returns the same instance."""
         config_file = tmp_path / "singleton_test.yaml"
-        config_file.write_text("""server:
+        config_file.write_text(
+            """server:
   name: SingletonTest
   admin_password: pass
   max_players: 8
@@ -196,10 +223,14 @@ paths:
   log_dir: /tmp
   steamcmd_dir: /tmp
 language: ko
-""", encoding='utf-8')
+""",
+            encoding="utf-8",
+        )
 
-        with patch('src.config.base._config_instance', None), \
-             patch('src.config.base._config_loader', None):
+        with (
+            patch("src.config.base._config_instance", None),
+            patch("src.config.base._config_loader", None),
+        ):
             c1 = get_config(config_file)
             c2 = get_config(config_file)
             assert c1 is c2
@@ -207,7 +238,8 @@ language: ko
     def test_reload_config(self, config_loader, tmp_path):
         """FS-1.1.5: reload_config() returns new instance."""
         config_file = tmp_path / "reload_test.yaml"
-        config_file.write_text("""server:
+        config_file.write_text(
+            """server:
   name: First
   admin_password: pass
   max_players: 8
@@ -224,12 +256,17 @@ paths:
   log_dir: /tmp
   steamcmd_dir: /tmp
 language: ko
-""", encoding='utf-8')
+""",
+            encoding="utf-8",
+        )
 
-        with patch('src.config.base._config_instance', None), \
-             patch('src.config.base._config_loader', None):
+        with (
+            patch("src.config.base._config_instance", None),
+            patch("src.config.base._config_loader", None),
+        ):
             first = get_config(config_file)
-            config_file.write_text("""server:
+            config_file.write_text(
+                """server:
   name: Second
   admin_password: pass
   max_players: 8
@@ -246,7 +283,9 @@ paths:
   log_dir: /tmp
   steamcmd_dir: /tmp
 language: ko
-""", encoding='utf-8')
+""",
+                encoding="utf-8",
+            )
             second = reload_config()
             assert first is not second
             assert second.server.name == "Second"
@@ -282,9 +321,11 @@ class TestConfigLoaderBackwardsCompat:
 
     def test_reimport_from_config_loader(self):
         from src.config_loader import (
-
-
-            ConfigLoader, ServerConfig, PalworldConfig, get_config, reload_config
+            ConfigLoader,
+            ServerConfig,
+            PalworldConfig,
+            get_config,
+            reload_config,
         )
 
         assert ConfigLoader is not None
@@ -306,7 +347,7 @@ class TestConfigLoaderEdgeCases:
     def test_yaml_parse_error_raises(self, tmp_path):
         """Invalid YAML content raises YAMLError."""
         config_file = tmp_path / "bad.yaml"
-        config_file.write_text("{invalid: yaml: broken", encoding='utf-8')
+        config_file.write_text("{invalid: yaml: broken", encoding="utf-8")
         loader = ConfigLoader(config_file)
         with pytest.raises(yaml.YAMLError, match="YAML file parsing error"):
             loader.load_config()
@@ -333,7 +374,9 @@ class TestConfigLoaderEdgeCases:
         config = config_loader.load_config()
         config.discord.enabled = True
         config.discord.webhook_url = ""
-        with pytest.raises(ValueError, match="Discord notifications enabled but webhook URL not set"):
+        with pytest.raises(
+            ValueError, match="Discord notifications enabled but webhook URL not set"
+        ):
             config_loader.validate_config(config)
 
     def test_validate_config_invalid_log_format(self, config_loader):
@@ -355,8 +398,10 @@ class TestConfigLoaderEdgeCases:
             config_loader.validate_config(config)
 
     def test_reload_config_not_initialized(self):
-        with patch('src.config.base._config_loader', None), \
-             patch('src.config.base._config_instance', None):
+        with (
+            patch("src.config.base._config_loader", None),
+            patch("src.config.base._config_instance", None),
+        ):
             with pytest.raises(RuntimeError, match="Configuration loader not initialized"):
                 reload_config()
 

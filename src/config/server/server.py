@@ -10,6 +10,7 @@ from typing import Dict, Any
 @dataclass
 class ServerConfig:
     """Server configuration data class"""
+
     name: str = "Palworld Server"
     password: str = ""
     admin_password: str = ""
@@ -21,6 +22,7 @@ class ServerConfig:
 @dataclass
 class ServerStartupConfig:
     """Server startup options configuration for PalServer.sh execution"""
+
     use_performance_threads: bool = True
     disable_async_loading: bool = True
     use_multithread_for_ds: bool = True

@@ -2,11 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from src.monitoring.server_monitor import (
-
-
-    ServerMonitor, ServerEventType, ServerEvent, ServerStatus
-)
+from src.monitoring.server_monitor import ServerMonitor, ServerEventType, ServerEvent, ServerStatus
 
 pytestmark = pytest.mark.unit
 
@@ -28,9 +24,7 @@ class TestServerMonitor:
         """FS-16.4: Clear user callbacks preserves system."""
         sys_cb = AsyncMock()
         user_cb = AsyncMock()
-        monitor.add_event_callback(
-            ServerEventType.STATUS_CHANGED, sys_cb, is_system_callback=True
-        )
+        monitor.add_event_callback(ServerEventType.STATUS_CHANGED, sys_cb, is_system_callback=True)
         monitor.add_event_callback(ServerEventType.STATUS_CHANGED, user_cb)
         monitor.clear_user_callbacks()
         assert sys_cb in monitor._event_callbacks[ServerEventType.STATUS_CHANGED]
@@ -51,12 +45,9 @@ class TestServerMonitor:
     def test_server_status_dataclass(self):
         """FS-16: ServerStatus fields."""
         import time
+
         status = ServerStatus(
-            is_running=True,
-            pid=12345,
-            uptime=3600.0,
-            player_count=3,
-            last_check=time.time()
+            is_running=True, pid=12345, uptime=3600.0, player_count=3, last_check=time.time()
         )
         assert status.is_running is True
         assert status.pid == 12345
@@ -69,7 +60,7 @@ class TestServerMonitor:
             event_type=ServerEventType.STATUS_CHANGED,
             message="Server started",
             details={"pid": 12345},
-            timestamp=time.time()
+            timestamp=time.time(),
         )
         assert event.event_type == ServerEventType.STATUS_CHANGED
         assert event.message == "Server started"

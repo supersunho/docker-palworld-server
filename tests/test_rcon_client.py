@@ -9,8 +9,6 @@ from src.clients.rcon_client import RconClient
 pytestmark = pytest.mark.unit
 
 
-
-
 @pytest.fixture
 def rcon_config():
     """Minimal RCON config fixture."""

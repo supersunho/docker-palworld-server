@@ -2,9 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from src.monitoring.player_monitor import (
-    PlayerMonitor, PlayerEventType, PlayerEvent
-)
+from src.monitoring.player_monitor import PlayerMonitor, PlayerEventType, PlayerEvent
 
 pytestmark = pytest.mark.unit
 
@@ -111,12 +109,11 @@ class TestPlayerMonitor:
         """FS-15: PlayerEvent fields."""
         import time
 
-
         event = PlayerEvent(
             event_type=PlayerEventType.JOINED,
             player_name="Player1",
             player_count=5,
-            timestamp=time.time()
+            timestamp=time.time(),
         )
         assert event.event_type == PlayerEventType.JOINED
         assert event.player_name == "Player1"

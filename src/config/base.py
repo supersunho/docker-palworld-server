@@ -17,6 +17,7 @@ from ..protocols import IConfigProvider
 @dataclass
 class ConfigPaths:
     """Configuration paths data class"""
+
     server_dir: Path = field(default_factory=lambda: Path("/home/steam/palworld_server"))
     backup_dir: Path = field(default_factory=lambda: Path("/home/steam/backups"))
     log_dir: Path = field(default_factory=lambda: Path("/home/steam/logs"))
@@ -47,82 +48,83 @@ if TYPE_CHECKING:
 
 class ConfigLoader(IConfigProvider):
     """Configuration loader class"""
-    
-    ENV_VAR_PATTERN = re.compile(r'\$\{([^}:]+)(?::([^}]*))?\}')
-    
+
+    ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::([^}]*))?\}")
+
     def __init__(self, config_path: Optional[Union[str, Path]] = None):
         """Initialize configuration loader"""
         if config_path is None:
             current_dir = Path(__file__).parent.parent.parent
             config_path = current_dir / "config" / "default.yaml"
-        
+
         self.config_path = Path(config_path)
         self._raw_config: Dict[str, Any] = {}
         self._processed_config: Dict[str, Any] = {}
-    
+
     def _substitute_env_vars(self, value: Any) -> Any:
         """Process environment variable substitution"""
         if isinstance(value, str):
+
             def replace_env_var(match):
                 var_name = match.group(1)
                 default_value = match.group(2) if match.group(2) is not None else ""
                 return os.getenv(var_name, default_value)
-            
+
             return self.ENV_VAR_PATTERN.sub(replace_env_var, value)
-        
+
         elif isinstance(value, dict):
             return {k: self._substitute_env_vars(v) for k, v in value.items()}
-        
+
         elif isinstance(value, list):
             return [self._substitute_env_vars(item) for item in value]
-        
+
         return value
-    
+
     def _convert_types(self, value: Any) -> Any:
         """Convert strings to appropriate types"""
         if isinstance(value, str):
-            if value.lower() in ('true', 'yes', '1', 'on'):
+            if value.lower() in ("true", "yes", "1", "on"):
                 return True
-            elif value.lower() in ('false', 'no', '0', 'off'):
+            elif value.lower() in ("false", "no", "0", "off"):
                 return False
-            
+
             if value.isdigit():
                 return int(value)
-            
+
             # 음수 처리 추가
-            if value.startswith('-') and value[1:].isdigit():
+            if value.startswith("-") and value[1:].isdigit():
                 return int(value)
-            
+
             try:
-                if '.' in value:
+                if "." in value:
                     return float(value)
             except ValueError:
                 pass
-        
+
         elif isinstance(value, dict):
             return {k: self._convert_types(v) for k, v in value.items()}
-        
+
         elif isinstance(value, list):
             return [self._convert_types(item) for item in value]
-        
+
         return value
-    
+
     def load_config(self):
         """Load configuration file and apply environment variables"""
         if not self.config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
-        
+
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 self._raw_config = yaml.safe_load(f)
         except yaml.YAMLError as e:
             raise yaml.YAMLError(f"YAML file parsing error: {e}")
-        
+
         self._processed_config = self._substitute_env_vars(self._raw_config)
         self._processed_config = self._convert_types(self._processed_config)
-        
+
         return self._create_config_instance()
-    
+
     def _create_config_instance(self):
         """Create PalworldConfig instance from dictionary"""
         from .palworld.main import PalworldConfig
@@ -143,350 +145,493 @@ class ConfigLoader(IConfigProvider):
         from .game.difficulty import DifficultyConfig
         from .palworld.engine import EngineConfig
         from .palworld.settings import PalworldSettings
-        
-        
+
         config_dict = self._processed_config
-        
+
         server_config = ServerConfig(
-            name=config_dict.get('server', {}).get('name', 'Palworld Server'),
-            password=config_dict.get('server', {}).get('password', ''),
-            admin_password=config_dict.get('server', {}).get('admin_password', ''),
-            max_players=config_dict.get('server', {}).get('max_players', 32),
-            port=config_dict.get('server', {}).get('port', 8211),
-            description=config_dict.get('server', {}).get('description', 'A Palworld dedicated server'),
+            name=config_dict.get("server", {}).get("name", "Palworld Server"),
+            password=config_dict.get("server", {}).get("password", ""),
+            admin_password=config_dict.get("server", {}).get("admin_password", ""),
+            max_players=config_dict.get("server", {}).get("max_players", 32),
+            port=config_dict.get("server", {}).get("port", 8211),
+            description=config_dict.get("server", {}).get(
+                "description", "A Palworld dedicated server"
+            ),
         )
-        
+
         rest_api_config = RestAPIConfig(
-            enabled=config_dict.get('rest_api', {}).get('enabled', True),
-            port=config_dict.get('rest_api', {}).get('port', 8212),
-            host=config_dict.get('rest_api', {}).get('host', 'localhost'),
+            enabled=config_dict.get("rest_api", {}).get("enabled", True),
+            port=config_dict.get("rest_api", {}).get("port", 8212),
+            host=config_dict.get("rest_api", {}).get("host", "localhost"),
         )
-        
+
         rcon_config = RconConfig(
-            enabled=config_dict.get('rcon', {}).get('enabled', False),
-            port=config_dict.get('rcon', {}).get('port', 25575),
-            host=config_dict.get('rcon', {}).get('host', 'localhost'),
+            enabled=config_dict.get("rcon", {}).get("enabled", False),
+            port=config_dict.get("rcon", {}).get("port", 25575),
+            host=config_dict.get("rcon", {}).get("host", "localhost"),
         )
-        
+
         server_startup_config = ServerStartupConfig(
-            use_performance_threads=config_dict.get('server_startup', {}).get('use_performance_threads', True),
-            disable_async_loading=config_dict.get('server_startup', {}).get('disable_async_loading', True),
-            use_multithread_for_ds=config_dict.get('server_startup', {}).get('use_multithread_for_ds', True),
-            query_port=config_dict.get('server_startup', {}).get('query_port', 27018),
-            enable_public_lobby=config_dict.get('server_startup', {}).get('enable_public_lobby', False),
-            log_format=config_dict.get('server_startup', {}).get('log_format', 'text'),
-            worker_threads_count=config_dict.get('server_startup', {}).get('worker_threads_count', 0),
-            additional_options=config_dict.get('server_startup', {}).get('additional_options', ''),
+            use_performance_threads=config_dict.get("server_startup", {}).get(
+                "use_performance_threads", True
+            ),
+            disable_async_loading=config_dict.get("server_startup", {}).get(
+                "disable_async_loading", True
+            ),
+            use_multithread_for_ds=config_dict.get("server_startup", {}).get(
+                "use_multithread_for_ds", True
+            ),
+            query_port=config_dict.get("server_startup", {}).get("query_port", 27018),
+            enable_public_lobby=config_dict.get("server_startup", {}).get(
+                "enable_public_lobby", False
+            ),
+            log_format=config_dict.get("server_startup", {}).get("log_format", "text"),
+            worker_threads_count=config_dict.get("server_startup", {}).get(
+                "worker_threads_count", 0
+            ),
+            additional_options=config_dict.get("server_startup", {}).get("additional_options", ""),
         )
-        
-        monitoring_dict = config_dict.get('monitoring', {})
-        idle_restart_dict = monitoring_dict.get('idle_restart', {})
-        
-        enabled = idle_restart_dict.get('enabled', True)
+
+        monitoring_dict = config_dict.get("monitoring", {})
+        idle_restart_dict = monitoring_dict.get("idle_restart", {})
+
+        enabled = idle_restart_dict.get("enabled", True)
         if isinstance(enabled, str):
-            enabled = enabled.lower() in ('true', '1', 'yes', 'on')
-        
-        idle_minutes = idle_restart_dict.get('idle_minutes', 30)
+            enabled = enabled.lower() in ("true", "1", "yes", "on")
+
+        idle_minutes = idle_restart_dict.get("idle_minutes", 30)
         if isinstance(idle_minutes, str):
             try:
                 idle_minutes = int(idle_minutes)
             except ValueError:
                 idle_minutes = 30
-        
-        idle_restart_config = IdleRestartConfig(
-            enabled=enabled,
-            idle_minutes=idle_minutes
-        )
-        
+
+        idle_restart_config = IdleRestartConfig(enabled=enabled, idle_minutes=idle_minutes)
+
         monitoring_config = MonitoringConfig(
-            mode=monitoring_dict.get('mode', 'both'),
-            log_level=monitoring_dict.get('log_level', 'INFO'),
-            metrics_interval=monitoring_dict.get('metrics_interval', 60),
-            enable_dashboard=monitoring_dict.get('enable_dashboard', True),
-            dashboard_port=monitoring_dict.get('dashboard_port', 8080),
-            log_format_style=monitoring_dict.get('log_format_style', 'simple'),
-            idle_restart=idle_restart_config
+            mode=monitoring_dict.get("mode", "both"),
+            log_level=monitoring_dict.get("log_level", "INFO"),
+            metrics_interval=monitoring_dict.get("metrics_interval", 60),
+            enable_dashboard=monitoring_dict.get("enable_dashboard", True),
+            dashboard_port=monitoring_dict.get("dashboard_port", 8080),
+            log_format_style=monitoring_dict.get("log_format_style", "simple"),
+            idle_restart=idle_restart_config,
         )
-        
+
         backup_config = BackupConfig(
-            enabled=config_dict.get('backup', {}).get('enabled', True),
-            interval_seconds=config_dict.get('backup', {}).get('interval_seconds', 3600),
-            retention_days=config_dict.get('backup', {}).get('retention_days', 7),
-            retention_weeks=config_dict.get('backup', {}).get('retention_weeks', 4),
-            retention_months=config_dict.get('backup', {}).get('retention_months', 6),
-            compress=config_dict.get('backup', {}).get('compress', True),
-            max_backups=config_dict.get('backup', {}).get('max_backups', 100),
-            cleanup_interval=config_dict.get('backup', {}).get('cleanup_interval', 86400),
+            enabled=config_dict.get("backup", {}).get("enabled", True),
+            interval_seconds=config_dict.get("backup", {}).get("interval_seconds", 3600),
+            retention_days=config_dict.get("backup", {}).get("retention_days", 7),
+            retention_weeks=config_dict.get("backup", {}).get("retention_weeks", 4),
+            retention_months=config_dict.get("backup", {}).get("retention_months", 6),
+            compress=config_dict.get("backup", {}).get("compress", True),
+            max_backups=config_dict.get("backup", {}).get("max_backups", 100),
+            cleanup_interval=config_dict.get("backup", {}).get("cleanup_interval", 86400),
         )
-        
-        discord_events = config_dict.get('discord', {}).get('events', {})
+
+        discord_events = config_dict.get("discord", {}).get("events", {})
         discord_config = DiscordConfig(
-            webhook_url=config_dict.get('discord', {}).get('webhook_url', ''),
-            enabled=config_dict.get('discord', {}).get('enabled', False),
-            mention_role=config_dict.get('discord', {}).get('mention_role', ''),
-            events=discord_events if discord_events else {
-                "server_start": True,
-                "server_stop": True,
-                "player_join": True,
-                "player_leave": True,
-                "backup_complete": True,
-                "errors": True,
-                "idle_restart": True,
-            }
+            webhook_url=config_dict.get("discord", {}).get("webhook_url", ""),
+            enabled=config_dict.get("discord", {}).get("enabled", False),
+            mention_role=config_dict.get("discord", {}).get("mention_role", ""),
+            events=(
+                discord_events
+                if discord_events
+                else {
+                    "server_start": True,
+                    "server_stop": True,
+                    "player_join": True,
+                    "player_leave": True,
+                    "backup_complete": True,
+                    "errors": True,
+                    "idle_restart": True,
+                }
+            ),
         )
-        
+
         paths_config = ConfigPaths(
-            server_dir=Path(config_dict.get('paths', {}).get('server_dir', '/home/steam/palworld_server')),
-            backup_dir=Path(config_dict.get('paths', {}).get('backup_dir', '/home/steam/backups')),
-            log_dir=Path(config_dict.get('paths', {}).get('log_dir', '/home/steam/logs')),
-            steamcmd_dir=Path(config_dict.get('paths', {}).get('steamcmd_dir', '/home/steam/steamcmd')),
+            server_dir=Path(
+                config_dict.get("paths", {}).get("server_dir", "/home/steam/palworld_server")
+            ),
+            backup_dir=Path(config_dict.get("paths", {}).get("backup_dir", "/home/steam/backups")),
+            log_dir=Path(config_dict.get("paths", {}).get("log_dir", "/home/steam/logs")),
+            steamcmd_dir=Path(
+                config_dict.get("paths", {}).get("steamcmd_dir", "/home/steam/steamcmd")
+            ),
         )
-        
+
         steamcmd_config = SteamCMDConfig(
-            app_id=config_dict.get('steamcmd', {}).get('app_id', 2394010),
-            validate=config_dict.get('steamcmd', {}).get('validate', True),
+            app_id=config_dict.get("steamcmd", {}).get("app_id", 2394010),
+            validate=config_dict.get("steamcmd", {}).get("validate", True),
             check_version_update=config_dict.get("steamcmd", {}).get("check_version_update", True),
-            update_on_start=config_dict.get('steamcmd', {}).get('update_on_start', True),
+            update_on_start=config_dict.get("steamcmd", {}).get("update_on_start", True),
         )
-        
+
         gameplay_config = GameplayConfig(
-            region=config_dict.get('gameplay', {}).get('region', ''),
-            banlist_url=config_dict.get('gameplay', {}).get('banlist_url', 'https://api.palworldgame.com/api/banlist.txt'),
-            enable_player_to_player_damage=config_dict.get('gameplay', {}).get('enable_player_to_player_damage', False),
-            enable_friendly_fire=config_dict.get('gameplay', {}).get('enable_friendly_fire', False),
-            enable_invader_enemy=config_dict.get('gameplay', {}).get('enable_invader_enemy', True),
-            is_multiplay=config_dict.get('gameplay', {}).get('is_multiplay', True),
-            is_pvp=config_dict.get('gameplay', {}).get('is_pvp', False),
-            coop_player_max_num=config_dict.get('gameplay', {}).get('coop_player_max_num', 4),
-            enable_non_login_penalty=config_dict.get('gameplay', {}).get('enable_non_login_penalty', True),
-            enable_fast_travel=config_dict.get('gameplay', {}).get('enable_fast_travel', True),
-            is_start_location_select_by_map=config_dict.get('gameplay', {}).get('is_start_location_select_by_map', True),
-            exist_player_after_logout=config_dict.get('gameplay', {}).get('exist_player_after_logout', False),
-            enable_defense_other_guild_player=config_dict.get('gameplay', {}).get('enable_defense_other_guild_player', False),
-            can_pickup_other_guild_death_penalty_drop=config_dict.get('gameplay', {}).get('can_pickup_other_guild_death_penalty_drop', False),
-            enable_aim_assist_pad=config_dict.get('gameplay', {}).get('enable_aim_assist_pad', True),
-            enable_aim_assist_keyboard=config_dict.get('gameplay', {}).get('enable_aim_assist_keyboard', False),
-            active_unko=config_dict.get('gameplay', {}).get('active_unko', False),
-            use_auth=config_dict.get('gameplay', {}).get('use_auth', True),
+            region=config_dict.get("gameplay", {}).get("region", ""),
+            banlist_url=config_dict.get("gameplay", {}).get(
+                "banlist_url", "https://api.palworldgame.com/api/banlist.txt"
+            ),
+            enable_player_to_player_damage=config_dict.get("gameplay", {}).get(
+                "enable_player_to_player_damage", False
+            ),
+            enable_friendly_fire=config_dict.get("gameplay", {}).get("enable_friendly_fire", False),
+            enable_invader_enemy=config_dict.get("gameplay", {}).get("enable_invader_enemy", True),
+            is_multiplay=config_dict.get("gameplay", {}).get("is_multiplay", True),
+            is_pvp=config_dict.get("gameplay", {}).get("is_pvp", False),
+            coop_player_max_num=config_dict.get("gameplay", {}).get("coop_player_max_num", 4),
+            enable_non_login_penalty=config_dict.get("gameplay", {}).get(
+                "enable_non_login_penalty", True
+            ),
+            enable_fast_travel=config_dict.get("gameplay", {}).get("enable_fast_travel", True),
+            is_start_location_select_by_map=config_dict.get("gameplay", {}).get(
+                "is_start_location_select_by_map", True
+            ),
+            exist_player_after_logout=config_dict.get("gameplay", {}).get(
+                "exist_player_after_logout", False
+            ),
+            enable_defense_other_guild_player=config_dict.get("gameplay", {}).get(
+                "enable_defense_other_guild_player", False
+            ),
+            can_pickup_other_guild_death_penalty_drop=config_dict.get("gameplay", {}).get(
+                "can_pickup_other_guild_death_penalty_drop", False
+            ),
+            enable_aim_assist_pad=config_dict.get("gameplay", {}).get(
+                "enable_aim_assist_pad", True
+            ),
+            enable_aim_assist_keyboard=config_dict.get("gameplay", {}).get(
+                "enable_aim_assist_keyboard", False
+            ),
+            active_unko=config_dict.get("gameplay", {}).get("active_unko", False),
+            use_auth=config_dict.get("gameplay", {}).get("use_auth", True),
         )
-        
+
         items_config = ItemsConfig(
-            drop_item_max_num=config_dict.get('items', {}).get('drop_item_max_num', 3000),
-            drop_item_max_num_unko=config_dict.get('items', {}).get('drop_item_max_num_unko', 100),
-            drop_item_alive_max_hours=config_dict.get('items', {}).get('drop_item_alive_max_hours', 1.0),
+            drop_item_max_num=config_dict.get("items", {}).get("drop_item_max_num", 3000),
+            drop_item_max_num_unko=config_dict.get("items", {}).get("drop_item_max_num_unko", 100),
+            drop_item_alive_max_hours=config_dict.get("items", {}).get(
+                "drop_item_alive_max_hours", 1.0
+            ),
         )
-        
+
         base_camp_config = BaseCampConfig(
-            max_num=config_dict.get('base_camp', {}).get('max_num', 128),
-            worker_max_num=config_dict.get('base_camp', {}).get('worker_max_num', 15),
+            max_num=config_dict.get("base_camp", {}).get("max_num", 128),
+            worker_max_num=config_dict.get("base_camp", {}).get("worker_max_num", 15),
         )
-        
+
         guild_config = GuildConfig(
-            player_max_num=config_dict.get('guild', {}).get('player_max_num', 20),
-            auto_reset_guild_no_online_players=config_dict.get('guild', {}).get('auto_reset_guild_no_online_players', False),
-            auto_reset_guild_time_no_online_players=config_dict.get('guild', {}).get('auto_reset_guild_time_no_online_players', 72.0),
+            player_max_num=config_dict.get("guild", {}).get("player_max_num", 20),
+            auto_reset_guild_no_online_players=config_dict.get("guild", {}).get(
+                "auto_reset_guild_no_online_players", False
+            ),
+            auto_reset_guild_time_no_online_players=config_dict.get("guild", {}).get(
+                "auto_reset_guild_time_no_online_players", 72.0
+            ),
         )
-        
+
         pal_settings_config = PalSettingsConfig(
-            egg_default_hatching_time=config_dict.get('pal_settings', {}).get('egg_default_hatching_time', 72.0),
-            work_speed_rate=config_dict.get('pal_settings', {}).get('work_speed_rate', 1.0),
-            day_time_speed_rate=config_dict.get('pal_settings', {}).get('day_time_speed_rate', 1.0),
-            night_time_speed_rate=config_dict.get('pal_settings', {}).get('night_time_speed_rate', 1.0),
-            exp_rate=config_dict.get('pal_settings', {}).get('exp_rate', 1.0),
-            pal_capture_rate=config_dict.get('pal_settings', {}).get('pal_capture_rate', 1.0),
-            pal_spawn_num_rate=config_dict.get('pal_settings', {}).get('pal_spawn_num_rate', 1.0),
-            pal_damage_rate_attack=config_dict.get('pal_settings', {}).get('pal_damage_rate_attack', 1.0),
-            pal_damage_rate_defense=config_dict.get('pal_settings', {}).get('pal_damage_rate_defense', 1.0),
-            pal_stomach_decrease_rate=config_dict.get('pal_settings', {}).get('pal_stomach_decrease_rate', 1.0),
-            pal_stamina_decrease_rate=config_dict.get('pal_settings', {}).get('pal_stamina_decrease_rate', 1.0),
-            pal_auto_hp_regene_rate=config_dict.get('pal_settings', {}).get('pal_auto_hp_regene_rate', 1.0),
-            pal_auto_hp_regene_rate_in_sleep=config_dict.get('pal_settings', {}).get('pal_auto_hp_regene_rate_in_sleep', 1.0),
-            player_damage_rate_attack=config_dict.get('pal_settings', {}).get('player_damage_rate_attack', 1.0),
-            player_damage_rate_defense=config_dict.get('pal_settings', {}).get('player_damage_rate_defense', 1.0),
-            player_stomach_decrease_rate=config_dict.get('pal_settings', {}).get('player_stomach_decrease_rate', 1.0),
-            player_stamina_decrease_rate=config_dict.get('pal_settings', {}).get('player_stamina_decrease_rate', 1.0),
-            player_auto_hp_regene_rate=config_dict.get('pal_settings', {}).get('player_auto_hp_regene_rate', 1.0),
-            player_auto_hp_regene_rate_in_sleep=config_dict.get('pal_settings', {}).get('player_auto_hp_regene_rate_in_sleep', 1.0),
+            egg_default_hatching_time=config_dict.get("pal_settings", {}).get(
+                "egg_default_hatching_time", 72.0
+            ),
+            work_speed_rate=config_dict.get("pal_settings", {}).get("work_speed_rate", 1.0),
+            day_time_speed_rate=config_dict.get("pal_settings", {}).get("day_time_speed_rate", 1.0),
+            night_time_speed_rate=config_dict.get("pal_settings", {}).get(
+                "night_time_speed_rate", 1.0
+            ),
+            exp_rate=config_dict.get("pal_settings", {}).get("exp_rate", 1.0),
+            pal_capture_rate=config_dict.get("pal_settings", {}).get("pal_capture_rate", 1.0),
+            pal_spawn_num_rate=config_dict.get("pal_settings", {}).get("pal_spawn_num_rate", 1.0),
+            pal_damage_rate_attack=config_dict.get("pal_settings", {}).get(
+                "pal_damage_rate_attack", 1.0
+            ),
+            pal_damage_rate_defense=config_dict.get("pal_settings", {}).get(
+                "pal_damage_rate_defense", 1.0
+            ),
+            pal_stomach_decrease_rate=config_dict.get("pal_settings", {}).get(
+                "pal_stomach_decrease_rate", 1.0
+            ),
+            pal_stamina_decrease_rate=config_dict.get("pal_settings", {}).get(
+                "pal_stamina_decrease_rate", 1.0
+            ),
+            pal_auto_hp_regene_rate=config_dict.get("pal_settings", {}).get(
+                "pal_auto_hp_regene_rate", 1.0
+            ),
+            pal_auto_hp_regene_rate_in_sleep=config_dict.get("pal_settings", {}).get(
+                "pal_auto_hp_regene_rate_in_sleep", 1.0
+            ),
+            player_damage_rate_attack=config_dict.get("pal_settings", {}).get(
+                "player_damage_rate_attack", 1.0
+            ),
+            player_damage_rate_defense=config_dict.get("pal_settings", {}).get(
+                "player_damage_rate_defense", 1.0
+            ),
+            player_stomach_decrease_rate=config_dict.get("pal_settings", {}).get(
+                "player_stomach_decrease_rate", 1.0
+            ),
+            player_stamina_decrease_rate=config_dict.get("pal_settings", {}).get(
+                "player_stamina_decrease_rate", 1.0
+            ),
+            player_auto_hp_regene_rate=config_dict.get("pal_settings", {}).get(
+                "player_auto_hp_regene_rate", 1.0
+            ),
+            player_auto_hp_regene_rate_in_sleep=config_dict.get("pal_settings", {}).get(
+                "player_auto_hp_regene_rate_in_sleep", 1.0
+            ),
         )
-        
+
         building_config = BuildingConfig(
-            build_object_damage_rate=config_dict.get('building', {}).get('build_object_damage_rate', 1.0),
-            build_object_deterioration_damage_rate=config_dict.get('building', {}).get('build_object_deterioration_damage_rate', 1.0),
-            collection_drop_rate=config_dict.get('building', {}).get('collection_drop_rate', 1.0),
-            collection_object_hp_rate=config_dict.get('building', {}).get('collection_object_hp_rate', 1.0),
-            collection_object_respawn_speed_rate=config_dict.get('building', {}).get('collection_object_respawn_speed_rate', 1.0),
-            enemy_drop_item_rate=config_dict.get('building', {}).get('enemy_drop_item_rate', 1.0),
+            build_object_damage_rate=config_dict.get("building", {}).get(
+                "build_object_damage_rate", 1.0
+            ),
+            build_object_deterioration_damage_rate=config_dict.get("building", {}).get(
+                "build_object_deterioration_damage_rate", 1.0
+            ),
+            collection_drop_rate=config_dict.get("building", {}).get("collection_drop_rate", 1.0),
+            collection_object_hp_rate=config_dict.get("building", {}).get(
+                "collection_object_hp_rate", 1.0
+            ),
+            collection_object_respawn_speed_rate=config_dict.get("building", {}).get(
+                "collection_object_respawn_speed_rate", 1.0
+            ),
+            enemy_drop_item_rate=config_dict.get("building", {}).get("enemy_drop_item_rate", 1.0),
         )
-        
+
         difficulty_config = DifficultyConfig(
-            level=config_dict.get('difficulty', {}).get('level', 'None'),
-            death_penalty=config_dict.get('difficulty', {}).get('death_penalty', 'All'),
+            level=config_dict.get("difficulty", {}).get("level", "None"),
+            death_penalty=config_dict.get("difficulty", {}).get("death_penalty", "All"),
         )
-        
+
         engine_config = EngineConfig(
-            lan_server_max_tick_rate=config_dict.get('engine', {}).get('lan_server_max_tick_rate', 120),
-            net_server_max_tick_rate=config_dict.get('engine', {}).get('net_server_max_tick_rate', 120),
-            configured_internet_speed=config_dict.get('engine', {}).get('configured_internet_speed', 104857600),
-            configured_lan_speed=config_dict.get('engine', {}).get('configured_lan_speed', 104857600),
-            max_client_rate=config_dict.get('engine', {}).get('max_client_rate', 104857600),
-            max_internet_client_rate=config_dict.get('engine', {}).get('max_internet_client_rate', 104857600),
-            smooth_frame_rate=config_dict.get('engine', {}).get('smooth_frame_rate', True),
-            use_fixed_frame_rate=config_dict.get('engine', {}).get('use_fixed_frame_rate', False),
-            min_desired_frame_rate=config_dict.get('engine', {}).get('min_desired_frame_rate', 60.0),
-            fixed_frame_rate=config_dict.get('engine', {}).get('fixed_frame_rate', 120.0),
-            net_client_ticks_per_second=config_dict.get('engine', {}).get('net_client_ticks_per_second', 120),
-            frame_rate_lower_bound=config_dict.get('engine', {}).get('frame_rate_lower_bound', 30.0),
-            frame_rate_upper_bound=config_dict.get('engine', {}).get('frame_rate_upper_bound', 120.0),
+            lan_server_max_tick_rate=config_dict.get("engine", {}).get(
+                "lan_server_max_tick_rate", 120
+            ),
+            net_server_max_tick_rate=config_dict.get("engine", {}).get(
+                "net_server_max_tick_rate", 120
+            ),
+            configured_internet_speed=config_dict.get("engine", {}).get(
+                "configured_internet_speed", 104857600
+            ),
+            configured_lan_speed=config_dict.get("engine", {}).get(
+                "configured_lan_speed", 104857600
+            ),
+            max_client_rate=config_dict.get("engine", {}).get("max_client_rate", 104857600),
+            max_internet_client_rate=config_dict.get("engine", {}).get(
+                "max_internet_client_rate", 104857600
+            ),
+            smooth_frame_rate=config_dict.get("engine", {}).get("smooth_frame_rate", True),
+            use_fixed_frame_rate=config_dict.get("engine", {}).get("use_fixed_frame_rate", False),
+            min_desired_frame_rate=config_dict.get("engine", {}).get(
+                "min_desired_frame_rate", 60.0
+            ),
+            fixed_frame_rate=config_dict.get("engine", {}).get("fixed_frame_rate", 120.0),
+            net_client_ticks_per_second=config_dict.get("engine", {}).get(
+                "net_client_ticks_per_second", 120
+            ),
+            frame_rate_lower_bound=config_dict.get("engine", {}).get(
+                "frame_rate_lower_bound", 30.0
+            ),
+            frame_rate_upper_bound=config_dict.get("engine", {}).get(
+                "frame_rate_upper_bound", 120.0
+            ),
         )
-        
-        palworld_settings_dict = config_dict.get('palworld_settings', {})
+
+        palworld_settings_dict = config_dict.get("palworld_settings", {})
         palworld_settings_config = PalworldSettings(
-            ServerName=palworld_settings_dict.get('ServerName', 'Palworld Server'),
-            ServerDescription=palworld_settings_dict.get('ServerDescription', 'A Palworld dedicated server'),
-            AdminPassword=palworld_settings_dict.get('AdminPassword', 'admin123'),
-            ServerPassword=palworld_settings_dict.get('ServerPassword', ''),
-            PublicPort=palworld_settings_dict.get('PublicPort', 8211),
-            PublicIP=palworld_settings_dict.get('PublicIP', ''),
-            ServerPlayerMaxNum=palworld_settings_dict.get('ServerPlayerMaxNum', 32),
-            CoopPlayerMaxNum=palworld_settings_dict.get('CoopPlayerMaxNum', 4),
-            
-            RESTAPIEnabled=palworld_settings_dict.get('RESTAPIEnabled', True),
-            RESTAPIPort=palworld_settings_dict.get('RESTAPIPort', 8212),
-            RCONEnabled=palworld_settings_dict.get('RCONEnabled', True),
-            RCONPort=palworld_settings_dict.get('RCONPort', 25575),
-            
-            bUseAuth=palworld_settings_dict.get('bUseAuth', True),
-            Region=palworld_settings_dict.get('Region', ''),
-            BanListURL=palworld_settings_dict.get('BanListURL', 'https://api.palworldgame.com/api/banlist.txt'),
-            
-            Difficulty=palworld_settings_dict.get('Difficulty', 'None'),
-            bIsMultiplay=palworld_settings_dict.get('bIsMultiplay', True),
-            bIsPvP=palworld_settings_dict.get('bIsPvP', False),
-            bHardcore=palworld_settings_dict.get('bHardcore', False),
-            DeathPenalty=palworld_settings_dict.get('DeathPenalty', 'All'),
-            
-            RandomizerType=palworld_settings_dict.get('RandomizerType', 'None'),
-            RandomizerSeed=palworld_settings_dict.get('RandomizerSeed', ''),
-            bIsRandomizerPalLevelRandom=palworld_settings_dict.get('bIsRandomizerPalLevelRandom', False),
-            
-            DayTimeSpeedRate=palworld_settings_dict.get('DayTimeSpeedRate', 1.0),
-            NightTimeSpeedRate=palworld_settings_dict.get('NightTimeSpeedRate', 1.0),
-            ExpRate=palworld_settings_dict.get('ExpRate', 1.0),
-            WorkSpeedRate=palworld_settings_dict.get('WorkSpeedRate', 1.0),
-            
-            PalCaptureRate=palworld_settings_dict.get('PalCaptureRate', 1.0),
-            PalSpawnNumRate=palworld_settings_dict.get('PalSpawnNumRate', 1.0),
-            PalDamageRateAttack=palworld_settings_dict.get('PalDamageRateAttack', 1.0),
-            PalDamageRateDefense=palworld_settings_dict.get('PalDamageRateDefense', 1.0),
-            PalStomachDecreaceRate=palworld_settings_dict.get('PalStomachDecreaceRate', 1.0),
-            PalStaminaDecreaceRate=palworld_settings_dict.get('PalStaminaDecreaceRate', 1.0),
-            PalAutoHPRegeneRate=palworld_settings_dict.get('PalAutoHPRegeneRate', 1.0),
-            PalAutoHpRegeneRateInSleep=palworld_settings_dict.get('PalAutoHpRegeneRateInSleep', 1.0),
-            PalEggDefaultHatchingTime=palworld_settings_dict.get('PalEggDefaultHatchingTime', 72.0),
-            
-            PlayerDamageRateAttack=palworld_settings_dict.get('PlayerDamageRateAttack', 1.0),
-            PlayerDamageRateDefense=palworld_settings_dict.get('PlayerDamageRateDefense', 1.0),
-            PlayerStomachDecreaceRate=palworld_settings_dict.get('PlayerStomachDecreaceRate', 1.0),
-            PlayerStaminaDecreaceRate=palworld_settings_dict.get('PlayerStaminaDecreaceRate', 1.0),
-            PlayerAutoHPRegeneRate=palworld_settings_dict.get('PlayerAutoHPRegeneRate', 1.0),
-            PlayerAutoHpRegeneRateInSleep=palworld_settings_dict.get('PlayerAutoHpRegeneRateInSleep', 1.0),
-            
-            bEnablePlayerToPlayerDamage=palworld_settings_dict.get('bEnablePlayerToPlayerDamage', False),
-            bEnableFriendlyFire=palworld_settings_dict.get('bEnableFriendlyFire', False),
-            bEnableInvaderEnemy=palworld_settings_dict.get('bEnableInvaderEnemy', True),
-            
-            BuildObjectHpRate=palworld_settings_dict.get('BuildObjectHpRate', 1.0),
-            BuildObjectDamageRate=palworld_settings_dict.get('BuildObjectDamageRate', 1.0),
-            BuildObjectDeteriorationDamageRate=palworld_settings_dict.get('BuildObjectDeteriorationDamageRate', 1.0),
-            CollectionDropRate=palworld_settings_dict.get('CollectionDropRate', 1.0),
-            CollectionObjectHpRate=palworld_settings_dict.get('CollectionObjectHpRate', 1.0),
-            CollectionObjectRespawnSpeedRate=palworld_settings_dict.get('CollectionObjectRespawnSpeedRate', 1.0),
-            bBuildAreaLimit=palworld_settings_dict.get('bBuildAreaLimit', False),
-            MaxBuildingLimitNum=palworld_settings_dict.get('MaxBuildingLimitNum', 0),
-            EnemyDropItemRate=palworld_settings_dict.get('EnemyDropItemRate', 1.0),
-            
-            BaseCampMaxNum=palworld_settings_dict.get('BaseCampMaxNum', 128),
-            BaseCampWorkerMaxNum=palworld_settings_dict.get('BaseCampWorkerMaxNum', 15),
-            BaseCampMaxNumInGuild=palworld_settings_dict.get('BaseCampMaxNumInGuild', 4),
-            
-            GuildPlayerMaxNum=palworld_settings_dict.get('GuildPlayerMaxNum', 20),
-            bAutoResetGuildNoOnlinePlayers=palworld_settings_dict.get('bAutoResetGuildNoOnlinePlayers', False),
-            AutoResetGuildTimeNoOnlinePlayers=palworld_settings_dict.get('AutoResetGuildTimeNoOnlinePlayers', 72.0),
-            
-            DropItemMaxNum=palworld_settings_dict.get('DropItemMaxNum', 3000),
-            DropItemMaxNum_UNKO=palworld_settings_dict.get('DropItemMaxNum_UNKO', 100),
-            DropItemAliveMaxHours=palworld_settings_dict.get('DropItemAliveMaxHours', 1.0),
-            ItemWeightRate=palworld_settings_dict.get('ItemWeightRate', 1.0),
-            EquipmentDurabilityDamageRate=palworld_settings_dict.get('EquipmentDurabilityDamageRate', 1.0),
-            
-            bActiveUNKO=palworld_settings_dict.get('bActiveUNKO', False),
-            bEnableAimAssistPad=palworld_settings_dict.get('bEnableAimAssistPad', True),
-            bEnableAimAssistKeyboard=palworld_settings_dict.get('bEnableAimAssistKeyboard', False),
-            bCanPickupOtherGuildDeathPenaltyDrop=palworld_settings_dict.get('bCanPickupOtherGuildDeathPenaltyDrop', False),
-            bEnableNonLoginPenalty=palworld_settings_dict.get('bEnableNonLoginPenalty', True),
-            bEnableFastTravel=palworld_settings_dict.get('bEnableFastTravel', True),
-            bIsStartLocationSelectByMap=palworld_settings_dict.get('bIsStartLocationSelectByMap', True),
-            bExistPlayerAfterLogout=palworld_settings_dict.get('bExistPlayerAfterLogout', False),
-            bEnableDefenseOtherGuildPlayer=palworld_settings_dict.get('bEnableDefenseOtherGuildPlayer', False),
-            bInvisibleOtherGuildBaseCampAreaFX=palworld_settings_dict.get('bInvisibleOtherGuildBaseCampAreaFX', False),
-            
-            AutoSaveSpan=palworld_settings_dict.get('AutoSaveSpan', 30.0),
-            bIsUseBackupSaveData=palworld_settings_dict.get('bIsUseBackupSaveData', True),
-            
-            bShowPlayerList=palworld_settings_dict.get('bShowPlayerList', False),
-            ChatPostLimitPerMinute=palworld_settings_dict.get('ChatPostLimitPerMinute', 30),
-            
-            bPalLost=palworld_settings_dict.get('bPalLost', False),
-            bCharacterRecreateInHardcore=palworld_settings_dict.get('bCharacterRecreateInHardcore', False),
-            
-            LogFormatType=palworld_settings_dict.get('LogFormatType', 'Text'),
-            
-            SupplyDropSpan=palworld_settings_dict.get('SupplyDropSpan', 180),
-            EnablePredatorBossPal=palworld_settings_dict.get('EnablePredatorBossPal', True),
-            
-            CrossplayPlatforms=palworld_settings_dict.get('CrossplayPlatforms', '(Steam,Xbox,PS5,Mac)'),
-            
-            bAllowGlobalPalboxExport=palworld_settings_dict.get('bAllowGlobalPalboxExport', True),
-            bAllowGlobalPalboxImport=palworld_settings_dict.get('bAllowGlobalPalboxImport', False),
-            
-            ServerReplicatePawnCullDistance=palworld_settings_dict.get('ServerReplicatePawnCullDistance', 15000.0),
-            ItemContainerForceMarkDirtyInterval=palworld_settings_dict.get('ItemContainerForceMarkDirtyInterval', 1.0),
-
-            bAllowClientMod=palworld_settings_dict.get('bAllowClientMod', True),
-            bEnableFastTravelOnlyBaseCamp=palworld_settings_dict.get('bEnableFastTravelOnlyBaseCamp', False),
-            PhysicsActiveDropItemMaxNum=palworld_settings_dict.get('PhysicsActiveDropItemMaxNum', -1),
-
+            ServerName=palworld_settings_dict.get("ServerName", "Palworld Server"),
+            ServerDescription=palworld_settings_dict.get(
+                "ServerDescription", "A Palworld dedicated server"
+            ),
+            AdminPassword=palworld_settings_dict.get("AdminPassword", "admin123"),
+            ServerPassword=palworld_settings_dict.get("ServerPassword", ""),
+            PublicPort=palworld_settings_dict.get("PublicPort", 8211),
+            PublicIP=palworld_settings_dict.get("PublicIP", ""),
+            ServerPlayerMaxNum=palworld_settings_dict.get("ServerPlayerMaxNum", 32),
+            CoopPlayerMaxNum=palworld_settings_dict.get("CoopPlayerMaxNum", 4),
+            RESTAPIEnabled=palworld_settings_dict.get("RESTAPIEnabled", True),
+            RESTAPIPort=palworld_settings_dict.get("RESTAPIPort", 8212),
+            RCONEnabled=palworld_settings_dict.get("RCONEnabled", True),
+            RCONPort=palworld_settings_dict.get("RCONPort", 25575),
+            bUseAuth=palworld_settings_dict.get("bUseAuth", True),
+            Region=palworld_settings_dict.get("Region", ""),
+            BanListURL=palworld_settings_dict.get(
+                "BanListURL", "https://api.palworldgame.com/api/banlist.txt"
+            ),
+            Difficulty=palworld_settings_dict.get("Difficulty", "None"),
+            bIsMultiplay=palworld_settings_dict.get("bIsMultiplay", True),
+            bIsPvP=palworld_settings_dict.get("bIsPvP", False),
+            bHardcore=palworld_settings_dict.get("bHardcore", False),
+            DeathPenalty=palworld_settings_dict.get("DeathPenalty", "All"),
+            RandomizerType=palworld_settings_dict.get("RandomizerType", "None"),
+            RandomizerSeed=palworld_settings_dict.get("RandomizerSeed", ""),
+            bIsRandomizerPalLevelRandom=palworld_settings_dict.get(
+                "bIsRandomizerPalLevelRandom", False
+            ),
+            DayTimeSpeedRate=palworld_settings_dict.get("DayTimeSpeedRate", 1.0),
+            NightTimeSpeedRate=palworld_settings_dict.get("NightTimeSpeedRate", 1.0),
+            ExpRate=palworld_settings_dict.get("ExpRate", 1.0),
+            WorkSpeedRate=palworld_settings_dict.get("WorkSpeedRate", 1.0),
+            PalCaptureRate=palworld_settings_dict.get("PalCaptureRate", 1.0),
+            PalSpawnNumRate=palworld_settings_dict.get("PalSpawnNumRate", 1.0),
+            PalDamageRateAttack=palworld_settings_dict.get("PalDamageRateAttack", 1.0),
+            PalDamageRateDefense=palworld_settings_dict.get("PalDamageRateDefense", 1.0),
+            PalStomachDecreaceRate=palworld_settings_dict.get("PalStomachDecreaceRate", 1.0),
+            PalStaminaDecreaceRate=palworld_settings_dict.get("PalStaminaDecreaceRate", 1.0),
+            PalAutoHPRegeneRate=palworld_settings_dict.get("PalAutoHPRegeneRate", 1.0),
+            PalAutoHpRegeneRateInSleep=palworld_settings_dict.get(
+                "PalAutoHpRegeneRateInSleep", 1.0
+            ),
+            PalEggDefaultHatchingTime=palworld_settings_dict.get("PalEggDefaultHatchingTime", 72.0),
+            PlayerDamageRateAttack=palworld_settings_dict.get("PlayerDamageRateAttack", 1.0),
+            PlayerDamageRateDefense=palworld_settings_dict.get("PlayerDamageRateDefense", 1.0),
+            PlayerStomachDecreaceRate=palworld_settings_dict.get("PlayerStomachDecreaceRate", 1.0),
+            PlayerStaminaDecreaceRate=palworld_settings_dict.get("PlayerStaminaDecreaceRate", 1.0),
+            PlayerAutoHPRegeneRate=palworld_settings_dict.get("PlayerAutoHPRegeneRate", 1.0),
+            PlayerAutoHpRegeneRateInSleep=palworld_settings_dict.get(
+                "PlayerAutoHpRegeneRateInSleep", 1.0
+            ),
+            bEnablePlayerToPlayerDamage=palworld_settings_dict.get(
+                "bEnablePlayerToPlayerDamage", False
+            ),
+            bEnableFriendlyFire=palworld_settings_dict.get("bEnableFriendlyFire", False),
+            bEnableInvaderEnemy=palworld_settings_dict.get("bEnableInvaderEnemy", True),
+            BuildObjectHpRate=palworld_settings_dict.get("BuildObjectHpRate", 1.0),
+            BuildObjectDamageRate=palworld_settings_dict.get("BuildObjectDamageRate", 1.0),
+            BuildObjectDeteriorationDamageRate=palworld_settings_dict.get(
+                "BuildObjectDeteriorationDamageRate", 1.0
+            ),
+            CollectionDropRate=palworld_settings_dict.get("CollectionDropRate", 1.0),
+            CollectionObjectHpRate=palworld_settings_dict.get("CollectionObjectHpRate", 1.0),
+            CollectionObjectRespawnSpeedRate=palworld_settings_dict.get(
+                "CollectionObjectRespawnSpeedRate", 1.0
+            ),
+            bBuildAreaLimit=palworld_settings_dict.get("bBuildAreaLimit", False),
+            MaxBuildingLimitNum=palworld_settings_dict.get("MaxBuildingLimitNum", 0),
+            EnemyDropItemRate=palworld_settings_dict.get("EnemyDropItemRate", 1.0),
+            BaseCampMaxNum=palworld_settings_dict.get("BaseCampMaxNum", 128),
+            BaseCampWorkerMaxNum=palworld_settings_dict.get("BaseCampWorkerMaxNum", 15),
+            BaseCampMaxNumInGuild=palworld_settings_dict.get("BaseCampMaxNumInGuild", 4),
+            GuildPlayerMaxNum=palworld_settings_dict.get("GuildPlayerMaxNum", 20),
+            bAutoResetGuildNoOnlinePlayers=palworld_settings_dict.get(
+                "bAutoResetGuildNoOnlinePlayers", False
+            ),
+            AutoResetGuildTimeNoOnlinePlayers=palworld_settings_dict.get(
+                "AutoResetGuildTimeNoOnlinePlayers", 72.0
+            ),
+            DropItemMaxNum=palworld_settings_dict.get("DropItemMaxNum", 3000),
+            DropItemMaxNum_UNKO=palworld_settings_dict.get("DropItemMaxNum_UNKO", 100),
+            DropItemAliveMaxHours=palworld_settings_dict.get("DropItemAliveMaxHours", 1.0),
+            ItemWeightRate=palworld_settings_dict.get("ItemWeightRate", 1.0),
+            EquipmentDurabilityDamageRate=palworld_settings_dict.get(
+                "EquipmentDurabilityDamageRate", 1.0
+            ),
+            bActiveUNKO=palworld_settings_dict.get("bActiveUNKO", False),
+            bEnableAimAssistPad=palworld_settings_dict.get("bEnableAimAssistPad", True),
+            bEnableAimAssistKeyboard=palworld_settings_dict.get("bEnableAimAssistKeyboard", False),
+            bCanPickupOtherGuildDeathPenaltyDrop=palworld_settings_dict.get(
+                "bCanPickupOtherGuildDeathPenaltyDrop", False
+            ),
+            bEnableNonLoginPenalty=palworld_settings_dict.get("bEnableNonLoginPenalty", True),
+            bEnableFastTravel=palworld_settings_dict.get("bEnableFastTravel", True),
+            bIsStartLocationSelectByMap=palworld_settings_dict.get(
+                "bIsStartLocationSelectByMap", True
+            ),
+            bExistPlayerAfterLogout=palworld_settings_dict.get("bExistPlayerAfterLogout", False),
+            bEnableDefenseOtherGuildPlayer=palworld_settings_dict.get(
+                "bEnableDefenseOtherGuildPlayer", False
+            ),
+            bInvisibleOtherGuildBaseCampAreaFX=palworld_settings_dict.get(
+                "bInvisibleOtherGuildBaseCampAreaFX", False
+            ),
+            AutoSaveSpan=palworld_settings_dict.get("AutoSaveSpan", 30.0),
+            bIsUseBackupSaveData=palworld_settings_dict.get("bIsUseBackupSaveData", True),
+            bShowPlayerList=palworld_settings_dict.get("bShowPlayerList", False),
+            ChatPostLimitPerMinute=palworld_settings_dict.get("ChatPostLimitPerMinute", 30),
+            bPalLost=palworld_settings_dict.get("bPalLost", False),
+            bCharacterRecreateInHardcore=palworld_settings_dict.get(
+                "bCharacterRecreateInHardcore", False
+            ),
+            LogFormatType=palworld_settings_dict.get("LogFormatType", "Text"),
+            SupplyDropSpan=palworld_settings_dict.get("SupplyDropSpan", 180),
+            EnablePredatorBossPal=palworld_settings_dict.get("EnablePredatorBossPal", True),
+            CrossplayPlatforms=palworld_settings_dict.get(
+                "CrossplayPlatforms", "(Steam,Xbox,PS5,Mac)"
+            ),
+            bAllowGlobalPalboxExport=palworld_settings_dict.get("bAllowGlobalPalboxExport", True),
+            bAllowGlobalPalboxImport=palworld_settings_dict.get("bAllowGlobalPalboxImport", False),
+            ServerReplicatePawnCullDistance=palworld_settings_dict.get(
+                "ServerReplicatePawnCullDistance", 15000.0
+            ),
+            ItemContainerForceMarkDirtyInterval=palworld_settings_dict.get(
+                "ItemContainerForceMarkDirtyInterval", 1.0
+            ),
+            bAllowClientMod=palworld_settings_dict.get("bAllowClientMod", True),
+            bEnableFastTravelOnlyBaseCamp=palworld_settings_dict.get(
+                "bEnableFastTravelOnlyBaseCamp", False
+            ),
+            PhysicsActiveDropItemMaxNum=palworld_settings_dict.get(
+                "PhysicsActiveDropItemMaxNum", -1
+            ),
             # v1.0.0 new settings
-            bEnableBuildingPlayerUIdDisplay=palworld_settings_dict.get('bEnableBuildingPlayerUIdDisplay', False),
-            bIsShowJoinLeftMessage=palworld_settings_dict.get('bIsShowJoinLeftMessage', True),
-            bAllowEnhanceStat_Attack=palworld_settings_dict.get('bAllowEnhanceStat_Attack', True),
-            bAllowEnhanceStat_Health=palworld_settings_dict.get('bAllowEnhanceStat_Health', True),
-            bAllowEnhanceStat_Stamina=palworld_settings_dict.get('bAllowEnhanceStat_Stamina', True),
-            bAllowEnhanceStat_Weight=palworld_settings_dict.get('bAllowEnhanceStat_Weight', True),
-            bAllowEnhanceStat_WorkSpeed=palworld_settings_dict.get('bAllowEnhanceStat_WorkSpeed', True),
-            bDisplayPvPItemNumOnWorldMap_BaseCamp=palworld_settings_dict.get('bDisplayPvPItemNumOnWorldMap_BaseCamp', False),
-            bDisplayPvPItemNumOnWorldMap_Player=palworld_settings_dict.get('bDisplayPvPItemNumOnWorldMap_Player', False),
-            bEnableVoiceChat=palworld_settings_dict.get('bEnableVoiceChat', False),
-            VoiceChatMaxVolumeDistance=palworld_settings_dict.get('VoiceChatMaxVolumeDistance', 3000.0),
-            VoiceChatZeroVolumeDistance=palworld_settings_dict.get('VoiceChatZeroVolumeDistance', 15000.0),
-            bAdditionalDropItemWhenPlayerKillingInPvPMode=palworld_settings_dict.get('bAdditionalDropItemWhenPlayerKillingInPvPMode', False),
-            AdditionalDropItemWhenPlayerKillingInPvPMode=palworld_settings_dict.get('AdditionalDropItemWhenPlayerKillingInPvPMode', 'PlayerDropItem'),
-            AdditionalDropItemNumWhenPlayerKillingInPvPMode=palworld_settings_dict.get('AdditionalDropItemNumWhenPlayerKillingInPvPMode', 1),
-            BlockRespawnTime=palworld_settings_dict.get('BlockRespawnTime', 5.0),
-            RespawnPenaltyDurationThreshold=palworld_settings_dict.get('RespawnPenaltyDurationThreshold', 0),
-            RespawnPenaltyTimeScale=palworld_settings_dict.get('RespawnPenaltyTimeScale', 2.0),
-            GuildRejoinCooldownMinutes=palworld_settings_dict.get('GuildRejoinCooldownMinutes', 0),
-            DenyTechnologyList=palworld_settings_dict.get('DenyTechnologyList', ''),
-            ItemCorruptionMultiplier=palworld_settings_dict.get('ItemCorruptionMultiplier', 1.0),
-            MonsterFarmActionSpeedRate=palworld_settings_dict.get('MonsterFarmActionSpeedRate', 1.0),
-            PlayerDataPalStorageUpdateCheckTickInterval=palworld_settings_dict.get('PlayerDataPalStorageUpdateCheckTickInterval', 1.0),
-            AutoTransferMasterCheckIntervalSeconds=palworld_settings_dict.get('AutoTransferMasterCheckIntervalSeconds', 3600.0),
-            AutoTransferMasterThresholdDays=palworld_settings_dict.get('AutoTransferMasterThresholdDays', 14),
-            MaxGuildsPerFrame=palworld_settings_dict.get('MaxGuildsPerFrame', 10),
-            BuildingNameDisplayCacheTTLSeconds=palworld_settings_dict.get('BuildingNameDisplayCacheTTLSeconds', 60),
+            bEnableBuildingPlayerUIdDisplay=palworld_settings_dict.get(
+                "bEnableBuildingPlayerUIdDisplay", False
+            ),
+            bIsShowJoinLeftMessage=palworld_settings_dict.get("bIsShowJoinLeftMessage", True),
+            bAllowEnhanceStat_Attack=palworld_settings_dict.get("bAllowEnhanceStat_Attack", True),
+            bAllowEnhanceStat_Health=palworld_settings_dict.get("bAllowEnhanceStat_Health", True),
+            bAllowEnhanceStat_Stamina=palworld_settings_dict.get("bAllowEnhanceStat_Stamina", True),
+            bAllowEnhanceStat_Weight=palworld_settings_dict.get("bAllowEnhanceStat_Weight", True),
+            bAllowEnhanceStat_WorkSpeed=palworld_settings_dict.get(
+                "bAllowEnhanceStat_WorkSpeed", True
+            ),
+            bDisplayPvPItemNumOnWorldMap_BaseCamp=palworld_settings_dict.get(
+                "bDisplayPvPItemNumOnWorldMap_BaseCamp", False
+            ),
+            bDisplayPvPItemNumOnWorldMap_Player=palworld_settings_dict.get(
+                "bDisplayPvPItemNumOnWorldMap_Player", False
+            ),
+            bEnableVoiceChat=palworld_settings_dict.get("bEnableVoiceChat", False),
+            VoiceChatMaxVolumeDistance=palworld_settings_dict.get(
+                "VoiceChatMaxVolumeDistance", 3000.0
+            ),
+            VoiceChatZeroVolumeDistance=palworld_settings_dict.get(
+                "VoiceChatZeroVolumeDistance", 15000.0
+            ),
+            bAdditionalDropItemWhenPlayerKillingInPvPMode=palworld_settings_dict.get(
+                "bAdditionalDropItemWhenPlayerKillingInPvPMode", False
+            ),
+            AdditionalDropItemWhenPlayerKillingInPvPMode=palworld_settings_dict.get(
+                "AdditionalDropItemWhenPlayerKillingInPvPMode", "PlayerDropItem"
+            ),
+            AdditionalDropItemNumWhenPlayerKillingInPvPMode=palworld_settings_dict.get(
+                "AdditionalDropItemNumWhenPlayerKillingInPvPMode", 1
+            ),
+            BlockRespawnTime=palworld_settings_dict.get("BlockRespawnTime", 5.0),
+            RespawnPenaltyDurationThreshold=palworld_settings_dict.get(
+                "RespawnPenaltyDurationThreshold", 0
+            ),
+            RespawnPenaltyTimeScale=palworld_settings_dict.get("RespawnPenaltyTimeScale", 2.0),
+            GuildRejoinCooldownMinutes=palworld_settings_dict.get("GuildRejoinCooldownMinutes", 0),
+            DenyTechnologyList=palworld_settings_dict.get("DenyTechnologyList", ""),
+            ItemCorruptionMultiplier=palworld_settings_dict.get("ItemCorruptionMultiplier", 1.0),
+            MonsterFarmActionSpeedRate=palworld_settings_dict.get(
+                "MonsterFarmActionSpeedRate", 1.0
+            ),
+            PlayerDataPalStorageUpdateCheckTickInterval=palworld_settings_dict.get(
+                "PlayerDataPalStorageUpdateCheckTickInterval", 1.0
+            ),
+            AutoTransferMasterCheckIntervalSeconds=palworld_settings_dict.get(
+                "AutoTransferMasterCheckIntervalSeconds", 3600.0
+            ),
+            AutoTransferMasterThresholdDays=palworld_settings_dict.get(
+                "AutoTransferMasterThresholdDays", 14
+            ),
+            MaxGuildsPerFrame=palworld_settings_dict.get("MaxGuildsPerFrame", 10),
+            BuildingNameDisplayCacheTTLSeconds=palworld_settings_dict.get(
+                "BuildingNameDisplayCacheTTLSeconds", 60
+            ),
         )
 
-        language = config_dict.get('language', 'ko')
+        language = config_dict.get("language", "ko")
 
         return PalworldConfig(
             server=server_config,
@@ -509,41 +654,43 @@ class ConfigLoader(IConfigProvider):
             palworld_settings=palworld_settings_config,
             language=language,
         )
-    
+
     def validate_config(self, config):
         """Validate configuration"""
         from .palworld.main import PalworldConfig
-        
+
         if not (1024 <= config.server.port <= 65535):
             raise ValueError(f"Invalid server port: {config.server.port}")
-        
+
         if not (1024 <= config.rest_api.port <= 65535):
             raise ValueError(f"Invalid REST API port: {config.rest_api.port}")
-        
+
         if not (1 <= config.server.max_players <= 32):
             raise ValueError(f"Invalid max players count: {config.server.max_players}")
-        
-        valid_modes = ['logs', 'prometheus', 'both']
+
+        valid_modes = ["logs", "prometheus", "both"]
         if config.monitoring.mode not in valid_modes:
             raise ValueError(f"Invalid monitoring mode: {config.monitoring.mode}")
-        
+
         if config.discord.enabled and not config.discord.webhook_url:
             raise ValueError("Discord notifications enabled but webhook URL not set")
-        
-        valid_log_formats = ['text', 'json']
+
+        valid_log_formats = ["text", "json"]
         if config.server_startup.log_format not in valid_log_formats:
             raise ValueError(f"Invalid log format: {config.server_startup.log_format}")
-        
+
         if not (1024 <= config.server_startup.query_port <= 65535):
             raise ValueError(f"Invalid query port: {config.server_startup.query_port}")
-        
+
         if config.server_startup.worker_threads_count < 0:
-            raise ValueError(f"Invalid worker threads count: {config.server_startup.worker_threads_count}")
-        
-        valid_languages = ['ko', 'en', 'ja', 'zh']
+            raise ValueError(
+                f"Invalid worker threads count: {config.server_startup.worker_threads_count}"
+            )
+
+        valid_languages = ["ko", "en", "ja", "zh"]
         if config.language not in valid_languages:
             raise ValueError(f"Invalid language: {config.language}. Supported: {valid_languages}")
-        
+
         return True
 
 
@@ -554,23 +701,23 @@ _config_loader = None
 def get_config(config_path: Optional[Union[str, Path]] = None):
     """Return global configuration instance (singleton pattern)"""
     global _config_instance, _config_loader
-    
+
     if _config_instance is None:
         _config_loader = ConfigLoader(config_path)
         _config_instance = _config_loader.load_config()
         _config_loader.validate_config(_config_instance)
-    
+
     return _config_instance
 
 
 def reload_config():
     """Reload configuration"""
     global _config_instance, _config_loader
-    
+
     if _config_loader is None:
         raise RuntimeError("Configuration loader not initialized")
-    
+
     _config_instance = _config_loader.load_config()
     _config_loader.validate_config(_config_instance)
-    
+
     return _config_instance

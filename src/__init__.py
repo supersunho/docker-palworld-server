@@ -5,7 +5,7 @@ Main package initialization
 
 __version__ = "1.1.3"
 __author__ = "supersunho"
- 
-from .config_loader import get_config, PalworldConfig 
 
-__all__ = ['get_config', 'PalworldConfig']
+from .config_loader import get_config, PalworldConfig
+
+__all__ = ["get_config", "PalworldConfig"]

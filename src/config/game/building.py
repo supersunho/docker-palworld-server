@@ -9,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class BuildingConfig:
     """Building and collection configuration data class"""
+
     build_object_damage_rate: float = 1.0
     build_object_deterioration_damage_rate: float = 1.0
     collection_drop_rate: float = 1.0

@@ -2,14 +2,9 @@
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from src.utils.health_manager import (
-
-
-    HealthManager, HealthThresholds
-)
+from src.utils.health_manager import HealthManager, HealthThresholds
 
 pytestmark = pytest.mark.unit
-
 
 
 class TestHealthManager:

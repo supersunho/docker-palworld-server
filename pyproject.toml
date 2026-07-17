@@ -69,7 +69,7 @@ exclude = ["tests*"]
 
 # Black configuration
 [tool.black]
-line-length = 88
+line-length = 100
 target-version = ['py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -154,7 +154,7 @@ directory = "coverage_html"
 
 # Flake8 configuration
 [tool.flake8]
-max-line-length = 88
+max-line-length = 100
 extend-ignore = ["E203", "W503"]
 exclude = [
     ".git",

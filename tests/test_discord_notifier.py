@@ -7,8 +7,6 @@ from src.notifications.discord_notifier import DiscordNotifier, NotificationLeve
 pytestmark = pytest.mark.unit
 
 
-
-
 class TestDiscordNotifier:
     """FS-19.x: Discord notifier behavior."""
 
@@ -51,10 +49,7 @@ class TestDiscordNotifier:
         cm = self._make_async_context_manager(mock_response)
         notifier.session.post = MagicMock(return_value=cm)
 
-        result = await notifier._send_webhook(
-            "Test notification",
-            NotificationLevel.INFO
-        )
+        result = await notifier._send_webhook("Test notification", NotificationLevel.INFO)
         assert result is True
 
     @pytest.mark.asyncio
@@ -67,10 +62,7 @@ class TestDiscordNotifier:
         cm = self._make_async_context_manager(mock_response)
         notifier.session.post = MagicMock(return_value=cm)
 
-        result = await notifier._send_webhook(
-            "Test",
-            NotificationLevel.INFO
-        )
+        result = await notifier._send_webhook("Test", NotificationLevel.INFO)
         assert result is False
 
     def test_init_enabled(self, palworld_config):
@@ -89,18 +81,14 @@ class TestDiscordNotifier:
     async def test_send_notification_disabled(self, notifier):
         """FS-19.1: _send_notification returns False when disabled."""
         notifier.enabled = False
-        result = await notifier._send_notification(
-            "server_start", "server.start"
-        )
+        result = await notifier._send_notification("server_start", "server.start")
         assert result is False
 
     @pytest.mark.asyncio
     async def test_send_notification_event_disabled(self, notifier):
         """FS-19.1: _send_notification returns False when event type disabled."""
         notifier.events = {"server_start": False}
-        result = await notifier._send_notification(
-            "server_start", "server.start"
-        )
+        result = await notifier._send_notification("server_start", "server.start")
         assert result is False
 
     def test_get_event_status(self, notifier):
@@ -202,7 +190,5 @@ class TestDiscordNotifier:
         cm.__aenter__ = AsyncMock(return_value=mock_response)
         cm.__aexit__ = AsyncMock(return_value=None)
         notifier.session.post = MagicMock(return_value=cm)
-        result = await notifier._send_webhook(
-            "Critical error", NotificationLevel.CRITICAL
-        )
+        result = await notifier._send_webhook("Critical error", NotificationLevel.CRITICAL)
         assert result is True

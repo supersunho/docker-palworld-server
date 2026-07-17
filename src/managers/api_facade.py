@@ -15,15 +15,21 @@ from ..protocols import IServerAPI, ServerInfo
 
 class ServerAPIFacade(IServerAPI):
     """Unified API facade that integrates REST API and RCON with fallback logic"""
-    
-    def __init__(self, config: PalworldConfig, logger=None, rest_client: Optional[RestAPIClient] = None, rcon_client: Optional[RconClient] = None):
+
+    def __init__(
+        self,
+        config: PalworldConfig,
+        logger=None,
+        rest_client: Optional[RestAPIClient] = None,
+        rcon_client: Optional[RconClient] = None,
+    ):
         self.config = config
         self.logger = logger or get_logger("palworld.api_facade")
         self._rest = rest_client
         self._rcon = rcon_client
         self._rest_available = False
         self._rcon_available = False
-    
+
     async def initialize_clients(self):
         """Initialize API clients"""
         if self.config.rest_api.enabled:
@@ -36,7 +42,7 @@ class ServerAPIFacade(IServerAPI):
                 self.logger.error(f"Failed to initialize REST API client: {e}")
                 self._rest = None
                 self._rest_available = False
-        
+
         if self.config.rcon.enabled:
             try:
                 self._rcon = RconClient(self.config, self.logger)
@@ -47,7 +53,7 @@ class ServerAPIFacade(IServerAPI):
                 self.logger.error(f"Failed to initialize RCON client: {e}")
                 self._rcon = None
                 self._rcon_available = False
-    
+
     async def cleanup_clients(self):
         """Cleanup API clients"""
         if self._rest and self._rest_available:
@@ -59,7 +65,7 @@ class ServerAPIFacade(IServerAPI):
             finally:
                 self._rest = None
                 self._rest_available = False
-        
+
         if self._rcon and self._rcon_available:
             try:
                 await self._rcon.__aexit__(None, None, None)
@@ -69,32 +75,33 @@ class ServerAPIFacade(IServerAPI):
             finally:
                 self._rcon = None
                 self._rcon_available = False
-    
+
     def _is_rest_available(self) -> bool:
         """Check if REST API client is available"""
-        return (self._rest is not None and 
-                self._rest_available and 
-                hasattr(self._rest, 'session') and 
-                self._rest.session is not None and
-                not self._rest.session.closed)
-    
+        return (
+            self._rest is not None
+            and self._rest_available
+            and hasattr(self._rest, "session")
+            and self._rest.session is not None
+            and not self._rest.session.closed
+        )
+
     def _is_rcon_available(self) -> bool:
         """Check if RCON client is available"""
-        return (self._rcon is not None and 
-                self._rcon_available)
-    
+        return self._rcon is not None and self._rcon_available
+
     # --- Direct client access ---
-    
+
     def get_api_client(self) -> Optional[RestAPIClient]:
         """Get REST API client instance"""
         return self._rest if self._is_rest_available() else None
-    
+
     def get_rcon_client(self) -> Optional[RconClient]:
         """Get RCON client instance"""
         return self._rcon if self._is_rcon_available() else None
-    
+
     # --- REST API methods ---
-    
+
     async def api_get_server_info(self) -> Optional[Dict]:
         """Get server information via REST API"""
         if not self._is_rest_available():
@@ -104,7 +111,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API get_server_info error: {e}")
             return None
-    
+
     async def api_get_players(self) -> Optional[List[Dict]]:
         """Get online player list via REST API"""
         if not self._is_rest_available():
@@ -114,7 +121,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API get_players error: {e}")
             return None
-    
+
     async def api_get_server_settings(self) -> Optional[Dict]:
         """Get server settings via REST API"""
         if not self._is_rest_available():
@@ -124,7 +131,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API get_server_settings error: {e}")
             return None
-    
+
     async def api_get_server_metrics(self) -> Optional[Dict]:
         """Get server metrics via REST API"""
         if not self._is_rest_available():
@@ -134,7 +141,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API get_server_metrics error: {e}")
             return None
-    
+
     async def api_announce_message(self, message: str) -> bool:
         """Announce message to all players via REST API"""
         if not self._is_rest_available():
@@ -144,7 +151,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API announce_message error: {e}")
             return False
-    
+
     async def api_kick_player(self, player_uid: str, message: str = "") -> bool:
         """Kick player from server via REST API"""
         if not self._is_rest_available():
@@ -154,7 +161,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API kick_player error: {e}")
             return False
-    
+
     async def api_ban_player(self, player_uid: str, message: str = "") -> bool:
         """Ban player from server via REST API"""
         if not self._is_rest_available():
@@ -164,7 +171,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API ban_player error: {e}")
             return False
-    
+
     async def api_unban_player(self, player_uid: str) -> bool:
         """Unban player from server via REST API"""
         if not self._is_rest_available():
@@ -174,7 +181,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API unban_player error: {e}")
             return False
-    
+
     async def api_save_world(self) -> bool:
         """Save world data via REST API"""
         if not self._is_rest_available():
@@ -184,8 +191,10 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API save_world error: {e}")
             return False
-    
-    async def api_shutdown_server(self, waittime: int = 1, message: str = "Server shutdown") -> bool:
+
+    async def api_shutdown_server(
+        self, waittime: int = 1, message: str = "Server shutdown"
+    ) -> bool:
         """Shutdown server gracefully via REST API"""
         if not self._is_rest_available():
             return False
@@ -194,9 +203,9 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"REST API shutdown_server error: {e}")
             return False
-    
+
     # --- RCON methods ---
-    
+
     async def rcon_get_server_info(self) -> Optional[str]:
         """Get server information via RCON"""
         if not self._is_rcon_available():
@@ -206,7 +215,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON get_server_info error: {e}")
             return None
-    
+
     async def rcon_get_players(self) -> Optional[str]:
         """Get online player list via RCON"""
         if not self._is_rcon_available():
@@ -216,7 +225,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON get_players error: {e}")
             return None
-    
+
     async def rcon_announce_message(self, message: str) -> bool:
         """Announce message to all players via RCON"""
         if not self._is_rcon_available():
@@ -226,7 +235,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON announce_message error: {e}")
             return False
-    
+
     async def rcon_kick_player(self, player_name: str) -> bool:
         """Kick player from server via RCON"""
         if not self._is_rcon_available():
@@ -236,7 +245,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON kick_player error: {e}")
             return False
-    
+
     async def rcon_ban_player(self, player_name: str) -> bool:
         """Ban player from server via RCON"""
         if not self._is_rcon_available():
@@ -246,7 +255,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON ban_player error: {e}")
             return False
-    
+
     async def rcon_save_world(self) -> bool:
         """Save world data via RCON"""
         if not self._is_rcon_available():
@@ -256,8 +265,10 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON save_world error: {e}")
             return False
-    
-    async def rcon_shutdown_server(self, waittime: int = 1, message: str = "Server shutdown") -> bool:
+
+    async def rcon_shutdown_server(
+        self, waittime: int = 1, message: str = "Server shutdown"
+    ) -> bool:
         """Shutdown server gracefully via RCON"""
         if not self._is_rcon_available():
             return False
@@ -266,7 +277,7 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON shutdown_server error: {e}")
             return False
-    
+
     async def rcon_execute_command(self, command: str, *args: str) -> Optional[str]:
         """Execute custom RCON command"""
         if not self._is_rcon_available():
@@ -276,9 +287,9 @@ class ServerAPIFacade(IServerAPI):
         except Exception as e:
             self.logger.error(f"RCON execute_command error: {e}")
             return None
-    
+
     # --- Fallback methods (REST first, then RCON) ---
-    
+
     async def get_server_info(self) -> Optional[ServerInfo]:
         """Get server information using available API (REST first, then RCON)"""
         if self._is_rest_available():
@@ -286,17 +297,17 @@ class ServerAPIFacade(IServerAPI):
                 rest_info = await self._rest.get_server_info()
                 if rest_info:
                     return ServerInfo(
-                        name=rest_info.get('name', ''),
-                        players=rest_info.get('players', 0),
-                        max_players=rest_info.get('max_players', 0),
-                        uptime=rest_info.get('uptime', ''),
-                        version=rest_info.get('version', ''),
-                        ip=rest_info.get('ip', ''),
-                        port=rest_info.get('port', 0)
+                        name=rest_info.get("name", ""),
+                        players=rest_info.get("players", 0),
+                        max_players=rest_info.get("max_players", 0),
+                        uptime=rest_info.get("uptime", ""),
+                        version=rest_info.get("version", ""),
+                        ip=rest_info.get("ip", ""),
+                        port=rest_info.get("port", 0),
                     )
             except Exception as e:
                 self.logger.error(f"REST API get_server_info error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 rcon_result = await self._rcon.get_server_info()
@@ -304,9 +315,9 @@ class ServerAPIFacade(IServerAPI):
                     return ServerInfo(info=rcon_result)
             except Exception as e:
                 self.logger.error(f"RCON get_server_info error: {e}")
-        
+
         return None
-    
+
     async def get_players(self) -> Optional[List[Dict[str, Any]]]:
         """Get online player list using available API (REST first, then RCON)"""
         if self._is_rest_available():
@@ -316,27 +327,30 @@ class ServerAPIFacade(IServerAPI):
                     return players
             except Exception as e:
                 self.logger.error(f"REST API get_players error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 rcon_result = await self._rcon.get_players()
                 if rcon_result:
                     if rcon_result.strip():
-                        lines = rcon_result.strip().split('\n')
+                        lines = rcon_result.strip().split("\n")
                         if len(lines) > 1:
-                            headers = lines[0].split(',')
+                            headers = lines[0].split(",")
                             players_data = []
                             for line in lines[1:]:
-                                values = line.split(',')
+                                values = line.split(",")
                                 if len(values) == len(headers):
-                                    player = {headers[i].strip(): values[i].strip() for i in range(len(headers))}
+                                    player = {
+                                        headers[i].strip(): values[i].strip()
+                                        for i in range(len(headers))
+                                    }
                                     players_data.append(player)
                             return players_data
             except Exception as e:
                 self.logger.error(f"RCON get_players error: {e}")
-        
+
         return None
-    
+
     async def get_server_info_any(self) -> Optional[Dict]:
         """Get server info using available API (REST first, then RCON)"""
         info = await self.api_get_server_info()
@@ -346,7 +360,7 @@ class ServerAPIFacade(IServerAPI):
         if rcon_result:
             return {"source": "rcon", "info": rcon_result}
         return None
-    
+
     async def announce(self, message: str) -> bool:
         """Announce message using available API (REST first, then RCON)"""
         if self._is_rest_available():
@@ -355,19 +369,19 @@ class ServerAPIFacade(IServerAPI):
                     return True
             except Exception as e:
                 self.logger.error(f"REST API announce error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 return await self._rcon.announce_message(message)
             except Exception as e:
                 self.logger.error(f"RCON announce error: {e}")
-        
+
         return False
-    
+
     async def announce_message_any(self, message: str) -> bool:
         """Announce message using available API (alias)"""
         return await self.announce(message)
-    
+
     async def save_world(self) -> bool:
         """Save world data using available API (REST first, then RCON)"""
         if self._is_rest_available():
@@ -376,19 +390,19 @@ class ServerAPIFacade(IServerAPI):
                     return True
             except Exception as e:
                 self.logger.error(f"REST API save_world error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 return await self._rcon.save_world()
             except Exception as e:
                 self.logger.error(f"RCON save_world error: {e}")
-        
+
         return False
-    
+
     async def save_world_any(self) -> bool:
         """Save world using available API (alias)"""
         return await self.save_world()
-    
+
     async def get_server_settings(self) -> Optional[Dict[str, Any]]:
         """Get server settings using available API (REST first, then RCON)"""
         if self._is_rest_available():
@@ -398,7 +412,7 @@ class ServerAPIFacade(IServerAPI):
                     return settings
             except Exception as e:
                 self.logger.error(f"REST API get_server_settings error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 rcon_result = await self._rcon.get_server_settings()
@@ -406,9 +420,9 @@ class ServerAPIFacade(IServerAPI):
                     return {"raw_settings": rcon_result}
             except Exception as e:
                 self.logger.error(f"RCON get_server_settings error: {e}")
-        
+
         return None
-    
+
     async def kick_player(self, player_identifier: str, message: str = "") -> bool:
         """Kick player using available API (REST first, then RCON)"""
         if self._is_rest_available():
@@ -417,15 +431,15 @@ class ServerAPIFacade(IServerAPI):
                     return True
             except Exception as e:
                 self.logger.error(f"REST API kick_player error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 return await self._rcon.kick_player(player_identifier)
             except Exception as e:
                 self.logger.error(f"RCON kick_player error: {e}")
-        
+
         return False
-    
+
     async def ban_player(self, player_identifier: str, message: str = "") -> bool:
         """Ban player using available API (REST first, then RCON)"""
         if self._is_rest_available():
@@ -434,15 +448,15 @@ class ServerAPIFacade(IServerAPI):
                     return True
             except Exception as e:
                 self.logger.error(f"REST API ban_player error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 return await self._rcon.ban_player(player_identifier)
             except Exception as e:
                 self.logger.error(f"RCON ban_player error: {e}")
-        
+
         return False
-    
+
     async def unban_player(self, player_identifier: str) -> bool:
         """Unban player (REST API only)"""
         if self._is_rest_available():
@@ -451,7 +465,7 @@ class ServerAPIFacade(IServerAPI):
             except Exception as e:
                 self.logger.error(f"REST API unban_player error: {e}")
         return False
-    
+
     async def shutdown_server(self, waittime: int = 1, message: str = "Server shutdown") -> bool:
         """Shutdown server gracefully (REST first, then RCON)"""
         if self._is_rest_available():
@@ -460,20 +474,20 @@ class ServerAPIFacade(IServerAPI):
                     return True
             except Exception as e:
                 self.logger.error(f"REST API shutdown_server error: {e}")
-        
+
         if self._is_rcon_available():
             try:
                 return await self._rcon.shutdown_server(waittime, message)
             except Exception as e:
                 self.logger.error(f"RCON shutdown_server error: {e}")
-        
+
         return False
-    
+
     def get_client_status(self) -> Dict[str, bool]:
         """Get client availability status"""
         return {
             "rest_available": self._is_rest_available(),
             "rcon_available": self._is_rcon_available(),
             "rest_initialized": self._rest_available,
-            "rcon_initialized": self._rcon_available
+            "rcon_initialized": self._rcon_available,
         }

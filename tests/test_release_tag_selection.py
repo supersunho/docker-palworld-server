@@ -8,9 +8,6 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
-
-
-
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "find_previous_release_tag.sh"
 
 
