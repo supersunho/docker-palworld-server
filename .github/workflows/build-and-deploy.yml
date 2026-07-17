@@ -180,7 +180,7 @@ jobs:
                   }
                   bash /tmp/install-actionlint.bash "${ACTIONLINT_VERSION}"
                   rm -f /tmp/install-actionlint.bash
-                  ./actionlint -version
+                  ./actionlint --version
                   test -f ./actionlint || { echo "❌ actionlint download failed" >&2; exit 1; }
 
             - name: 🔍 actionlint — CI workflow syntax
