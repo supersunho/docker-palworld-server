@@ -3,6 +3,9 @@
 *.backup
 *.bak
 *.pyc
+__pycache__/
+.mypy_cache/
+.python-version
 *.rar
 *.tar
 *.tar.gz
