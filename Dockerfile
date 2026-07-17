@@ -113,8 +113,8 @@ COPY docker/supervisor/ /etc/supervisor/conf.d/
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY --chmod=755 scripts/healthcheck.py /usr/local/bin/healthcheck
 
-# Verify: config loading + Python package imports (ADMIN_PASSWORD needed for env var substitution)
-RUN ADMIN_PASSWORD=verify_build python -c "from src.config_loader import get_config; get_config()" && \
+# Verify: config loading + Python package imports
+RUN python -c "from src.config_loader import get_config; get_config()" && \
     python -c "import yaml, aiohttp, structlog; yaml.safe_load(open('config/default.yaml'))"
 
 RUN chown -R steam:steam \
