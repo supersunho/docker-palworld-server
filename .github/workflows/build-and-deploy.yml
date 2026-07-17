@@ -579,7 +579,7 @@ jobs:
     ##############################################################################
     create-manifest:
         needs: [prepare, build]
-        if: always() && needs.build.result == 'success'
+        if: needs.build.result == 'success'
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -770,7 +770,7 @@ jobs:
     ##############################################################################
     create-release:
         needs: [prepare, create-manifest, summary]
-        if: always() && needs.create-manifest.result == 'success'
+        if: needs.create-manifest.result == 'success'
         runs-on: ubuntu-latest
         permissions:
             contents: write
