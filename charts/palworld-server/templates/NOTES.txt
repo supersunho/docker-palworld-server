@@ -1,0 +1,39 @@
+Palworld Dedicated Server has been deployed!
+
+1. **Get the admin password:**
+   The admin password is stored in the Kubernetes Secret specified by
+   `server.existingSecret`. Retrieve it with:
+
+   kubectl get secret {{ .Values.server.existingSecret }} \
+     -o jsonpath="{.data.{{ .Values.server.adminPasswordKey }}}" \
+   | base64 -d
+
+2. **Connect to the server:**
+   Game port: {{ .Values.service.gamePort }} (UDP)
+   Query port: {{ .Values.service.queryPort }} (UDP)
+
+   {{- if .Values.managementService.enabled }}
+   REST API: port {{ .Values.managementService.restApiPort }} (TCP)
+   RCON:     port {{ .Values.managementService.rconPort }} (TCP)
+   {{- end }}
+
+3. **Monitoring:**
+   {{- if eq .Values.monitoring.mode "metrics" }}
+   Prometheus metrics are available on port {{ .Values.monitoring.metricsPort }}
+   {{- else if eq .Values.monitoring.mode "both" }}
+   Prometheus metrics are available on port {{ .Values.monitoring.metricsPort }}
+   Dashboard is available on port {{ .Values.monitoring.dashboardPort }}
+   {{- end }}
+
+4. **Prerequisites:**
+   Before installing, create a Kubernetes Secret:
+   kubectl create secret generic palworld-admin-password \
+     --from-literal=admin-password=YOUR_STRONG_PASSWORD
+
+   Then install with:
+   helm install my-release . --set server.existingSecret=palworld-admin-password
+
+{{- if not .Values.server.existingSecret }}
+WARNING: server.existingSecret is not set. This chart will fail to deploy.
+Create a Secret first (see step 4 above).
+{{- end }}
