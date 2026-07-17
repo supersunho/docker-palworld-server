@@ -136,6 +136,10 @@ class IdleRestartManager:
             if self._idle_start is not None:
                 self.logger.debug("Server not running, resetting idle timer")
                 self._idle_start = None
+            if self._paused:
+                self.logger.debug("Server not running, resetting paused state")
+                self._paused = False
+                self._pause_start_time = None
             return
 
         current_player_count = self.player_monitor.get_current_player_count()
@@ -196,7 +200,17 @@ class IdleRestartManager:
         # If paused, resume immediately
         if self._paused:
             self.logger.info(f"Player detected — resuming server from pause")
-            resume_ok = await self.process_manager.resume_server()
+            # Retry resume up to 3 times with 30s sleep between attempts
+            resume_ok = False
+            for attempt in range(3):
+                resume_ok = await self.process_manager.resume_server()
+                if resume_ok:
+                    break
+                self.logger.warning(
+                    f"Resume attempt {attempt + 1}/3 failed — retrying in 30s"
+                )
+                await asyncio.sleep(30)
+
             if resume_ok:
                 self._paused = False
                 self._pause_start_time = None
@@ -204,6 +218,13 @@ class IdleRestartManager:
                 await self._send_discord_notification(
                     "resume", f"Player detected — server resumed from pause"
                 )
+            else:
+                self.logger.error(
+                    "Resume failed after 3 attempts — forcing full restart"
+                )
+                await self._perform_restart()
+                self._paused = False
+                self._pause_start_time = None
             return
 
         # Normal active state — reset idle timer
