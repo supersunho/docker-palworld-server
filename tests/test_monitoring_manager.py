@@ -59,9 +59,8 @@ class TestMonitoringManager:
             # start_monitoring uses asyncio.create_task internally, so yield to event loop
             await asyncio.sleep(0)
 
-            # discord.enabled is False in fixture, so player_monitor is skipped
-            manager.player_monitor.start_monitoring.assert_not_called()
-            # server and idle_restart are always started
+            # player_monitor, server_monitor, and idle_restart are always started
+            manager.player_monitor.start_monitoring.assert_called()
             manager.server_monitor.start_monitoring.assert_called()
             manager.idle_restart_manager.start_monitoring.assert_called()
 

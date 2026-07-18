@@ -26,7 +26,7 @@ class MonitoringManager:
         self.player_monitor = PlayerMonitor(config, api_manager)
         self.server_monitor = ServerMonitor(config, process_manager, api_manager)
         self.event_dispatcher = EventDispatcher(config)
-        self.idle_restart_manager = IdleRestartManager(config, self.player_monitor, process_manager)
+        self.idle_restart_manager = IdleRestartManager(config, self.player_monitor, process_manager, api_manager)
 
         self._background_tasks: Set[asyncio.Task] = set()
         self._monitoring_active = False
@@ -80,11 +80,13 @@ class MonitoringManager:
         self.logger.info("Starting comprehensive monitoring system")
 
         try:
-            if self.config.discord.enabled:
-                player_task = asyncio.create_task(self.player_monitor.start_monitoring())
-                self._background_tasks.add(player_task)
-                player_task.add_done_callback(self._background_tasks.discard)
-                self.logger.info("Player monitoring started")
+            # PlayerMonitor is always started — it serves as the data source
+            # for IdleRestartManager (player count) regardless of Discord
+            # notification settings.
+            player_task = asyncio.create_task(self.player_monitor.start_monitoring())
+            self._background_tasks.add(player_task)
+            player_task.add_done_callback(self._background_tasks.discard)
+            self.logger.info("Player monitoring started")
 
             server_task = asyncio.create_task(self.server_monitor.start_monitoring())
             self._background_tasks.add(server_task)

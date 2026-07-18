@@ -38,11 +38,12 @@ class IdleRestartManager:
     - 'pause':   SIGSTOP/SIGCONT freeze (~0.1s resume)
     """
 
-    def __init__(self, config: PalworldConfig, player_monitor, process_manager):
+    def __init__(self, config: PalworldConfig, player_monitor, process_manager, api_manager=None):
         """Initialize idle restart manager with configuration"""
         self.config = config
         self.player_monitor = player_monitor
         self.process_manager = process_manager
+        self.api_manager = api_manager
         self.logger = get_logger("palworld.idle_restart")
 
         idle_config = getattr(config.monitoring, "idle_restart", None)
@@ -245,7 +246,19 @@ class IdleRestartManager:
         guard against stale player-monitor state or a player connecting
         between the last idle check and the trigger.
         """
+        # Safety check: verify with a fresh API call when possible
         current_count = self.player_monitor.get_current_player_count()
+        if current_count == 0 and self.api_manager is not None:
+            try:
+                import asyncio
+                players = await asyncio.wait_for(
+                    self.api_manager.api_get_players(), timeout=10
+                )
+                if isinstance(players, list):
+                    current_count = len(players)
+            except Exception:
+                pass
+
         if current_count > 0:
             self.logger.info(
                 f"Idle action cancelled — {current_count} player(s) detected "
