@@ -21,22 +21,17 @@ and optional Discord notifications.
 
 ### Docker Compose (recommended)
 
-The Compose stack runs the Palworld server together with Prometheus and
-Grafana. Create the two service-specific environment files first:
+Create the environment file first:
 
 ```bash
 cp .env.palworld.example .env.palworld
-cp .env.grafana.example .env.grafana
 
 # Set ADMIN_PASSWORD in .env.palworld.
-# Set GF_SECURITY_ADMIN_PASSWORD in .env.grafana.
-bash scripts/validate_env_files.sh .env.palworld .env.grafana
 docker compose --env-file .env.palworld up -d
 ```
 
-`.env.palworld` is consumed by the Palworld container and Compose. `.env.grafana`
-contains only Grafana's `GF_*` variables. Do not commit either copied file;
-they can contain passwords, webhook URLs, and other private values.
+`.env.palworld` is consumed by the container. Do not commit this copied file;
+it contains passwords, webhook URLs, and other private values.
 
 The default Compose port bindings are:
 
@@ -45,9 +40,6 @@ The default Compose port bindings are:
 | Palworld | `8211` | UDP | Game traffic |
 | Steam query | `27018` | UDP | Server browser/query traffic |
 | REST API | `127.0.0.1:8212` | TCP | Palworld administration API |
-| Prometheus metrics | `127.0.0.1:9090` | TCP | Metrics endpoint |
-| Prometheus UI | `127.0.0.1:9091` | TCP | Prometheus web UI |
-| Grafana | `127.0.0.1:3000` | TCP | Grafana web UI |
 
 RCON uses port `25575` inside the server container. The provided Compose file
 does not publish it; publish it only to a trusted local interface or private
@@ -62,8 +54,6 @@ The persistent directories created by Compose are:
 | `./palworld_data` | `/home/steam/palworld_server/Pal/Saved` | World and player data |
 | `./palworld_backups` | `/home/steam/backups` | Automatic backups |
 | `./palworld_logs` | `/home/steam/logs` | Server and manager logs |
-| `./palworld_prometheus` | `/prometheus` | Prometheus time-series data |
-| `./palworld_grafana` | `/var/lib/grafana` | Grafana data and dashboards |
 
 ### Docker run
 
@@ -96,7 +86,7 @@ VPN, or authenticated reverse proxy.
 3. Validate the files and start or recreate the container:
 
    ```bash
-   bash scripts/validate_env_files.sh .env.palworld .env.grafana
+   bash scripts/validate_env_files.sh .env.palworld
    docker compose --env-file .env.palworld up -d --force-recreate
    ```
 
