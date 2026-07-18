@@ -239,7 +239,22 @@ class IdleRestartManager:
             self.stats.current_idle_duration = 0.0
 
     async def _trigger_idle_action(self) -> None:
-        """Trigger idle action (restart or pause) depending on mode"""
+        """Trigger idle action (restart or pause) depending on mode.
+
+        Before acting, re-checks the current player count as a safety
+        guard against stale player-monitor state or a player connecting
+        between the last idle check and the trigger.
+        """
+        current_count = self.player_monitor.get_current_player_count()
+        if current_count > 0:
+            self.logger.info(
+                f"Idle action cancelled — {current_count} player(s) detected "
+                f"during safety check"
+            )
+            self._idle_start = None
+            self.stats.current_idle_duration = 0.0
+            return
+
         self.logger.warning(f"Server idle for {self.idle_minutes}m — triggering {self.mode}")
 
         await self._send_discord_notification(

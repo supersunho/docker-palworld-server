@@ -148,6 +148,7 @@ class TestIdleRestartManager:
         """FS-18.15: Triggering pause action increments pause stats."""
         manager.mode = "pause"
         manager.process_manager.pause_server = AsyncMock(return_value=True)
+        manager.player_monitor.get_current_player_count = MagicMock(return_value=0)
 
         with patch.object(manager, "_send_discord_notification", AsyncMock()):
             await manager._trigger_idle_action()
@@ -283,6 +284,7 @@ class TestIdleRestartManagerEdgeCases:
     async def test_trigger_idle_action_restart_success(self, manager):
         """FS-18.x: trigger_idle_action with restart mode updates restart stats."""
         manager.mode = "restart"
+        manager.player_monitor.get_current_player_count = MagicMock(return_value=0)
         with patch.object(manager, "_send_discord_notification", AsyncMock()):
             with patch.object(manager, "_perform_restart", AsyncMock(return_value=True)) as mock_pr:
                 await manager._trigger_idle_action()
