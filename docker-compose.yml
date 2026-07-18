@@ -58,7 +58,7 @@ services:
             - "--storage.tsdb.retention.time=7d"
         depends_on:
             palworld-server:
-                condition: service_healthy
+                condition: service_started
 
     grafana:
         image: grafana/grafana:11.3.0
