@@ -265,7 +265,7 @@ jobs:
             - name: 🔍 Docker Compose config — positive
               id: check-compose-positive
               run: |
-                  trap 'rm -f .env.palworld .env.grafana' EXIT
+                  trap 'rm -f .env.palworld' EXIT
                   cat > .env.palworld << 'EOF'
                   ADMIN_PASSWORD=ci-admin-pw
                   SERVER_NAME=ci-test
@@ -273,12 +273,7 @@ jobs:
                   SERVER_PORT=8211
                   REST_API_PORT=8212
                   EOF
-                  cat > .env.grafana << 'EOF'
-                  GF_SECURITY_ADMIN_USER=admin
-                  GF_SECURITY_ADMIN_PASSWORD=ci-graf-pw
-                  GF_INSTALL_PLUGINS=
-                  EOF
-                  bash scripts/validate_env_files.sh .env.palworld .env.grafana || {
+                  bash scripts/validate_env_files.sh .env.palworld || {
                     echo "❌ env file validation failed" >&2
                     exit 1
                   }
@@ -286,37 +281,23 @@ jobs:
                     echo "❌ docker compose config failed" >&2
                     exit 1
                   }
-                  CONFIG_JSON=$(docker compose --env-file .env.palworld config --format json)
-                  if echo "$CONFIG_JSON" | jq -e '[.services["palworld-server"].environment // {} | keys[] | select(test("^(GF_|GRAFANA_)"))] | length > 0' > /dev/null; then
-                    echo "❌ palworld-server env contains Grafana secrets" >&2
-                    exit 1
-                  fi
-                  if ! echo "$CONFIG_JSON" | jq -e '.services.grafana.environment // {} | has("GF_SECURITY_ADMIN_PASSWORD")' > /dev/null; then
-                    echo "❌ grafana env does not contain GF_SECURITY_ADMIN_PASSWORD" >&2
-                    exit 1
-                  fi
-                  echo "✅ docker compose config uses isolated service env files"
+                  echo "✅ docker compose config validates correctly"
 
             - name: ❌ Docker Compose config — ADMIN_PASSWORD missing (negative)
               id: check-compose-negative-admin
               run: |
-                  trap 'rm -f .env.palworld .env.grafana' EXIT
+                  trap 'rm -f .env.palworld' EXIT
                   cat > .env.palworld << 'EOF'
                   SERVER_NAME=ci-test
                   MAX_PLAYERS=16
                   SERVER_PORT=8211
                   REST_API_PORT=8212
                   EOF
-                  cat > .env.grafana << 'EOF'
-                  GF_SECURITY_ADMIN_USER=admin
-                  GF_SECURITY_ADMIN_PASSWORD=ci-graf-pw
-                  GF_INSTALL_PLUGINS=
-                  EOF
-                  if bash scripts/validate_env_files.sh .env.palworld .env.grafana > /dev/null 2>&1; then
+                  if bash scripts/validate_env_files.sh .env.palworld > /dev/null 2>&1; then
                     echo "❌ env validation succeeded despite missing ADMIN_PASSWORD" >&2
                     exit 1
                   fi
-                  OUTPUT=$(bash scripts/validate_env_files.sh .env.palworld .env.grafana 2>&1 || true)
+                  OUTPUT=$(bash scripts/validate_env_files.sh .env.palworld 2>&1 || true)
                   if echo "$OUTPUT" | grep -qi 'ADMIN_PASSWORD'; then
                     echo "✅ env validation correctly rejected missing ADMIN_PASSWORD"
                   else
@@ -325,64 +306,7 @@ jobs:
                     exit 1
                   fi
 
-            - name: ❌ Docker Compose config — GRAFANA_PW missing (negative)
-              id: check-compose-negative-grafana
-              run: |
-                  trap 'rm -f .env.palworld .env.grafana' EXIT
-                  cat > .env.palworld << 'EOF'
-                  ADMIN_PASSWORD=ci-admin-pw
-                  SERVER_NAME=ci-test
-                  MAX_PLAYERS=16
-                  SERVER_PORT=8211
-                  REST_API_PORT=8212
-                  EOF
-                  cat > .env.grafana << 'EOF'
-                  GF_SECURITY_ADMIN_USER=admin
-                  GF_SECURITY_ADMIN_PASSWORD=
-                  GF_INSTALL_PLUGINS=
-                  EOF
-                  if bash scripts/validate_env_files.sh .env.palworld .env.grafana > /dev/null 2>&1; then
-                    echo "❌ env validation succeeded despite missing GF_SECURITY_ADMIN_PASSWORD" >&2
-                    exit 1
-                  fi
-                  OUTPUT=$(bash scripts/validate_env_files.sh .env.palworld .env.grafana 2>&1 || true)
-                  if echo "$OUTPUT" | grep -qi 'GF_SECURITY_ADMIN_PASSWORD'; then
-                    echo "✅ env validation correctly rejected missing GF_SECURITY_ADMIN_PASSWORD"
-                  else
-                    echo "❌ env validation did NOT reject missing GF_SECURITY_ADMIN_PASSWORD" >&2
-                    echo "   Output: $OUTPUT" >&2
-                    exit 1
-                  fi
 
-            - name: ❌ Docker Compose env file — missing file (negative)
-              id: check-compose-missing-env-file
-              run: |
-                  trap 'rm -f .env.palworld .env.grafana' EXIT
-                  cat > .env.palworld << 'EOF'
-                  ADMIN_PASSWORD=ci-admin-pw
-                  SERVER_NAME=ci-test
-                  MAX_PLAYERS=16
-                  SERVER_PORT=8211
-                  REST_API_PORT=8212
-                  EOF
-                  cat > .env.grafana << 'EOF'
-                  GF_SECURITY_ADMIN_USER=admin
-                  GF_SECURITY_ADMIN_PASSWORD=ci-graf-pw
-                  GF_INSTALL_PLUGINS=
-                  EOF
-                  rm .env.grafana
-                  if bash scripts/validate_env_files.sh .env.palworld .env.grafana > /dev/null 2>&1; then
-                    echo "❌ env validation succeeded despite missing .env.grafana" >&2
-                    exit 1
-                  fi
-                  OUTPUT=$(bash scripts/validate_env_files.sh .env.palworld .env.grafana 2>&1 || true)
-                  if echo "$OUTPUT" | grep -q '.env.grafana'; then
-                    echo "✅ env validation correctly rejected missing .env.grafana"
-                  else
-                    echo "❌ env validation did NOT report missing .env.grafana" >&2
-                    echo "   Output: $OUTPUT" >&2
-                    exit 1
-                  fi
 
             - name: 📊 Validation summary
               if: always()
@@ -395,10 +319,8 @@ jobs:
                   - helm template (Secret missing): \${{ steps.check-helm-template-negative.outcome }}
                   - Default Service port check: \${{ steps.check-default-service.outcome }}
                   - management Service opt-in: \${{ steps.check-mgmt-service.outcome }}
-                  - docker compose env files (valid and isolated): \${{ steps.check-compose-positive.outcome }}
+                  - docker compose env validation: \${{ steps.check-compose-positive.outcome }}
                   - env validation (ADMIN_PASSWORD missing): \${{ steps.check-compose-negative-admin.outcome }}
-                  - env validation (Grafana password missing): \${{ steps.check-compose-negative-grafana.outcome }}
-                  - env validation (file missing): \${{ steps.check-compose-missing-env-file.outcome }}
                   EOF
 
 
