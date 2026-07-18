@@ -6,7 +6,7 @@ Handles INI file generation from configuration objects
 
 import re
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from dataclasses import asdict
 
 from ..config_loader import PalworldConfig
