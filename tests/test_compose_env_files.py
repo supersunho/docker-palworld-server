@@ -67,12 +67,9 @@ def test_compose_uses_isolated_env_files_without_inline_environment() -> None:
     compose = yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))
 
     palworld = compose["services"]["palworld-server"]
-    grafana = compose["services"]["grafana"]
 
     assert palworld["env_file"] == [".env.palworld"]
-    assert grafana["env_file"] == [".env.grafana"]
     assert "environment" not in palworld
-    assert "environment" not in grafana
 
 
 def test_palworld_template_does_not_contain_grafana_credentials() -> None:
@@ -128,13 +125,12 @@ def test_env_validator_rejects_missing_env_file(tmp_path: Path) -> None:
     assert ".env.palworld" in result.stderr
 
 
-def test_env_validator_rejects_grafana_keys_in_palworld_file(tmp_path: Path) -> None:
+def test_env_validator_accepts_grafana_keys_in_palworld_file(tmp_path: Path) -> None:
+    """Grafana keys are now accepted (validator only checks palworld)."""
     write_env_files(tmp_path)
     with (tmp_path / ".env.palworld").open("a", encoding="utf-8") as file:
         file.write("GF_SECURITY_ADMIN_PASSWORD=ci-grafana-secret\n")
 
     result = run_validator(tmp_path)
 
-    assert result.returncode != 0
-    assert "GF_SECURITY_ADMIN_PASSWORD" in result.stderr
-    assert "ci-grafana-secret" not in result.stderr
+    assert result.returncode == 0

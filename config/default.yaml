@@ -234,6 +234,7 @@ steamcmd:
     validate: ${STEAMCMD_VALIDATE:true}
     check_version_update: ${CHECK_VERSION_UPDATE:true}
     update_on_start: ${UPDATE_ON_START:true}
+    force_update: ${FORCE_UPDATE:false}
 
 engine:
     lan_server_max_tick_rate: ${ENGINE_LAN_TICK_RATE:120}

@@ -248,9 +248,21 @@ class PalworldServerManager:
     async def download_server_files(self) -> tuple[bool, bool]:
         """Download/update Palworld server files via SteamCMD.
 
+        Skips SteamCMD when server files already exist on disk.
+        To force a fresh download, set FORCE_UPDATE=true in .env.palworld.
+
         Returns (success, was_updated).
         was_updated is True only when SteamCMD actually downloaded new files.
         """
+        server_exe = self.config.paths.server_dir / "PalServer.sh"
+        if server_exe.exists() and not self.config.steamcmd.force_update:
+            log_server_event(
+                self.logger, "server_download_skip",
+                "Server files already exist, skipping download. "
+                "Set FORCE_UPDATE=true or delete palworld_data to re-download.",
+            )
+            return True, False
+
         log_server_event(
             self.logger, "server_download_start", "Starting Palworld server file download"
         )
