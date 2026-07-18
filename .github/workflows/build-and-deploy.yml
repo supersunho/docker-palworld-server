@@ -213,14 +213,14 @@ jobs:
                   }
                   echo "✅ helm template with Secret succeeded"
 
-            - name: ❌ Helm template — Secret MISSING (negative)
+            - name: ✅ Helm template — Secret auto-generated (positive)
               id: check-helm-template-negative
               run: |
-                  OUTPUT=$(helm template palworld charts/palworld-server 2>&1 || true)
-                  if echo "$OUTPUT" | grep -qiE '(existingSecret.*required|required.*existingSecret)'; then
-                    echo "✅ helm correctly rejected missing existingSecret"
+                  OUTPUT=$(helm template palworld charts/palworld-server 2>&1)
+                  if echo "$OUTPUT" | grep -qE 'kind: Secret'; then
+                    echo "✅ helm auto-generated a Secret (no existingSecret required)"
                   else
-                    echo "❌ helm did NOT reject missing existingSecret" >&2
+                    echo "❌ helm did NOT auto-generate a Secret" >&2
                     echo "   Output: $OUTPUT" >&2
                     exit 1
                   fi
