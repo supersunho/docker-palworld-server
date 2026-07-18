@@ -7,11 +7,13 @@ import os
 import re
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, TypeVar
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ..protocols import IConfigProvider
+
+_DC = TypeVar("_DC")
 
 
 @dataclass
@@ -126,7 +128,7 @@ class ConfigLoader(IConfigProvider):
         return self._create_config_instance()
 
     @staticmethod
-    def _dict_to_dataclass(dc_type: type, section: dict) -> object:
+    def _dict_to_dataclass(dc_type: type[_DC], section: dict) -> _DC:
         """Build a dataclass instance from a config dict section.
 
         Introspects dataclass fields and maps them to dict keys with
@@ -200,7 +202,7 @@ class ConfigLoader(IConfigProvider):
             ("difficulty", DifficultyConfig),
             ("engine", EngineConfig),
         ]
-        configs = {}
+        configs: dict = {}
         for section_key, dc_type in simple_configs:
             section = config_dict.get(section_key, {})
             configs[section_key] = self._dict_to_dataclass(dc_type, section)
