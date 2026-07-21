@@ -842,7 +842,7 @@ jobs:
                   fi
 
             - name: 🏷️ Create comprehensive GitHub Release for Palworld Server
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v3
               with:
                   tag_name: ${{ env.BUILD_VERSION }}
                   name: "Palworld Server ARM64 Release ${{ env.BUILD_VERSION }} (Build #${{ github.run_number }})"
