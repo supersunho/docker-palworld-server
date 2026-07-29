@@ -123,7 +123,6 @@ ignore = ["E501"]
 
 [tool.ruff.format]
 preview = true
-ignore_missing_imports = true
 
 # Pytest configuration
 [tool.pytest.ini_options]

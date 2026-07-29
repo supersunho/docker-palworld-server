@@ -31,7 +31,7 @@ spec:
               sock.connect((service, port))
               sock.send(b"\x00")
               sock.close()
-              print(f"OK - Game service {service}:{port} UDP reachable") 
+              print(f"OK - Game service {service}:{port} UDP reachable")
           except Exception as e:
               print(f"FAIL - Game service {service}:{port} UDP: {e}")
               failures += 1
