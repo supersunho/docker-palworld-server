@@ -562,8 +562,8 @@ class HealthChecker:
             return report
 
 
-async def main():
-    """Main health check function"""
+async def async_main():
+    """Main health check function (async core)"""
     format_json = "--json" in sys.argv
     verbose = "--verbose" in sys.argv
     
@@ -594,9 +594,14 @@ async def main():
         return 1
 
 
+def main():
+    """Synchronous entry point for console_scripts (palworld-health)"""
+    return asyncio.run(async_main())
+
+
 if __name__ == "__main__":
     try:
-        exit_code = asyncio.run(main())
+        exit_code = asyncio.run(async_main())
         sys.exit(exit_code)
     except Exception as e:
         print(f"Health check critical failure: {e}")
