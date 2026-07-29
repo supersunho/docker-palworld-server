@@ -48,12 +48,15 @@ class TestHelpers:
         assert format_bytes(2048) == "2.0 KB"
         assert format_bytes(3 * 1024 * 1024) == "3.0 MB"
         assert format_bytes(2 * 1024 * 1024 * 1024) == "2.0 GB"
+        assert format_bytes(1024 ** 4) == "1.0 TB"
+        assert format_bytes(1024 ** 5) == "1.0 PB"
 
     def test_format_duration(self):
         """FS-22: Human-readable durations."""
         assert format_duration(30) == "30.0s"
         assert format_duration(150) == "2m 30s"
         assert format_duration(7500) == "2h 5m 0s"
+        assert format_duration(999999) == "277h 46m 39s"
 
     @pytest.mark.asyncio
     async def test_retry_async_success_first(self):
@@ -124,8 +127,14 @@ class TestHelpers:
     def test_get_container_id_permission_denied(self, mock_open):
         """FS-22: Returns 'host' on permission error."""
         from src.utils.helpers import get_container_id
+        from src.utils.helpers import get_environment_info, validate_port
 
         assert get_container_id() == "host"
+        info = get_environment_info()
+        assert info["container_id"] == "host"
+        assert validate_port(8080) is True
+        assert validate_port(80) is False
+        assert validate_port(70000) is False
 
     @pytest.mark.asyncio
     async def test_safe_cleanup_async_success(self):
@@ -150,11 +159,19 @@ class TestHelpers:
         """FS-22: Errors during cleanup are logged, not raised."""
         from src.utils.helpers import safe_cleanup
 
-        def _failing_fn():
-            raise ValueError("cleanup failed")
+        async def failing_cleanup():
+            raise ValueError("inner")
 
-        # Should not raise
-        await safe_cleanup(_failing_fn)
+        await safe_cleanup(failing_cleanup)
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager_base_start_stop(self):
+        """Cover the pass stubs in AsyncContextManager."""
+        from src.utils.helpers import AsyncContextManager
+
+        cm = AsyncContextManager()
+        await cm.start()
+        await cm.stop()
 
     @pytest.mark.asyncio
     async def test_async_context_manager(self):
