@@ -130,9 +130,24 @@ class ConfigManager:
     def reload_and_apply(self) -> bool:
         """Regenerate both config files from current YAML config
 
+        Re-reads the YAML config file from disk so that changes made to
+        default.yaml take effect without restarting the container.
+
         Returns True if files were regenerated, False on failure.
         """
         try:
+            # 1. Re-read the YAML config from disk
+            from ..config.base import ConfigLoader  # late import avoids circularity
+
+            config_path = Path(__file__).resolve().parent.parent.parent / "config" / "default.yaml"
+            loader = ConfigLoader(config_path)
+            new_config = loader.load_config()
+
+            # 2. Update the in-memory config
+            self.config = new_config
+            self.generator = SettingsGenerator(new_config)
+
+            # 3. Regenerate INI files from the fresh config
             settings_ok = self.generate_server_settings()
             engine_ok = self.generate_engine_settings()
 
