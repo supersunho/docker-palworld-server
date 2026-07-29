@@ -330,6 +330,8 @@ jobs:
     build:
         needs: [prepare, test, deploy-validate]
         runs-on: ubuntu-latest
+        outputs:
+            build_image: ${{ steps.check-images.outputs.build_image }}
         permissions:
             contents: read
             packages: write
@@ -499,7 +501,7 @@ jobs:
     ##############################################################################
     create-manifest:
         needs: [prepare, build]
-        if: needs.build.result == 'success'
+        if: needs.build.result == 'success' && needs.build.outputs.build_image == 'true'
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -601,6 +603,7 @@ jobs:
     ##############################################################################
     summary:
         needs: [prepare, build]
+        if: needs.build.outputs.build_image == 'true'
         runs-on: ubuntu-latest
         env:
             SOURCE_VERSION: ${{ needs.prepare.outputs.source_version }}
