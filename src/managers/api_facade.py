@@ -346,6 +346,8 @@ class ServerAPIFacade(IServerAPI):
                                     }
                                     players_data.append(player)
                             return players_data
+                        # Header-only (0 players) → empty list
+                        return []
             except Exception as e:
                 self.logger.error(f"RCON get_players error: {e}")
 

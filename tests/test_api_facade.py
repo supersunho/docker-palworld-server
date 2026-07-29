@@ -163,6 +163,16 @@ class TestServerAPIFacade:
         """FS-10.1+4.3: Facade implements IServerAPI protocol."""
         assert isinstance(facade, IServerAPI)
 
+    @pytest.mark.asyncio
+    async def test_get_players_rcon_header_only_returns_empty_list(self, facade):
+        """R2-P2-01: Header-only RCON response (0 players) returns [] not None."""
+        facade._rest_available = False
+        facade._rcon_available = True
+        facade._rcon.get_players = AsyncMock(return_value="name,playeruid,steamid")
+        result = await facade.get_players()
+        assert result is not None
+        assert result == []
+
 
 class TestServerAPIFacadeInitialization:
     """FS-10.6: Facade initialization/cleanup."""
