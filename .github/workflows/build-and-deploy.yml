@@ -519,21 +519,15 @@ jobs:
 
             - name: 🔍 Debug Check downloaded artifact
               run: |
-                  echo "🔍 Debugging artifact download..."
+                  DIGEST_FILE="/tmp/digests/digests-arm64/digest.txt"
+                  echo "🔍 Checking digest artifact..."
                   echo "📁 Contents of /tmp/digests:"
                   ls -la /tmp/digests/ || echo "❌ /tmp/digests directory not found"
-
                   echo ""
-                  echo "📂 Checking arm64 architecture directory:"
-                  if [ -d "/tmp/digests/arm64" ]; then
-                    echo "✅ arm64 directory exists"
-                    if [ -f "/tmp/digests/digests-arm64/digest.txt" ]; then
-                      echo "  📄 digest.txt exists: $(cat /tmp/digests/digests-arm64/digest.txt)"
-                    else
-                      echo "  ❌ digest.txt missing"
-                    fi
+                  if [ -f "$DIGEST_FILE" ]; then
+                    echo "✅ Digest found: $(cat "$DIGEST_FILE")"
                   else
-                    echo "❌ arm64 directory not found"
+                    echo "❌ Digest file missing at $DIGEST_FILE"
                   fi
 
                   echo ""
@@ -707,6 +701,12 @@ jobs:
               uses: actions/checkout@v4
               with:
                   fetch-depth: 0 # Fetch all history for commit history
+            - name: 📥 Download digest artifact
+              uses: actions/download-artifact@v4
+              with:
+                  path: /tmp/digests
+                  pattern: digests-*
+                  merge-multiple: false
             - name: 🕐 Set current date
               run: echo "BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_ENV"
             - name: 📝 Generate release notes with categorized commit history
