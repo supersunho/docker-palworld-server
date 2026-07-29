@@ -380,3 +380,21 @@ def get_backup_manager(config: Optional[PalworldConfig] = None) -> EnhancedBacku
         _backup_manager = EnhancedBackupManager(config)
 
     return _backup_manager
+
+
+async def _async_main():
+    """Async backup scheduler main — runs until cancelled."""
+    mgr = get_backup_manager()
+    await mgr.start_backup_scheduler()
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await mgr.stop_backup_scheduler()
+
+
+def main():
+    """Sync entry point for console_scripts: wraps the async backup scheduler."""
+    return asyncio.run(_async_main())

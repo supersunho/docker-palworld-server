@@ -454,7 +454,7 @@ class PalworldServerManager:
         return self._startup_completed
 
 
-async def main():
+async def _async_main():
     """Main production server function with API readiness verification"""
     config = get_config()
     setup_logging(
@@ -597,8 +597,13 @@ async def main():
     return 0
 
 
+def main():
+    """Sync entry point for console_scripts: wraps the async main."""
+    return asyncio.run(_async_main())
+
+
 if __name__ == "__main__":
     import sys
 
-    exit_code = asyncio.run(main())
+    exit_code = asyncio.run(_async_main())
     sys.exit(exit_code)

@@ -64,7 +64,7 @@ package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["src*", "scripts*"]
 exclude = ["tests*"]
 
 # Black configuration
