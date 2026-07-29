@@ -462,7 +462,7 @@ jobs:
                   docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" test -f /home/steam/palworld_server/PalServer.sh && echo " - ✅ Palworld server binary exists"
 
                   echo "📋 Test 2: Health Check"
-                  docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" python3 /scripts/healthcheck.py --help >/dev/null \
+                  docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" /usr/local/bin/healthcheck --help >/dev/null \
                     && echo " - ✅ Health check command working"
 
                   echo "📋 Test 3: Server Manager"

@@ -124,9 +124,7 @@ class EnhancedBackupManager:
             return aligned - ts
 
         try:
-            parts = self.config.backup.schedule_time.split(":")
-            target_hour = int(parts[0])
-            target_min = int(parts[1])
+            target_hour, target_min = self._parse_schedule_time()
         except (ValueError, IndexError):
             self.logger.warning(
                 "Invalid schedule_time '%s', falling back to 04:00",
@@ -169,7 +167,7 @@ class EnhancedBackupManager:
         return aligned - ts
 
     async def _backup_loop(self):
-        """Main backup creation loop — schedule-aware"""
+        """Main backup creation loop — schedule-aware with calendar dedup"""
         initial_delay = self._next_calendar_schedule()
         self.logger.info(
             "First backup in %ds (schedule: %s%s)",
@@ -184,13 +182,28 @@ class EnhancedBackupManager:
                 current_time = datetime.now()
                 backup_type = self._determine_backup_type(current_time)
 
+                # Skip if this calendar bucket was already completed
+                if self.config.backup.schedule_type != "interval" and not self._needs_backup(backup_type, current_time):
+                    self.logger.debug(
+                        "Skipping %s backup — bucket already completed",
+                        backup_type,
+                    )
+                    await asyncio.sleep(self._next_calendar_schedule())
+                    continue
+
                 self.logger.debug(
-                    f"Creating {backup_type} backup at {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                    "Creating %s backup at %s",
+                    backup_type,
+                    current_time.strftime("%Y-%m-%d %H:%M:%S"),
                 )
 
                 result = await self.create_backup(f"{backup_type}_auto", backup_type)
 
                 if result.get("success"):
+                    # Mark this calendar bucket as completed
+                    key = self._bucket_key(current_time, backup_type)
+                    if key:
+                        self._completed_buckets[key] = current_time.day
                     log_backup_event(
                         self.logger,
                         "backup_complete",
@@ -240,15 +253,58 @@ class EnhancedBackupManager:
                 self.logger.error("Cleanup loop error", error=str(e))
                 await asyncio.sleep(3600)
 
+    def _bucket_key(self, current_time: datetime, backup_type: str) -> str:
+        """Generate a dedup key for a calendar backup bucket.
+
+        Returns a string identifying the time period so the scheduler
+        can skip a bucket that was already completed.
+        """
+        if backup_type == "daily":
+            return f"daily-{current_time.strftime('%Y%m%d')}"
+        elif backup_type == "weekly":
+            # ISO week number: YYYY + 'W' + week number (01-53)
+            return f"weekly-{current_time.strftime('%YW%W')}"
+        elif backup_type == "monthly":
+            return f"monthly-{current_time.strftime('%Y%m')}"
+        return ""
+
+    def _needs_backup(self, backup_type: str, current_time: datetime) -> bool:
+        """Check whether the given calendar bucket still needs a backup.
+
+        Returns True when the bucket has not been completed yet.
+        For 'interval' and 'manual' types this always returns True.
+        """
+        key = self._bucket_key(current_time, backup_type)
+        if not key:
+            return True
+        if self._completed_buckets.get(key) == current_time.day:
+            return False
+        return True
+
     def _determine_backup_type(self, current_time: datetime) -> str:
-        """Determine backup type based on current time"""
-        if current_time.day == 1 and current_time.hour == 2:
+        """Determine backup type based on current time and config.
+
+        Uses the configured schedule_time to decide whether the current
+        slot is monthly (1st at schedule_time), weekly (Sunday at
+        schedule_time), or a regular daily backup.
+        """
+        target_hour, target_min = self._parse_schedule_time()
+
+        if current_time.day == 1 and current_time.hour == target_hour and current_time.minute == target_min:
             return "monthly"
 
-        if current_time.weekday() == 6 and current_time.hour == 3:
+        if current_time.weekday() == 6 and current_time.hour == target_hour and current_time.minute == target_min:
             return "weekly"
 
         return "daily"
+
+    def _parse_schedule_time(self) -> tuple[int, int]:
+        """Parse schedule_time config into (hour, minute), defaulting to (4, 0)."""
+        try:
+            parts = self.config.backup.schedule_time.split(":")
+            return int(parts[0]), int(parts[1])
+        except (ValueError, IndexError):
+            return 4, 0
 
     async def create_backup(self, name: Optional[str] = None, backup_type: str = "manual") -> Dict[str, Any]:
         """Create a backup with specified name and type"""

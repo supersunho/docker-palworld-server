@@ -48,17 +48,19 @@ class TestEnhancedBackupManager:
         assert manager._determine_backup_type(dt) == "daily"
 
     def test_determine_backup_type_weekly(self, manager):
-        """FS-14.2: Sunday 3am is weekly."""
+        """FS-14.2: Sunday at schedule_time is weekly."""
         import datetime
 
+        manager.config.backup.schedule_time = "03:00"
         # Sunday = weekday 6
         dt = datetime.datetime(2024, 6, 16, 3, 0)
         assert manager._determine_backup_type(dt) == "weekly"
 
     def test_determine_backup_type_monthly(self, manager):
-        """FS-14.2: 1st 2am is monthly."""
+        """FS-14.2: 1st at schedule_time is monthly."""
         import datetime
 
+        manager.config.backup.schedule_time = "02:00"
         dt = datetime.datetime(2024, 7, 1, 2, 0)
         assert manager._determine_backup_type(dt) == "monthly"
 
