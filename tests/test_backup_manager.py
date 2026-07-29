@@ -126,3 +126,57 @@ class TestEnhancedBackupManager:
         assert "total_backups" in stats
         assert "total_size_bytes" in stats
         assert "retention_policy" in stats
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_nonexistent(self, manager):
+        """FS-14.x: Restore with nonexistent file returns error."""
+        result = await manager.restore_backup(Path("/nonexistent/backup.tar.gz"))
+        assert result["success"] is False
+        assert "does not exist" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_validates_archive(self, manager, tmp_path):
+        """FS-14.x: Invalid archive returns error."""
+        fake_backup = tmp_path / "bad_backup.tar.gz"
+        fake_backup.write_text("not a tar archive")
+        result = await manager.restore_backup(fake_backup)
+        assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_success(self, tmp_path):
+        """FS-14.x: Valid backup restores SaveGames and Config."""
+        import datetime
+        import tarfile
+
+        server_dir = tmp_path / "server" / "Pal" / "Saved"
+        backup_dir = tmp_path / "backups"
+        config_dir = server_dir / "Config" / "LinuxServer"
+        save_dir = server_dir / "SaveGames" / "world"
+
+        config_dir.mkdir(parents=True)
+        save_dir.mkdir(parents=True)
+
+        (save_dir / "level.sav").write_text("world_data")
+        (config_dir / "PalWorldSettings.ini").write_text("config_data")
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = backup_dir
+        manager = EnhancedBackupManager(config)
+
+        # Create a backup first
+        result = await manager.create_backup("test_restore", "manual")
+        assert result["success"]
+        backup_path = Path(result["filepath"])
+
+        # Modify source data to ensure restore actually replaces it
+        (save_dir / "level.sav").write_text("corrupted")
+        assert (save_dir / "level.sav").read_text() == "corrupted"
+
+        # Restore
+        restore_result = await manager.restore_backup(backup_path)
+        assert restore_result["success"], f"Restore failed: {restore_result.get('error')}"
+
+        # Verify restored content
+        assert (save_dir / "level.sav").exists()
+        assert (save_dir / "level.sav").read_text() == "world_data"

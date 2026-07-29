@@ -297,6 +297,75 @@ class EnhancedBackupManager:
 
         return backups
 
+    async def restore_backup(self, backup_path: Path) -> Dict[str, Any]:
+        """Restore server data from a backup archive.
+
+        Extracts the backup archive to the server's Saved directory.
+        The server should be stopped before calling this.
+
+        Args:
+            backup_path: Path to the backup .tar or .tar.gz file.
+
+        Returns:
+            dict with success bool, error message if applicable,
+            and duration_seconds.
+        """
+        start_time = time.time()
+        try:
+            if not backup_path.exists():
+                return {
+                    "success": False,
+                    "error": f"Backup file does not exist: {backup_path}",
+                    "duration_seconds": round(time.time() - start_time, 2),
+                }
+
+            # Determine compression from file extension
+            is_compressed = backup_path.suffix == ".gz"
+            mode = "r:gz" if is_compressed else "r"
+
+            def extract_tar():
+                with tarfile.open(backup_path, mode) as tar:
+                    # Validate archive structure before extraction
+                    members = tar.getmembers()
+                    arcnames = {m.name for m in members}
+                    has_savegames = any(
+                        n.startswith("SaveGames") or n == "SaveGames" for n in arcnames
+                    )
+                    if not has_savegames:
+                        raise ValueError(
+                            "Archive does not contain 'SaveGames' directory — "
+                            "not a valid Palworld backup"
+                        )
+
+                    # Extract over the server's Saved directory.
+                    # SaveGames/ → source_dir (Pal/Saved/)
+                    # Config/   → config_dir (Pal/Saved/Config)
+                    for member in members:
+                        if member.name.startswith("SaveGames/"):
+                            # Strip SaveGames/ prefix → extract relative to source_dir
+                            member.name = member.name[len("SaveGames/"):]
+                            tar.extract(member, path=self.source_dir)
+                        elif member.name.startswith("Config/"):
+                            config_dir = self.config.paths.server_dir / "Pal" / "Saved" / "Config"
+                            member.name = member.name[len("Config/"):]
+                            tar.extract(member, path=config_dir)
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, extract_tar)
+
+            duration = round(time.time() - start_time, 2)
+            log_backup_event(
+                self.logger,
+                "backup_restore",
+                f"Backup restored from {backup_path.name} in {duration}s",
+            )
+            return {"success": True, "duration_seconds": duration, "file": str(backup_path)}
+
+        except Exception as e:
+            duration = round(time.time() - start_time, 2)
+            self.logger.error(f"Backup restore failed: {e}")
+            return {"success": False, "error": str(e), "duration_seconds": duration}
+
     def cleanup_old_backups(self) -> int:
         """Clean up old backups based on retention policies"""
         if not self.backup_dir.exists():
