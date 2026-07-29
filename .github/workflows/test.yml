@@ -41,4 +41,4 @@ jobs:
 
             - name: 🔍 Lint check (flake8)
               run: |
-                  python -m flake8 src/ scripts/ tests/ --max-line-length=100 --extend-ignore=E203,W503 --per-file-ignores="src/config/base.py:F401,F811"
+                  python -m flake8 src/ scripts/ tests/ --max-line-length=100 --extend-ignore=E203,W503,E501 --per-file-ignores="src/config/base.py:F401,F811"

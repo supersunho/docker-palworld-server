@@ -177,7 +177,6 @@ class ConfigManager:
 
         Returns True if files were regenerated, False on failure.
         """
-        import tempfile
 
         settings_path = (
             self.server_path / "Pal" / "Saved" / "Config" / "LinuxServer" / "PalWorldSettings.ini"
