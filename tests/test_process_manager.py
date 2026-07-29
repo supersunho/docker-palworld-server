@@ -115,8 +115,8 @@ class TestProcessManager:
             "subprocess.PIPE" not in source
         ), "start_server must not use PIPE for long-running process"
 
-    def test_build_server_command_no_options_explicit(self, manager):
-        """FS-10.x: Empty additional_options produces no extras."""
+    def test_build_server_command_includes_default_query_port(self, manager):
+        """F-08: The configured query port is explicit in the startup options."""
         startup_cfg = manager.config.server_startup
         startup_cfg.additional_options = ""
         startup_cfg.use_performance_threads = False
@@ -126,7 +126,7 @@ class TestProcessManager:
         startup_cfg.log_format = "text"
         startup_cfg.enable_public_lobby = False
         opts = manager._build_startup_options()
-        assert len(opts) == 0
+        assert opts == ["-queryport=27015"]
 
     def test_build_server_command_path_with_spaces(self, manager):
         """SEC-3.7: Path with spaces is properly quoted via shlex.join."""
@@ -264,7 +264,8 @@ class TestProcessManager:
         startup_cfg.additional_options = ""
         summary = manager.get_startup_options_summary()
         assert summary["performance_optimization"] is False
-        assert summary["options_count"] == 0
+        assert summary["options_count"] == 1
+        assert summary["generated_options"] == ["-queryport=27015"]
 
     def test_reload_config_signal_failure(self, manager):
         """FS-10.x: reload_config returns False when send_signal fails."""
@@ -384,9 +385,9 @@ class TestProcessManagerEdgeCases:
         options = manager._build_startup_options()
         assert "-logformat=json" in options
 
-    def test_build_server_command_no_options(self, manager):
-        """FS-10.x: _build_server_command works even when no options are generated."""
-        # Disable all option-generating configs
+    def test_build_server_command_with_only_query_option(self, manager):
+        """FS-10.x: _build_server_command works with only the query option."""
+        # Disable all optional features; query port remains explicit.
         cfg = manager.config.server_startup
         cfg.use_performance_threads = False
         cfg.query_port = 27015

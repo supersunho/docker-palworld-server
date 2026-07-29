@@ -54,8 +54,9 @@ class ProcessManager(IProcessManager):
             if startup_cfg.worker_threads_count > 0:
                 options.append(f"-NumberOfWorkerThreadsServer={startup_cfg.worker_threads_count}")
 
-        if startup_cfg.query_port != 27015:
-            options.append(f"-queryport={startup_cfg.query_port}")
+        # Pass the configured query port explicitly, including the engine's
+        # historical default, so the effective server command is auditable.
+        options.append(f"-queryport={startup_cfg.query_port}")
 
         if startup_cfg.enable_public_lobby:
             options.append("-publiclobby")
