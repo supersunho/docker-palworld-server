@@ -115,9 +115,25 @@ class TestCoverageEdgeCases:
         assert hm is hm_before or hm is not None
 
     def test_health_manager_main_imports(self):
-        """health_manager.main entry point exists and imports."""
+        """health_manager.main runs one health check cycle."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
         from src.utils.health_manager import main as hm_main
-        from src.utils.health_manager import get_health_manager
 
-        assert callable(hm_main)
-        assert callable(get_health_manager)
+        # Mock perform_health_check to return immediately
+        mock_health = AsyncMock()
+        mock_health.perform_health_check = AsyncMock(
+            return_value={"check_success": True, "overall_status": "healthy"}
+        )
+        mock_health._update_health_history = MagicMock()
+        mock_health._handle_health_result = AsyncMock()
+
+        with (
+            patch("src.utils.health_manager.get_health_manager", return_value=mock_health),
+            patch("asyncio.sleep", side_effect=asyncio.CancelledError),
+        ):
+            hm_main()
+
+        assert mock_health.perform_health_check.called
+        assert mock_health._update_health_history.called
+        assert mock_health._handle_health_result.called

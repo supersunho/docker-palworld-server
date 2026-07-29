@@ -335,10 +335,15 @@ def main():
             # Run periodic health checks until cancelled
             while True:
                 try:
-                    await manager.check_health()
+                    result = await manager.perform_health_check()
+                    manager._update_health_history(result)
+                    await manager._handle_health_result(result)
+                    await asyncio.sleep(config.monitoring.metrics_interval)
+                except asyncio.CancelledError:
+                    logger.info("Health monitor cancelled")
+                    break
                 except Exception as e:
                     logger.error("Health check error: %s", e)
-                await asyncio.sleep(config.monitoring.metrics_interval)
 
         loop.run_until_complete(_run())
     except KeyboardInterrupt:
