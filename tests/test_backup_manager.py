@@ -297,3 +297,52 @@ class TestEnhancedBackupManager:
 
         result = await manager.restore_backup(malicious)
         assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_create_backup_aborts_on_save_world_false(self, tmp_path):
+        """R2-P2-06: Backup aborts when save_world returns False."""
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = tmp_path / "backups"
+        (tmp_path / "server" / "Pal" / "Saved").mkdir(parents=True)
+        manager = EnhancedBackupManager(config, save_world_callback=AsyncMock(return_value=False))
+
+        result = await manager.create_backup("test", "manual")
+        assert result["success"] is False
+        assert "Save-world returned False" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_create_backup_aborts_on_save_world_exception(self, tmp_path):
+        """R2-P2-06: Backup aborts when save_world raises."""
+        async def failing_save():
+            raise RuntimeError("save failed")
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = tmp_path / "backups"
+        (tmp_path / "server" / "Pal" / "Saved").mkdir(parents=True)
+        manager = EnhancedBackupManager(config, save_world_callback=failing_save)
+
+        result = await manager.create_backup("test", "manual")
+        assert result["success"] is False
+        assert "Save-world exception" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_create_backup_snapshot_not_live(self, tmp_path):
+        """R2-P2-06: Archive is built from a snapshot copy, not live dir."""
+        import tarfile
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = tmp_path / "backups"
+        (tmp_path / "server" / "Pal" / "Saved" / "SaveGames" / "world").mkdir(parents=True)
+        (tmp_path / "server" / "Pal" / "Saved" / "SaveGames" / "world" / "level.sav").write_text("data")
+        manager = EnhancedBackupManager(config)
+
+        result = await manager.create_backup("snapshot_test", "manual")
+        assert result["success"]
+
+        # Verify the archive contains a SaveGames entry (snapshot structure)
+        with tarfile.open(result["filepath"]) as tar:
+            names = tar.getnames()
+            assert any("SaveGames" in n for n in names)

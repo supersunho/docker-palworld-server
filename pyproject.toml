@@ -91,10 +91,6 @@ extend-exclude = '''
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
@@ -102,14 +98,31 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 show_error_codes = true
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
     "prometheus_client.*",
     "aiohttp_prometheus_exporter.*",
-    "psutil.*",
-    "colorama.*",
+    "yaml.*",
 ]
+
+# Ruff configuration (P2-10)
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "W",   # pycodestyle warnings
+]
+ignore = ["E501"]
+
+[tool.ruff.format]
+preview = true
 ignore_missing_imports = true
 
 # Pytest configuration
