@@ -211,6 +211,26 @@ class TestMainEntryPoint:
     @patch("scripts.healthcheck.async_main")
     def test_main_calls_async_main(self, mock_async):
         mock_async.return_value = 0
-        result = sync_main()
+        result = sync_main([])
         assert result == 0
-        mock_async.assert_called_once()
+        mock_async.assert_called_once_with(format_json=False)
+
+    @patch("scripts.healthcheck.async_main")
+    def test_main_passes_json_flag_and_exit_code(self, mock_async):
+        mock_async.return_value = 1
+
+        result = sync_main(["--json"])
+
+        assert result == 1
+        mock_async.assert_called_once_with(format_json=True)
+
+    @patch("scripts.healthcheck.HealthChecker")
+    def test_help_exits_before_health_checks(self, mock_checker, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            sync_main(["--help"])
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "usage:" in output
+        assert "--json" in output
+        mock_checker.assert_not_called()

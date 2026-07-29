@@ -4,6 +4,7 @@ Health check script for Palworld server
 Comprehensive server health monitoring
 """
 
+import argparse
 import sys
 import asyncio
 import ssl
@@ -556,10 +557,19 @@ class HealthChecker:
             return report
 
 
-async def async_main():
-    """Main health check function (async core)"""
-    format_json = "--json" in sys.argv
+def create_parser() -> argparse.ArgumentParser:
+    """Create the command-line argument parser."""
+    parser = argparse.ArgumentParser(description="Check Palworld server health")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output the health report as JSON",
+    )
+    return parser
 
+
+async def async_main(format_json: bool = False):
+    """Main health check function (async core)"""
     checker = HealthChecker()
 
     try:
@@ -584,15 +594,11 @@ async def async_main():
         return 1
 
 
-def main():
+def main(argv=None):
     """Synchronous entry point for console_scripts (palworld-health)"""
-    return asyncio.run(async_main())
+    args = create_parser().parse_args(argv)
+    return asyncio.run(async_main(format_json=args.json))
 
 
 if __name__ == "__main__":
-    try:
-        exit_code = asyncio.run(async_main())
-        sys.exit(exit_code)
-    except Exception as e:
-        print(f"Health check critical failure: {e}")
-        sys.exit(1)
+    sys.exit(main())
