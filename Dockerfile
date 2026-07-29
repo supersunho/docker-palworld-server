@@ -127,7 +127,7 @@ RUN chown -R steam:steam \
     /home/steam/logs
 
 EXPOSE ${SERVER_PORT}/udp \
-       27015/udp \
+       27018/udp \
        ${REST_API_PORT}/tcp \
        ${RCON_PORT}/tcp
 
