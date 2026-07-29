@@ -127,24 +127,20 @@ class ConfigManager:
             )
         return False
 
-    def _validate_config(self, config: 'PalworldConfig') -> None:
+    def _validate_config(self, config: "PalworldConfig") -> None:
         """Validate loaded config — raises ValueError on violation.
 
         Checks port ranges, required fields, and basic type expectations.
         Called by reload_and_apply before staging files.
         """
-        from ..config.palworld.main import PalworldConfig  # noqa: TC006
-
-        # Port ranges
+        self._config: Optional[PalworldConfig] = None
         for field_name, port in [
             ("server.port", config.server.port),
             ("rest_api.port", config.rest_api.port),
             ("rcon.port", config.rcon.port),
         ]:
             if not isinstance(port, int) or port < 1 or port > 65535:
-                raise ValueError(
-                    f"{field_name} ({port}) is outside valid port range (1-65535)"
-                )
+                raise ValueError(f"{field_name} ({port}) is outside valid port range (1-65535)")
 
         # Boolean sanity
         for field_name, val in [
@@ -172,7 +168,10 @@ class ConfigManager:
         Returns True if files were regenerated, False on failure.
         """
         import tempfile
-        settings_path = self.server_path / "Pal" / "Saved" / "Config" / "LinuxServer" / "PalWorldSettings.ini"
+
+        settings_path = (
+            self.server_path / "Pal" / "Saved" / "Config" / "LinuxServer" / "PalWorldSettings.ini"
+        )
         engine_path = self.server_path / "Pal" / "Saved" / "Config" / "LinuxServer" / "Engine.ini"
 
         try:

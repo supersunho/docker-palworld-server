@@ -169,7 +169,7 @@ directory = "coverage_html"
 # Flake8 configuration
 [tool.flake8]
 max-line-length = 100
-extend-ignore = ["E203", "W503"]
+extend-ignore = ["E203", "W503", "E501"]
 exclude = [
     ".git",
     "__pycache__",

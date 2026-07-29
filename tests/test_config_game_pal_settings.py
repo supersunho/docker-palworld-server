@@ -36,9 +36,9 @@ class TestPalSettingsConfig:
         """Default values match expectations."""
         config = PalSettingsConfig()
         for field_name, expected in self.EXPECTED_DEFAULTS.items():
-            assert getattr(config, field_name) == expected, (
-                f"Expected {field_name}={expected}, got {getattr(config, field_name)}"
-            )
+            assert (
+                getattr(config, field_name) == expected
+            ), f"Expected {field_name}={expected}, got {getattr(config, field_name)}"
 
     def test_field_count(self):
         """Field count guards against drift."""
@@ -51,7 +51,9 @@ class TestPalSettingsConfig:
 
     def test_custom_values(self):
         """Constructor args propagate correctly."""
-        config = PalSettingsConfig(exp_rate=3.0, pal_capture_rate=2.5, egg_default_hatching_time=48.0)
+        config = PalSettingsConfig(
+            exp_rate=3.0, pal_capture_rate=2.5, egg_default_hatching_time=48.0
+        )
         assert config.exp_rate == 3.0
         assert config.pal_capture_rate == 2.5
         assert config.egg_default_hatching_time == 48.0
@@ -63,9 +65,14 @@ class TestPalSettingsConfig:
         restored = PalSettingsConfig(**d)
         assert restored == config
 
-    @pytest.mark.parametrize("field_name", [
-        "exp_rate", "pal_capture_rate", "pal_spawn_num_rate",
-    ])
+    @pytest.mark.parametrize(
+        "field_name",
+        [
+            "exp_rate",
+            "pal_capture_rate",
+            "pal_spawn_num_rate",
+        ],
+    )
     def test_rate_boundaries(self, field_name):
         """Rate fields accept boundary values (zero, negative, very large)."""
         for val in [0.0, -1.0, 100.0]:

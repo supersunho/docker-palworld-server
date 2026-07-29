@@ -55,7 +55,9 @@ class MessageLoader:
             else:
                 raise RuntimeError(f"Failed to load default language file: {e}")
 
-    def get_message(self, message_path: str, language: Optional[str] = None, **format_kwargs) -> str:
+    def get_message(
+        self, message_path: str, language: Optional[str] = None, **format_kwargs
+    ) -> str:
         """
         Get localized message with random variation support
 
@@ -151,7 +153,9 @@ class MessageLoader:
 _message_loader: Optional[MessageLoader] = None
 
 
-def get_message_loader(locales_dir: Optional[str] = None, default_language: str = "ko") -> MessageLoader:
+def get_message_loader(
+    locales_dir: Optional[str] = None, default_language: str = "ko"
+) -> MessageLoader:
     """Get global message loader instance (singleton pattern)"""
     global _message_loader
 

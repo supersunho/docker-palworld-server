@@ -60,9 +60,14 @@ class TestGameplayConfig:
         restored = GameplayConfig(**d)
         assert restored == config
 
-    @pytest.mark.parametrize("field_name", [
-        "enable_friendly_fire", "enable_non_login_penalty", "enable_fast_travel",
-    ])
+    @pytest.mark.parametrize(
+        "field_name",
+        [
+            "enable_friendly_fire",
+            "enable_non_login_penalty",
+            "enable_fast_travel",
+        ],
+    )
     def test_toggle_fields(self, field_name):
         """Boolean fields accept both True and False."""
         for val in [True, False]:

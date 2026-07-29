@@ -2,7 +2,7 @@
 """
 Monitoring configuration classes
 """
-
+from typing import Optional
 from dataclasses import dataclass, field
 from typing import Dict, Any
 from .idle_restart import IdleRestartConfig

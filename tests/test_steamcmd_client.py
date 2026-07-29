@@ -87,7 +87,9 @@ class TestSteamCMDManager:
         with (
             patch.object(steamcmd_manager, "validate_steamcmd", return_value=True),
             patch.object(steamcmd_manager, "_ensure_updated", AsyncMock(return_value=True)),
-            patch.object(steamcmd_manager, "_run_and_stream", AsyncMock(return_value=(1, ["error"]))),
+            patch.object(
+                steamcmd_manager, "_run_and_stream", AsyncMock(return_value=(1, ["error"]))
+            ),
         ):
             assert await steamcmd_manager.run_command(["+quit"]) == (False, ["error"])
 

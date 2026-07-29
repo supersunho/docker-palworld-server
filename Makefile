@@ -47,7 +47,7 @@ test-match:
 
 ## Lint with flake8
 lint:
-	.venv/bin/python -m flake8 src/ tests/ --max-line-length=100
+	.venv/bin/python -m flake8 src/ scripts/ tests/ --max-line-length=100 --per-file-ignores="src/config/base.py:F401,F811"
 
 ## Type check with mypy
 typecheck:

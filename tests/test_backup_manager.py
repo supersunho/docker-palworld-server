@@ -314,6 +314,7 @@ class TestEnhancedBackupManager:
     @pytest.mark.asyncio
     async def test_create_backup_aborts_on_save_world_exception(self, tmp_path):
         """R2-P2-06: Backup aborts when save_world raises."""
+
         async def failing_save():
             raise RuntimeError("save failed")
 
@@ -336,7 +337,9 @@ class TestEnhancedBackupManager:
         config.paths.server_dir = tmp_path / "server"
         config.paths.backup_dir = tmp_path / "backups"
         (tmp_path / "server" / "Pal" / "Saved" / "SaveGames" / "world").mkdir(parents=True)
-        (tmp_path / "server" / "Pal" / "Saved" / "SaveGames" / "world" / "level.sav").write_text("data")
+        (tmp_path / "server" / "Pal" / "Saved" / "SaveGames" / "world" / "level.sav").write_text(
+            "data"
+        )
         manager = EnhancedBackupManager(config)
 
         result = await manager.create_backup("snapshot_test", "manual")

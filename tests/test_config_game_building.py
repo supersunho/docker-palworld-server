@@ -42,10 +42,15 @@ class TestBuildingConfig:
         restored = BuildingConfig(**d)
         assert restored == config
 
-    @pytest.mark.parametrize("field_name", [
-        "build_object_damage_rate", "build_object_deterioration_damage_rate",
-        "collection_drop_rate", "enemy_drop_item_rate",
-    ])
+    @pytest.mark.parametrize(
+        "field_name",
+        [
+            "build_object_damage_rate",
+            "build_object_deterioration_damage_rate",
+            "collection_drop_rate",
+            "enemy_drop_item_rate",
+        ],
+    )
     def test_boundary_values(self, field_name):
         """Accept boundary values (zero, negative, large)."""
         for val in [0.0, -1.0, 100.0]:

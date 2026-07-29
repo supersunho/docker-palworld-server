@@ -10,17 +10,16 @@ import logging
 import logging.handlers
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
-
+from typing import Any, Optional
+from typing import List, Callable, Union
 import structlog
-from structlog.types import EventDict, Processor
 import colorama
 
 
 class ContextProcessor:
     """Processor to add context information"""
 
-    def __call__(self, logger: Any, name: str, event_dict: EventDict) -> EventDict:
+    def __call__(self, logger: Any, name: str, event_dict: dict) -> dict:
         """Add context information to event"""
         event_dict["pid"] = os.getpid()
         event_dict["logger"] = name

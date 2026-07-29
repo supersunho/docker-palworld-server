@@ -2,9 +2,8 @@
 """
 Complete Palworld configuration
 """
-
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
-from pathlib import Path
 from ..base import ConfigPaths
 from ..server.server import ServerConfig, ServerStartupConfig
 from ..server.rest_api import RestAPIConfig

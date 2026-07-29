@@ -28,24 +28,24 @@ class ConfigPaths:
 
 # Use TYPE_CHECKING to avoid circular imports during runtime
 if TYPE_CHECKING:
-    from .server.server import ServerConfig, ServerStartupConfig
-    from .server.rcon import RconConfig
-    from .server.rest_api import RestAPIConfig
-    from .monitoring.monitoring import MonitoringConfig
-    from .monitoring.backup import BackupConfig
-    from .monitoring.idle_restart import IdleRestartConfig
-    from .integration.discord import DiscordConfig
-    from .integration.steamcmd import SteamCMDConfig
-    from .game.gameplay import GameplayConfig
-    from .game.items import ItemsConfig
-    from .game.base_camp import BaseCampConfig
-    from .game.guild import GuildConfig
-    from .game.pal_settings import PalSettingsConfig
-    from .game.building import BuildingConfig
-    from .game.difficulty import DifficultyConfig
-    from .palworld.engine import EngineConfig
-    from .palworld.settings import PalworldSettings
-    from .palworld.main import PalworldConfig
+    from .server.server import ServerConfig, ServerStartupConfig  # noqa: F401
+    from .server.rcon import RconConfig  # noqa: F401
+    from .server.rest_api import RestAPIConfig  # noqa: F401
+    from .monitoring.monitoring import MonitoringConfig  # noqa: F401
+    from .monitoring.backup import BackupConfig  # noqa: F401
+    from .monitoring.idle_restart import IdleRestartConfig  # noqa: F401
+    from .integration.discord import DiscordConfig  # noqa: F401
+    from .integration.steamcmd import SteamCMDConfig  # noqa: F401
+    from .game.gameplay import GameplayConfig  # noqa: F401
+    from .game.items import ItemsConfig  # noqa: F401
+    from .game.base_camp import BaseCampConfig  # noqa: F401
+    from .game.guild import GuildConfig  # noqa: F401
+    from .game.pal_settings import PalSettingsConfig  # noqa: F401
+    from .game.building import BuildingConfig  # noqa: F401
+    from .game.difficulty import DifficultyConfig  # noqa: F401
+    from .palworld.engine import EngineConfig  # noqa: F401
+    from .palworld.settings import PalworldSettings  # noqa: F401
+    from .palworld.main import PalworldConfig  # noqa: F401
 
 
 class ConfigLoader(IConfigProvider):
@@ -170,6 +170,7 @@ class ConfigLoader(IConfigProvider):
         coerced '00123' to 123 or 'true' to True.
         """
         import dataclasses
+
         kwargs = {}
         for f in dataclasses.fields(dc_type):
             if f.name in section:
@@ -249,6 +250,7 @@ class ConfigLoader(IConfigProvider):
     def _warn_unknown_keys(section_name: str, dc_type: type, section: dict, logger=None) -> None:
         """Log a warning for unknown keys in a config section."""
         import dataclasses
+
         known = {f.name for f in dataclasses.fields(dc_type)}
         unknown = set(section.keys()) - known
         if unknown:
@@ -257,6 +259,7 @@ class ConfigLoader(IConfigProvider):
                 logger.warning(msg)
             else:
                 import logging
+
                 logging.getLogger("palworld.config").warning(msg)
 
     def _create_config_instance(self):
@@ -354,8 +357,10 @@ class ConfigLoader(IConfigProvider):
         # --- PalworldSettings with CamelCase keys ---
         palworld_settings_dict = config_dict.get("palworld_settings", {})
         palworld_settings_config = PalworldSettings(
-            **{f.name: palworld_settings_dict.get(f.name, f.default)
-               for f in __import__('dataclasses').fields(PalworldSettings)}
+            **{
+                f.name: palworld_settings_dict.get(f.name, f.default)
+                for f in __import__("dataclasses").fields(PalworldSettings)
+            }
         )
 
         language = config_dict.get("language", "ko")
@@ -439,7 +444,7 @@ def get_config(config_path: Optional[Union[str, Path]] = None):
 
 def reload_config():
     """Reload configuration"""
-    global _config_instance, _config_loader
+    global _config_instance
 
     if _config_loader is None:
         raise RuntimeError("Configuration loader not initialized")

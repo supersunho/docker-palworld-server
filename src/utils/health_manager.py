@@ -7,10 +7,8 @@ Continuous monitoring with automatic recovery and alerting
 import asyncio
 import inspect
 import time
-from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass
-import subprocess
 
 from ..config_loader import PalworldConfig
 from ..logging_setup import get_logger, log_server_event
@@ -99,15 +97,15 @@ class HealthManager:
         """Perform comprehensive health check"""
         try:
             process = await asyncio.create_subprocess_exec(
-                "python3", "/app/scripts/healthcheck.py", "--json",
+                "python3",
+                "/app/scripts/healthcheck.py",
+                "--json",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
 
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=30
-                )
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
@@ -286,10 +284,9 @@ async def clear_cache_recovery(health_result: Dict[str, Any]) -> None:
     log_server_event(logger, "recovery_cache", "Clearing temporary files and caches")
 
     try:
-        import shutil
-        import tempfile
+        import shutil  # noqa: F401
+        import tempfile  # noqa: F401
 
-        temp_dir = tempfile.gettempdir()
         logger.info("Cache clearing recovery procedure executed")
 
     except Exception as e:

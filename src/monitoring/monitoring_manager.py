@@ -27,7 +27,9 @@ class MonitoringManager:
         self.player_monitor = PlayerMonitor(config, api_manager)
         self.server_monitor = ServerMonitor(config, process_manager, api_manager)
         self.event_dispatcher = EventDispatcher(config)
-        self.idle_restart_manager = IdleRestartManager(config, self.player_monitor, process_manager, api_manager)
+        self.idle_restart_manager = IdleRestartManager(
+            config, self.player_monitor, process_manager, api_manager
+        )
 
         self.metrics_collector = MetricsCollector(config)
 

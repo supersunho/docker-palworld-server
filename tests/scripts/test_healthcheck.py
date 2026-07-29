@@ -85,13 +85,17 @@ class TestHealthCheckerConstruction:
         checker = HealthChecker()
         assert checker.admin_password == ""
 
-    @patch.dict(os.environ, {
-        "ADMIN_PASSWORD": "pass",
-        "REST_API_ENABLED": "false",
-        "RCON_ENABLED": "false",
-        "REST_API_PORT": "9999",
-        "RCON_PORT": "12345",
-    }, clear=True)
+    @patch.dict(
+        os.environ,
+        {
+            "ADMIN_PASSWORD": "pass",
+            "REST_API_ENABLED": "false",
+            "RCON_ENABLED": "false",
+            "REST_API_PORT": "9999",
+            "RCON_PORT": "12345",
+        },
+        clear=True,
+    )
     def test_init_custom_env(self):
         checker = HealthChecker()
         assert checker.rest_api_enabled is False
@@ -155,9 +159,12 @@ class TestOverallStatus:
         assert c.get_overall_status() == HealthStatus.UNHEALTHY
 
     def test_critical_overrides_all(self):
-        c = self._checker_with_results([
-            HealthStatus.HEALTHY, HealthStatus.CRITICAL,
-        ])
+        c = self._checker_with_results(
+            [
+                HealthStatus.HEALTHY,
+                HealthStatus.CRITICAL,
+            ]
+        )
         assert c.get_overall_status() == HealthStatus.CRITICAL
 
 

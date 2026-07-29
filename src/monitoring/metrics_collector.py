@@ -7,10 +7,9 @@ Log-based + Prometheus monitoring for Palworld server performance tracking
 import asyncio
 import psutil
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
-from pathlib import Path
 import gc
 
 from ..config_loader import PalworldConfig
@@ -18,7 +17,7 @@ from ..logging_setup import get_logger, log_server_event
 
 # Prometheus metrics (module-level, registered once)
 try:
-    from prometheus_client import start_http_server, Gauge, Counter, Histogram, generate_latest
+    from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
     # System metrics
     pal_cpu_percent = Gauge("pal_cpu_percent", "CPU usage percentage")
@@ -444,4 +443,5 @@ def main():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

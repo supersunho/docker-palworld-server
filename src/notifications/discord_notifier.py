@@ -4,10 +4,9 @@ Discord notification system for Palworld server
 Event-based notifications with webhook integration and multi-language support
 """
 
-import asyncio
 import aiohttp
 from datetime import datetime, UTC
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from enum import Enum
 
 from ..config_loader import PalworldConfig

@@ -85,7 +85,6 @@ async def wait_for_api_ready(manager, max_wait_time: int = 60, check_interval: i
 
             await asyncio.sleep(check_interval)
 
-    total_elapsed = int(time.time() - start_time)
     logger.error(
         f"REST API did not become ready within {max_wait_time} seconds (total attempts: {attempt})"
     )
@@ -263,12 +262,14 @@ class PalworldServerManager:
 
         if server_exe.exists() and not should_force:
             log_server_event(
-                self.logger, "server_update_check",
+                self.logger,
+                "server_update_check",
                 "Server files exist, checking for updates via SteamCMD...",
             )
         elif server_exe.exists() and should_force:
             log_server_event(
-                self.logger, "server_download_force",
+                self.logger,
+                "server_download_force",
                 "Forcing full re-download of server files...",
             )
 
@@ -334,7 +335,7 @@ class PalworldServerManager:
     def generate_server_settings(self) -> bool:
         """Generate server settings file"""
         try:
-            settings_content = self.settings_generator.generate_server_settings()
+            self.settings_generator.generate_server_settings()
             success = self.settings_generator.write_server_settings()
             return success
         except Exception as e:
@@ -344,7 +345,7 @@ class PalworldServerManager:
     def generate_engine_settings(self) -> bool:
         """Generate engine settings file"""
         try:
-            engine_content = self.settings_generator.generate_engine_settings()
+            self.settings_generator.generate_engine_settings()
             success = self.settings_generator.write_engine_settings()
             return success
         except Exception as e:
@@ -527,7 +528,6 @@ async def _async_main():
 
             try:
                 # Start update-check background task if enabled
-                check_version_task = None
                 if manager.config.steamcmd.check_version_update:
 
                     async def _check_update_loop():
@@ -569,7 +569,7 @@ async def _async_main():
                                 print(f"Version check failed: {e}")
                             await asyncio.sleep(check_interval)
 
-                    check_version_task = asyncio.create_task(_check_update_loop())
+                    asyncio.create_task(_check_update_loop())
 
                 print("Server operational. Monitoring in progress...")
 

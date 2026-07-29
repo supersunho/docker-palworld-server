@@ -76,7 +76,7 @@ class IdleRestartManager:
             log_server_event(
                 self.logger,
                 "idle_restart_init",
-                f"Idle restart manager initialized",
+                "Idle restart manager initialized",
                 idle_minutes=self.idle_minutes,
                 mode=self.mode,
                 discord_enabled=self.discord_notify,
@@ -207,16 +207,14 @@ class IdleRestartManager:
         """Handle server state when players are online"""
         # If paused, resume immediately
         if self._paused:
-            self.logger.info(f"Player detected — resuming server from pause")
+            self.logger.info("Player detected — resuming server from pause")
             # Retry resume up to 3 times with 30s sleep between attempts
             resume_ok = False
             for attempt in range(3):
                 resume_ok = await self.process_manager.resume_server()
                 if resume_ok:
                     break
-                self.logger.warning(
-                    f"Resume attempt {attempt + 1}/3 failed — retrying in 30s"
-                )
+                self.logger.warning(f"Resume attempt {attempt + 1}/3 failed — retrying in 30s")
                 await asyncio.sleep(30)
 
             if resume_ok:
@@ -224,12 +222,10 @@ class IdleRestartManager:
                 self._pause_start_time = None
                 self.stats.total_resumes += 1
                 await self._send_discord_notification(
-                    "resume", f"Player detected — server resumed from pause"
+                    "resume", "Player detected — server resumed from pause"
                 )
             else:
-                self.logger.error(
-                    "Resume failed after 3 attempts — forcing full restart"
-                )
+                self.logger.error("Resume failed after 3 attempts — forcing full restart")
                 await self._perform_restart()
                 self._paused = False
                 self._pause_start_time = None
@@ -258,9 +254,8 @@ class IdleRestartManager:
         if current_count == 0 and self.api_manager is not None:
             try:
                 import asyncio
-                players = await asyncio.wait_for(
-                    self.api_manager.get_players(), timeout=10
-                )
+
+                players = await asyncio.wait_for(self.api_manager.get_players(), timeout=10)
                 if isinstance(players, list):
                     current_count = len(players)
                 elif players is None:

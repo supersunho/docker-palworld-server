@@ -150,7 +150,9 @@ class EnhancedBackupManager:
 
         if self.config.backup.schedule_type == "monthly":
             # Next 1st of month
-            target = now.replace(day=1, hour=target_hour, minute=target_min, second=0, microsecond=0)
+            target = now.replace(
+                day=1, hour=target_hour, minute=target_min, second=0, microsecond=0
+            )
             if target <= now:
                 # Move to next month
                 month = now.month + 1
@@ -158,7 +160,15 @@ class EnhancedBackupManager:
                 if month > 12:
                     month = 1
                     year += 1
-                target = now.replace(year=year, month=month, day=1, hour=target_hour, minute=target_min, second=0, microsecond=0)
+                target = now.replace(
+                    year=year,
+                    month=month,
+                    day=1,
+                    hour=target_hour,
+                    minute=target_min,
+                    second=0,
+                    microsecond=0,
+                )
             return (target - now).total_seconds()
 
         # Fallback: interval
@@ -173,7 +183,11 @@ class EnhancedBackupManager:
             "First backup in %ds (schedule: %s%s)",
             initial_delay,
             self.config.backup.schedule_type,
-            f" @ {self.config.backup.schedule_time}" if self.config.backup.schedule_type != "interval" else "",
+            (
+                f" @ {self.config.backup.schedule_time}"
+                if self.config.backup.schedule_type != "interval"
+                else ""
+            ),
         )
         await asyncio.sleep(initial_delay)
 
@@ -183,7 +197,9 @@ class EnhancedBackupManager:
                 backup_type = self._determine_backup_type(current_time)
 
                 # Skip if this calendar bucket was already completed
-                if self.config.backup.schedule_type != "interval" and not self._needs_backup(backup_type, current_time):
+                if self.config.backup.schedule_type != "interval" and not self._needs_backup(
+                    backup_type, current_time
+                ):
                     self.logger.debug(
                         "Skipping %s backup — bucket already completed",
                         backup_type,
@@ -290,10 +306,18 @@ class EnhancedBackupManager:
         """
         target_hour, target_min = self._parse_schedule_time()
 
-        if current_time.day == 1 and current_time.hour == target_hour and current_time.minute == target_min:
+        if (
+            current_time.day == 1
+            and current_time.hour == target_hour
+            and current_time.minute == target_min
+        ):
             return "monthly"
 
-        if current_time.weekday() == 6 and current_time.hour == target_hour and current_time.minute == target_min:
+        if (
+            current_time.weekday() == 6
+            and current_time.hour == target_hour
+            and current_time.minute == target_min
+        ):
             return "weekly"
 
         return "daily"
@@ -306,7 +330,9 @@ class EnhancedBackupManager:
         except (ValueError, IndexError):
             return 4, 0
 
-    async def create_backup(self, name: Optional[str] = None, backup_type: str = "manual") -> Dict[str, Any]:
+    async def create_backup(
+        self, name: Optional[str] = None, backup_type: str = "manual"
+    ) -> Dict[str, Any]:
         """Create a backup with specified name and type"""
         start_time = time.time()
 
@@ -534,10 +560,12 @@ class EnhancedBackupManager:
                             )
 
                         if norm.startswith("SaveGames/") or norm == "SaveGames":
-                            stripped = norm[len("SaveGames/"):] if norm.startswith("SaveGames/") else ""
+                            stripped = (
+                                norm[len("SaveGames/") :] if norm.startswith("SaveGames/") else ""
+                            )
                             target_root = Path(self.source_dir).resolve()
                         elif norm.startswith("Config/") or norm == "Config":
-                            stripped = norm[len("Config/"):] if norm.startswith("Config/") else ""
+                            stripped = norm[len("Config/") :] if norm.startswith("Config/") else ""
                             target_root = Path(config_dir).resolve()
                         else:
                             raise ValueError(
@@ -547,7 +575,10 @@ class EnhancedBackupManager:
 
                         # Resolve the full extracted path and verify it stays under root
                         candidate = (target_root / stripped).resolve()
-                        if not str(candidate).startswith(str(target_root) + "/") and candidate != target_root:
+                        if (
+                            not str(candidate).startswith(str(target_root) + "/")
+                            and candidate != target_root
+                        ):
                             raise ValueError(
                                 f"Extracted path '{raw}' resolves outside target directory "
                                 f"({candidate}) — refusing to extract"
@@ -557,7 +588,9 @@ class EnhancedBackupManager:
 
                     # 3. Check top-level SaveGames/ Config/ structure
                     arcnames = {m.name for m in members}
-                    has_savegames = any(n == "SaveGames" or n.startswith("SaveGames/") for n in arcnames)
+                    has_savegames = any(
+                        n == "SaveGames" or n.startswith("SaveGames/") for n in arcnames
+                    )
                     if not has_savegames:
                         raise ValueError(
                             "Archive does not contain 'SaveGames/' directory — "
@@ -567,6 +600,7 @@ class EnhancedBackupManager:
                     # 4. Clean staging directory
                     if staging_dir.exists():
                         import shutil
+
                         shutil.rmtree(staging_dir)
                     staging_dir.mkdir(parents=True, exist_ok=True)
 
@@ -575,6 +609,7 @@ class EnhancedBackupManager:
 
                     # 6. Atomically move extracted files to their target roots
                     import shutil
+
                     for member, (target_root, stripped) in allowed_roots.items():
                         if member.isdir():
                             continue  # directories are created by extractall
@@ -605,6 +640,7 @@ class EnhancedBackupManager:
             if staging_dir is not None:
                 try:
                     import shutil
+
                     if staging_dir.exists():
                         shutil.rmtree(staging_dir)
                 except Exception:
@@ -743,4 +779,5 @@ def main():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

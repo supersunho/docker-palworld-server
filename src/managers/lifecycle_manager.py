@@ -10,7 +10,7 @@ from typing import Optional, Any
 
 from ..config_loader import PalworldConfig
 from .process_manager import ProcessManager
-from ..logging_setup import get_logger, log_server_event
+from ..logging_setup import get_logger
 
 
 async def verify_server_startup(process_manager, max_wait_time: int = 30) -> bool:

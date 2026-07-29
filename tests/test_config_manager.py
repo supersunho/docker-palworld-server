@@ -156,7 +156,9 @@ class TestConfigManager:
         """FS-11.12: reload_and_apply returns False on generator exception."""
         with (
             patch("src.managers.config_manager.Path.exists", return_value=True),
-            patch("src.managers.config_manager.Path.read_text", return_value="server:\n  name: Test\n"),
+            patch(
+                "src.managers.config_manager.Path.read_text", return_value="server:\n  name: Test\n"
+            ),
             patch("src.managers.config_manager.Path.resolve") as mock_resolve,
             patch("src.config.base.ConfigLoader") as mock_loader_cls,
             patch("src.managers.config_manager.SettingsGenerator") as mock_gen_cls,

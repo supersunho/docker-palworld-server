@@ -39,9 +39,7 @@ class RestAPIClient:
         )
         timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=20)
 
-        ssl_context = (
-            ssl.create_default_context() if self.config.rest_api.tls_enabled else None
-        )
+        ssl_context = ssl.create_default_context() if self.config.rest_api.tls_enabled else None
         connector = aiohttp.TCPConnector(
             limit=10, limit_per_host=5, keepalive_timeout=60, ssl=ssl_context
         )

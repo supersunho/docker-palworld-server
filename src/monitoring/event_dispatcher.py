@@ -4,7 +4,6 @@ Event dispatcher for Palworld server monitoring
 Handles Discord notifications and other event-based actions
 """
 
-import asyncio
 from typing import Optional
 
 from ..config_loader import PalworldConfig

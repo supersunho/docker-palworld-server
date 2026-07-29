@@ -70,8 +70,6 @@ class RconClient:
         env = os.environ.copy()
         env["RCON_PASSWORD"] = self.password
 
-        last_exception = None
-
         for attempt in range(retry_count + 1):
             try:
                 start_time = time.time()
@@ -108,7 +106,6 @@ class RconClient:
                         return None
 
             except Exception as e:
-                last_exception = e
                 if attempt < retry_count:
                     await asyncio.sleep(self._retry_delay * (2**attempt))
                     continue
