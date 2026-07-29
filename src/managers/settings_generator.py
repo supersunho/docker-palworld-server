@@ -235,7 +235,8 @@ class SettingsGenerator:
         if isinstance(value, bool):
             return str(value).capitalize()
         elif isinstance(value, str):
-            return f'"{value}"' if value else '""'
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            return f'"{escaped}"' if value else '""'
         elif isinstance(value, (int, float)):
             return str(value)
         else:
