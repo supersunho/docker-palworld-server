@@ -37,7 +37,12 @@ jobs:
             - name: 📊 Check src coverage gate (75%)
               if: always()
               run: |
-                  python -m pytest --tb=short --cov=src --cov-report=term --cov-fail-under=75 -q 2>&1 | tail -3
+                  set -o pipefail
+                  coverage_output="${RUNNER_TEMP}/src-coverage-output.txt"
+                  python -m pytest --tb=short --cov=src --cov-report=term --cov-fail-under=75 -q 2>&1 | tee "$coverage_output"
+                  pytest_status=${PIPESTATUS[0]}
+                  tail -3 "$coverage_output"
+                  exit "$pytest_status"
 
             - name: 🔍 Lint check (flake8)
               run: |
