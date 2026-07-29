@@ -63,6 +63,7 @@ class EnhancedBackupManager:
         self._running = False
         # Serialise backup operations to prevent concurrent archive creation
         self._backup_lock = asyncio.Lock()
+        self._restore_lock = asyncio.Lock()
         # Dedup tracking: completed daily/weekly/monthly bucket keys
         # \"daily-YYYYMMDD\", \"weekly-YYYYWww\", \"monthly-YYYYMM\"
         self._completed_buckets: Dict[str, int] = {}
@@ -502,12 +503,11 @@ class EnhancedBackupManager:
     async def restore_backup(self, backup_path: Path) -> Dict[str, Any]:
         """Restore server data from a backup archive.
 
-        Extracts the backup archive to the server's Saved directory.
-        The server should be stopped before calling this.
+        Extracts the backup archive to a unique staging directory with
+        rollback support. Uses _restore_lock to prevent concurrent restores.
 
         Security: rejects path traversal, absolute paths, symlinks,
-        hardlinks, and device entries. Extracts to a staging directory
-        and atomically moves approved files into place.
+        hardlinks, and device entries.
 
         Args:
             backup_path: Path to the backup .tar or .tar.gz file.
@@ -518,145 +518,188 @@ class EnhancedBackupManager:
         """
         start_time = time.time()
         staging_dir = None
-        try:
-            if not backup_path.exists():
-                return {
-                    "success": False,
-                    "error": f"Backup file does not exist: {backup_path}",
-                    "duration_seconds": round(time.time() - start_time, 2),
-                }
+        recovery_dir = None
+        async with self._restore_lock:
+            try:
+                if not backup_path.exists():
+                    return {
+                        "success": False,
+                        "error": f"Backup file does not exist: {backup_path}",
+                        "duration_seconds": round(time.time() - start_time, 2),
+                    }
 
-            # Determine compression from file extension
-            is_compressed = backup_path.suffix == ".gz"
-            mode = "r:gz" if is_compressed else "r"
+                # Determine compression from file extension
+                is_compressed = backup_path.suffix == ".gz"
+                mode = "r:gz" if is_compressed else "r"
 
-            # Staging directory for atomic extraction
-            staging_dir = self.backup_dir / ".restore_staging"
-            config_dir = self.config.paths.server_dir / "Pal" / "Saved" / "Config"
+                # Unique staging and recovery directories
+                import uuid
+                staging_suffix = f".restore_staging_{uuid.uuid4().hex[:8]}"
+                staging_dir = self.backup_dir / staging_suffix
+                recovery_suffix = f".restore_recovery_{uuid.uuid4().hex[:8]}"
+                recovery_dir = self.backup_dir / recovery_suffix
+                config_dir = self.config.paths.server_dir / "Pal" / "Saved" / "Config"
 
-            def validate_and_extract():
-                with tarfile.open(backup_path, mode) as tar:
-                    members = tar.getmembers()
+                def validate_and_extract():
+                    with tarfile.open(backup_path, mode) as tar:
+                        members = tar.getmembers()
 
-                    # 1. Reject non-regular file entries
-                    for member in members:
-                        if member.issym() or member.islnk():
-                            raise ValueError(
-                                f"Archive contains a symbolic/hard link '{member.name}' — "
-                                "refusing to extract for security"
-                            )
-                        if not member.isfile() and not member.isdir():
-                            raise ValueError(
-                                f"Archive contains a special entry '{member.name}' "
-                                f"(type {member.type}) — refusing to extract"
-                            )
+                        # 1. Reject non-regular file entries
+                        for member in members:
+                            if member.issym() or member.islnk():
+                                raise ValueError(
+                                    f"Archive contains a symbolic/hard link '{member.name}' — "
+                                    "refusing to extract for security"
+                                )
+                            if not member.isfile() and not member.isdir():
+                                raise ValueError(
+                                    f"Archive contains a special entry '{member.name}' "
+                                    f"(type {member.type}) — refusing to extract"
+                                )
 
-                    # 2. Validate and normalize paths; reject traversal / absolute
-                    allowed_roots = {}
-                    for member in members:
-                        raw = member.name
+                        # 2. Validate and normalize paths; reject traversal / absolute
+                        allowed_roots = {}
+                        for member in members:
+                            raw = member.name
 
-                        # Reject absolute paths
-                        if raw.startswith("/"):
-                            raise ValueError(
-                                f"Archive contains absolute path '{raw}' — refusing to extract"
-                            )
+                            # Reject absolute paths
+                            if raw.startswith("/"):
+                                raise ValueError(
+                                    f"Archive contains absolute path '{raw}' — refusing to extract"
+                                )
 
-                        # Normalise and reject .. traversal
-                        norm = Path(raw).as_posix()
-                        if ".." in norm.split("/"):
-                            raise ValueError(
-                                f"Archive contains path traversal '{raw}' — refusing to extract"
-                            )
+                            # Normalise and reject .. traversal
+                            norm = Path(raw).as_posix()
+                            if ".." in norm.split("/"):
+                                raise ValueError(
+                                    f"Archive contains path traversal '{raw}' — refusing to extract"
+                                )
 
-                        if norm.startswith("SaveGames/") or norm == "SaveGames":
-                            stripped = (
-                                norm[len("SaveGames/") :] if norm.startswith("SaveGames/") else ""
-                            )
-                            target_root = Path(self.source_dir).resolve()
-                        elif norm.startswith("Config/") or norm == "Config":
-                            stripped = norm[len("Config/") :] if norm.startswith("Config/") else ""
-                            target_root = Path(config_dir).resolve()
-                        else:
-                            raise ValueError(
-                                f"Archive member '{raw}' is not under SaveGames/ or Config/ — "
-                                "refusing to extract"
-                            )
+                            if norm.startswith("SaveGames/") or norm == "SaveGames":
+                                stripped = (
+                                    norm[len("SaveGames/") :] if norm.startswith("SaveGames/") else ""
+                                )
+                                target_root = Path(self.source_dir).resolve()
+                            elif norm.startswith("Config/") or norm == "Config":
+                                stripped = norm[len("Config/") :] if norm.startswith("Config/") else ""
+                                target_root = Path(config_dir).resolve()
+                            else:
+                                raise ValueError(
+                                    f"Archive member '{raw}' is not under SaveGames/ or Config/ — "
+                                    "refusing to extract"
+                                )
 
-                        # Resolve the full extracted path and verify it stays under root
-                        candidate = (target_root / stripped).resolve()
-                        if (
-                            not str(candidate).startswith(str(target_root) + "/")
-                            and candidate != target_root
-                        ):
-                            raise ValueError(
-                                f"Extracted path '{raw}' resolves outside target directory "
-                                f"({candidate}) — refusing to extract"
-                            )
+                            # Resolve the full extracted path and verify it stays under root
+                            candidate = (target_root / stripped).resolve()
+                            if (
+                                not str(candidate).startswith(str(target_root) + "/")
+                                and candidate != target_root
+                            ):
+                                raise ValueError(
+                                    f"Extracted path '{raw}' resolves outside target directory "
+                                    f"({candidate}) — refusing to extract"
+                                )
 
-                        allowed_roots[member] = (target_root, stripped)
+                            allowed_roots[member] = (target_root, stripped)
 
-                    # 3. Check top-level SaveGames/ Config/ structure
-                    arcnames = {m.name for m in members}
-                    has_savegames = any(
-                        n == "SaveGames" or n.startswith("SaveGames/") for n in arcnames
-                    )
-                    if not has_savegames:
-                        raise ValueError(
-                            "Archive does not contain 'SaveGames/' directory — "
-                            "not a valid Palworld backup"
+                        # 3. Check top-level SaveGames/ Config/ structure
+                        arcnames = {m.name for m in members}
+                        has_savegames = any(
+                            n == "SaveGames" or n.startswith("SaveGames/") for n in arcnames
                         )
+                        if not has_savegames:
+                            raise ValueError(
+                                "Archive does not contain 'SaveGames/' directory — "
+                                "not a valid Palworld backup"
+                            )
 
-                    # 4. Clean staging directory
-                    if staging_dir.exists():
+                        # 4. Clean staging directory
+                        if staging_dir.exists():
+                            import shutil
+
+                            shutil.rmtree(staging_dir)
+                        staging_dir.mkdir(parents=True, exist_ok=True)
+
+                        # 5. Extract to staging (preserving original member names for structure)
+                        tar.extractall(path=staging_dir, members=members)
+
+                        # 6. Backup originals to recovery dir for rollback
+                        import shutil
+                        import json as _json
+
+                        recovery_dir.mkdir(parents=True, exist_ok=True)
+                        rollback_map = []  # [[orig_dest_str, backup_rel_path_str], ...]
+                        for member, (target_root, stripped) in allowed_roots.items():
+                            if member.isdir():
+                                continue
+                            dest = target_root / stripped
+                            if dest.exists():
+                                # Store in recovery dir under a sanitised relative path
+                                dest_rel = str(dest).replace("/", "_").replace(":", "_")
+                                backup_path_orig = recovery_dir / dest_rel
+                                shutil.move(str(dest), str(backup_path_orig))
+                                rollback_map.append([str(dest), dest_rel])
+                        # Write manifest for rollback
+                        with open(recovery_dir / "_manifest.json", "w") as _mf:
+                            _json.dump(rollback_map, _mf)
+
+                        # 7. Move staged files to their target roots
+                        for member, (target_root, stripped) in allowed_roots.items():
+                            if member.isdir():
+                                continue
+                            staging_path = staging_dir / member.name
+                            if not staging_path.exists():
+                                continue
+                            dest = target_root / stripped
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.move(str(staging_path), str(dest))
+
+                        # 8. Clean up staging and recovery on success
+                        shutil.rmtree(staging_dir)
+                        shutil.rmtree(recovery_dir)
+
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, validate_and_extract)
+
+                duration = round(time.time() - start_time, 2)
+                log_backup_event(
+                    self.logger,
+                    "backup_restore",
+                    f"Backup restored from {backup_path.name} in {duration}s",
+                )
+                return {"success": True, "duration_seconds": duration, "file": str(backup_path)}
+
+            except Exception as e:
+                duration = round(time.time() - start_time, 2)
+                # Rollback: restore originals from recovery dir
+                if recovery_dir is not None and recovery_dir.exists():
+                    try:
+                        import shutil
+                        import json as _json
+                        manifest_path = recovery_dir / "_manifest.json"
+                        if manifest_path.exists():
+                            with open(manifest_path) as _mf:
+                                rollback_map = _json.load(_mf)
+                            for orig_dest, backup_rel in rollback_map:
+                                backup_file = recovery_dir / backup_rel
+                                if backup_file.exists():
+                                    orig_path = Path(orig_dest)
+                                    orig_path.parent.mkdir(parents=True, exist_ok=True)
+                                    shutil.move(str(backup_file), str(orig_path))
+                        shutil.rmtree(recovery_dir)
+                    except Exception:
+                        pass
+                # Clean up staging on failure
+                if staging_dir is not None:
+                    try:
                         import shutil
 
-                        shutil.rmtree(staging_dir)
-                    staging_dir.mkdir(parents=True, exist_ok=True)
-
-                    # 5. Extract to staging (preserving original member names for structure)
-                    tar.extractall(path=staging_dir, members=members)
-
-                    # 6. Atomically move extracted files to their target roots
-                    import shutil
-
-                    for member, (target_root, stripped) in allowed_roots.items():
-                        if member.isdir():
-                            continue  # directories are created by extractall
-                        staging_path = staging_dir / member.name
-                        if not staging_path.exists():
-                            continue
-                        dest = target_root / stripped
-                        dest.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.move(str(staging_path), str(dest))
-
-                    # 7. Clean up staging
-                    shutil.rmtree(staging_dir)
-
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, validate_and_extract)
-
-            duration = round(time.time() - start_time, 2)
-            log_backup_event(
-                self.logger,
-                "backup_restore",
-                f"Backup restored from {backup_path.name} in {duration}s",
-            )
-            return {"success": True, "duration_seconds": duration, "file": str(backup_path)}
-
-        except Exception as e:
-            duration = round(time.time() - start_time, 2)
-            # Clean up staging on failure
-            if staging_dir is not None:
-                try:
-                    import shutil
-
-                    if staging_dir.exists():
-                        shutil.rmtree(staging_dir)
-                except Exception:
-                    pass
-            self.logger.error(f"Backup restore failed: {e}")
-            return {"success": False, "error": str(e), "duration_seconds": duration}
+                        if staging_dir.exists():
+                            shutil.rmtree(staging_dir)
+                    except Exception:
+                        pass
+                self.logger.error(f"Backup restore failed: {e}")
+                return {"success": False, "error": str(e), "duration_seconds": duration}
 
     def cleanup_old_backups(self) -> int:
         """Clean up old backups based on retention policies"""
