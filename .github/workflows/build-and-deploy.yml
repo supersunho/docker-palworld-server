@@ -666,7 +666,7 @@ jobs:
                   docker run --rm ${{ env.DOCKERHUB_REPO }}:latest-arm64 python3 -c "import sys; print('Python version:', sys.version)"
 
                   # Get help (works on all platforms)
-                  docker run --rm ${{ env.DOCKERHUB_REPO }}:latest-arm64 python3 /scripts/healthcheck.py --help
+                  docker run --rm ${{ env.DOCKERHUB_REPO }}:latest-arm64 /usr/local/bin/healthcheck --help
                   \`\`
 
                   ## 🎉 Enhanced Features
