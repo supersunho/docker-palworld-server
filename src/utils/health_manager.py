@@ -338,14 +338,20 @@ def main():
                     result = await manager.perform_health_check()
                     manager._update_health_history(result)
                     await manager._handle_health_result(result)
+                    await manager._notify_health_status(result)
                     await asyncio.sleep(config.monitoring.metrics_interval)
                 except asyncio.CancelledError:
                     logger.info("Health monitor cancelled")
                     break
                 except Exception as e:
                     logger.error("Health check error: %s", e)
+                    await asyncio.sleep(10)
 
-        loop.run_until_complete(_run())
+        try:
+            loop.run_until_complete(_run())
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
     except KeyboardInterrupt:
         logger.info("Health monitor stopped")
     except Exception as e:
