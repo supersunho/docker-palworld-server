@@ -11,7 +11,6 @@ import aiohttp
 import os
 import time
 import json
-import subprocess
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
@@ -82,7 +81,7 @@ class HealthChecker:
             _auth_h = aiohttp.encode_basic_auth("admin", self.rcon_password)
             _hdr = {"Authorization": _auth_h} if _auth_h else {}
             scheme = "https" if self.rest_api_tls else "http"
-            _ssl = ssl.create_default_context() if self.rest_api_tls else None
+            ssl.create_default_context() if self.rest_api_tls else None
 
             async with aiohttp.ClientSession(headers=_hdr) as session:
                 endpoints = [
@@ -96,7 +95,7 @@ class HealthChecker:
 
                             if resp.status == 200:
                                 try:
-                                    data = await resp.json()
+                                    await resp.json()
                                     return HealthCheckResult(
                                         component=component,
                                         status=HealthStatus.HEALTHY,
@@ -109,7 +108,7 @@ class HealthChecker:
                                         response_time_ms=response_time,
                                         timestamp=time.time(),
                                     )
-                                except:
+                                except Exception:
                                     return HealthCheckResult(
                                         component=component,
                                         status=HealthStatus.WARNING,
@@ -560,12 +559,11 @@ class HealthChecker:
 async def async_main():
     """Main health check function (async core)"""
     format_json = "--json" in sys.argv
-    verbose = "--verbose" in sys.argv
 
     checker = HealthChecker()
 
     try:
-        results = await checker.run_all_checks()
+        await checker.run_all_checks()
         overall_status = checker.get_overall_status()
 
         if format_json:

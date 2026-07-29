@@ -208,13 +208,10 @@ class ConfigManager:
 
             # 5. Snapshot originals for rollback, then atomic rename
             snapshot_settings = None
-            snapshot_engine = None
+            snapshot_settings = None
             try:
                 snapshot_settings = (
                     settings_path.read_bytes() if settings_path.exists() else None
-                )
-                snapshot_engine = (
-                    engine_path.read_bytes() if engine_path.exists() else None
                 )
             except Exception:
                 pass

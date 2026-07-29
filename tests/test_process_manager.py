@@ -143,7 +143,6 @@ class TestProcessManager:
         cmd_str = cmd[2]
         assert "PalServer.sh" in cmd_str
         # The quoted path should appear as a single token
-        quoted_repr = repr(cmd_str)
         assert "pal world" in cmd_str.replace(chr(39), "") or "pal world" in cmd_str.replace(
             chr(34), ""
         )
