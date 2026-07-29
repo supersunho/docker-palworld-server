@@ -23,11 +23,8 @@ Palworld Dedicated Server has been deployed!
    {{- end }}
 
 3. **Monitoring:**
-   {{- if eq .Values.monitoring.mode "metrics" }}
-   Prometheus metrics are available on port {{ .Values.monitoring.metricsPort }}
-   {{- else if eq .Values.monitoring.mode "both" }}
-   Prometheus metrics are available on port {{ .Values.monitoring.metricsPort }}
-   Dashboard is available on port {{ .Values.monitoring.dashboardPort }}
+   {{- if or (eq .Values.monitoring.mode "prometheus") (eq .Values.monitoring.mode "both") }}
+   Prometheus metrics / dashboard available on port {{ .Values.monitoring.dashboardPort }} (dashboard service)
    {{- end }}
 
 4. **Use your own Secret (optional):**

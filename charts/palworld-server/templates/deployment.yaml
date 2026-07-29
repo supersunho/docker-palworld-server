@@ -45,6 +45,11 @@ spec:
             - containerPort: {{ .Values.managementService.rconPort }}
               protocol: TCP
               name: rcon
+            {{- if or (eq .Values.monitoring.mode "prometheus") (eq .Values.monitoring.mode "both") }}
+            - containerPort: {{ .Values.monitoring.dashboardPort }}
+              protocol: TCP
+              name: dashboard
+            {{- end }}
           env:
             - name: SERVER_NAME
               value: {{ .Values.server.name | quote }}
@@ -75,6 +80,8 @@ spec:
               value: {{ .Values.monitoring.mode }}
             - name: LOG_LEVEL
               value: {{ .Values.monitoring.logLevel }}
+            - name: DASHBOARD_PORT
+              value: {{ .Values.monitoring.dashboardPort | quote }}
             - name: BACKUP_ENABLED
               value: {{ .Values.backup.enabled | quote }}
             - name: BACKUP_INTERVAL

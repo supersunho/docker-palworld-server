@@ -38,7 +38,6 @@ rcon:
 # Monitoring
 monitoring:
   mode: "both"
-  metricsPort: 9090
   dashboardPort: 8080
   logLevel: "INFO"
 

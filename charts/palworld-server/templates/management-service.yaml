@@ -17,6 +17,12 @@ spec:
       targetPort: rcon
       protocol: TCP
       name: rcon
+    {{- if or (eq .Values.monitoring.mode "prometheus") (eq .Values.monitoring.mode "both") }}
+    - port: {{ .Values.monitoring.dashboardPort }}
+      targetPort: dashboard
+      protocol: TCP
+      name: dashboard
+    {{- end }}
   selector:
     app: {{ include "palworld-server.name" . }}
     release: {{ .Release.Name }}
