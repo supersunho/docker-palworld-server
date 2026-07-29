@@ -123,11 +123,23 @@ spec:
             timeoutSeconds: 10
       volumes:
         - name: data
+        {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "palworld-server.fullname" . }}-data
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
         - name: backups
+        {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "palworld-server.fullname" . }}-backups
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
         - name: logs
+        {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "palworld-server.fullname" . }}-logs
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
