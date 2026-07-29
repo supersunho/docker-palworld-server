@@ -40,10 +40,12 @@ class HealthChecker:
     """Health checker for Palworld server"""
     
     def __init__(self): 
+        self.rest_api_enabled = os.getenv('REST_API_ENABLED', 'true').lower() in ('true', '1', 'yes')
         self.rest_api_host = os.getenv('REST_API_HOST', 'localhost')
         self.rest_api_port = int(os.getenv('REST_API_PORT', '8212'))
         self.rest_api_tls = os.getenv('REST_API_TLS_ENABLED', '').lower() in ('true', '1', 'yes')
         self.server_port = int(os.getenv('SERVER_PORT', '8211'))
+        self.rcon_enabled = os.getenv('RCON_ENABLED', 'true').lower() in ('true', '1', 'yes')
         self.rcon_host = os.getenv('RCON_HOST', 'localhost')
         self.rcon_port = int(os.getenv('RCON_PORT', '25575'))
         self.admin_password = os.getenv('ADMIN_PASSWORD')
@@ -53,7 +55,18 @@ class HealthChecker:
         self.rcon_password = self.admin_password
         self.timeout = 10
         self.results: List[HealthCheckResult] = []
-    
+
+    async def _skipped_result(self, component: str, message: str) -> HealthCheckResult:
+        """Return a healthy result for an intentionally skipped check."""
+        return HealthCheckResult(
+            component=component,
+            status=HealthStatus.HEALTHY,
+            message=message,
+            details={"skipped": True},
+            response_time_ms=0.0,
+            timestamp=time.time(),
+        )
+
     async def check_rest_api_health(self) -> HealthCheckResult:
         """Check REST API health with Basic Authentication"""
         start_time = time.time()
@@ -405,7 +418,7 @@ class HealthChecker:
         try:
             cmd = [
                 'rcon-cli',
-                '--host', 'localhost',
+                '--host', self.rcon_host,
                 '--port', str(self.rcon_port),
                 '--password-stdin',
                 'Info'
@@ -464,11 +477,19 @@ class HealthChecker:
     async def run_all_checks(self) -> List[HealthCheckResult]:
         """Run all health checks concurrently"""
         checks = [
-            self.check_rest_api_health(),
             self.check_server_process(),
             self.check_system_resources(),
-            self.check_rcon_health()
         ]
+
+        if self.rest_api_enabled:
+            checks.append(self.check_rest_api_health())
+        else:
+            checks.append(self._skipped_result("rest_api", "REST API disabled by configuration"))
+
+        if self.rcon_enabled:
+            checks.append(self.check_rcon_health())
+        else:
+            checks.append(self._skipped_result("rcon", "RCON disabled by configuration"))
         
         self.results = await asyncio.gather(*checks, return_exceptions=True)
         
