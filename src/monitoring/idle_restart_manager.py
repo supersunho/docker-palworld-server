@@ -252,7 +252,7 @@ class IdleRestartManager:
             try:
                 import asyncio
                 players = await asyncio.wait_for(
-                    self.api_manager.api_get_players(), timeout=10
+                    self.api_manager.get_players(), timeout=10
                 )
                 if isinstance(players, list):
                     current_count = len(players)
