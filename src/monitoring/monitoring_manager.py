@@ -13,6 +13,7 @@ from .player_monitor import PlayerMonitor, PlayerEventType
 from .server_monitor import ServerMonitor, ServerEventType
 from .event_dispatcher import EventDispatcher
 from .idle_restart_manager import IdleRestartManager
+from .metrics_collector import MetricsCollector
 
 
 class MonitoringManager:
@@ -27,6 +28,8 @@ class MonitoringManager:
         self.server_monitor = ServerMonitor(config, process_manager, api_manager)
         self.event_dispatcher = EventDispatcher(config)
         self.idle_restart_manager = IdleRestartManager(config, self.player_monitor, process_manager, api_manager)
+
+        self.metrics_collector = MetricsCollector(config)
 
         self._background_tasks: Set[asyncio.Task] = set()
         self._monitoring_active = False
@@ -99,6 +102,11 @@ class MonitoringManager:
             idle_restart_task.add_done_callback(self._background_tasks.discard)
             self.logger.info("Idle restart monitoring started")
 
+            # Start metrics collection (only when Prometheus or logs mode is active)
+            if self.config.monitoring.mode in ("prometheus", "both", "logs"):
+                await self.metrics_collector.start_collection()
+                self.logger.info("Metrics collection started")
+
         except Exception as e:
             self.logger.error(f"Failed to start monitoring: {e}")
             await self.stop_monitoring()
@@ -118,6 +126,7 @@ class MonitoringManager:
         await self.player_monitor.stop_monitoring()
         await self.server_monitor.stop_monitoring()
         await self.idle_restart_manager.stop_monitoring()
+        await self.metrics_collector.stop_collection()
 
         if self._background_tasks:
             self.logger.info(f"Cancelling {len(self._background_tasks)} background tasks")

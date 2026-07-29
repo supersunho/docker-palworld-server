@@ -420,3 +420,28 @@ def get_metrics_collector(config: Optional[PalworldConfig] = None) -> MetricsCol
         _metrics_collector = MetricsCollector(config or get_config())
 
     return _metrics_collector
+
+
+async def _async_main():
+    """Standalone metrics collector mode for supervisor process."""
+    from ..config_loader import get_config
+
+    collector = MetricsCollector(get_config())
+    await collector.start_collection()
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await collector.stop_collection()
+
+
+def main():
+    """Sync entry point: wraps _async_main for console_scripts / supervisor."""
+    return asyncio.run(_async_main())
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())
