@@ -303,6 +303,10 @@ class EnhancedBackupManager:
         Extracts the backup archive to the server's Saved directory.
         The server should be stopped before calling this.
 
+        Security: rejects path traversal, absolute paths, symlinks,
+        hardlinks, and device entries. Extracts to a staging directory
+        and atomically moves approved files into place.
+
         Args:
             backup_path: Path to the backup .tar or .tar.gz file.
 
@@ -311,6 +315,7 @@ class EnhancedBackupManager:
             and duration_seconds.
         """
         start_time = time.time()
+        staging_dir = None
         try:
             if not backup_path.exists():
                 return {
@@ -323,35 +328,102 @@ class EnhancedBackupManager:
             is_compressed = backup_path.suffix == ".gz"
             mode = "r:gz" if is_compressed else "r"
 
-            def extract_tar():
+            # Staging directory for atomic extraction
+            staging_dir = self.backup_dir / ".restore_staging"
+            config_dir = self.config.paths.server_dir / "Pal" / "Saved" / "Config"
+
+            def validate_and_extract():
                 with tarfile.open(backup_path, mode) as tar:
-                    # Validate archive structure before extraction
                     members = tar.getmembers()
+
+                    # 1. Reject non-regular file entries
+                    for member in members:
+                        if member.issym() or member.islnk():
+                            raise ValueError(
+                                f"Archive contains a symbolic/hard link '{member.name}' — "
+                                "refusing to extract for security"
+                            )
+                        if not member.isfile() and not member.isdir():
+                            raise ValueError(
+                                f"Archive contains a special entry '{member.name}' "
+                                f"(type {member.type}) — refusing to extract"
+                            )
+
+                    # 2. Validate and normalize paths; reject traversal / absolute
+                    allowed_roots = {}
+                    for member in members:
+                        raw = member.name
+
+                        # Reject absolute paths
+                        if raw.startswith("/"):
+                            raise ValueError(
+                                f"Archive contains absolute path '{raw}' — refusing to extract"
+                            )
+
+                        # Normalise and reject .. traversal
+                        norm = Path(raw).as_posix()
+                        if ".." in norm.split("/"):
+                            raise ValueError(
+                                f"Archive contains path traversal '{raw}' — refusing to extract"
+                            )
+
+                        if norm.startswith("SaveGames/") or norm == "SaveGames":
+                            stripped = norm[len("SaveGames/"):] if norm.startswith("SaveGames/") else ""
+                            target_root = Path(self.source_dir).resolve()
+                        elif norm.startswith("Config/") or norm == "Config":
+                            stripped = norm[len("Config/"):] if norm.startswith("Config/") else ""
+                            target_root = Path(config_dir).resolve()
+                        else:
+                            raise ValueError(
+                                f"Archive member '{raw}' is not under SaveGames/ or Config/ — "
+                                "refusing to extract"
+                            )
+
+                        # Resolve the full extracted path and verify it stays under root
+                        candidate = (target_root / stripped).resolve()
+                        if not str(candidate).startswith(str(target_root) + "/") and candidate != target_root:
+                            raise ValueError(
+                                f"Extracted path '{raw}' resolves outside target directory "
+                                f"({candidate}) — refusing to extract"
+                            )
+
+                        allowed_roots[member] = (target_root, stripped)
+
+                    # 3. Check top-level SaveGames/ Config/ structure
                     arcnames = {m.name for m in members}
-                    has_savegames = any(
-                        n.startswith("SaveGames") or n == "SaveGames" for n in arcnames
-                    )
+                    has_savegames = any(n == "SaveGames" or n.startswith("SaveGames/") for n in arcnames)
                     if not has_savegames:
                         raise ValueError(
-                            "Archive does not contain 'SaveGames' directory — "
+                            "Archive does not contain 'SaveGames/' directory — "
                             "not a valid Palworld backup"
                         )
 
-                    # Extract over the server's Saved directory.
-                    # SaveGames/ → source_dir (Pal/Saved/)
-                    # Config/   → config_dir (Pal/Saved/Config)
-                    for member in members:
-                        if member.name.startswith("SaveGames/"):
-                            # Strip SaveGames/ prefix → extract relative to source_dir
-                            member.name = member.name[len("SaveGames/"):]
-                            tar.extract(member, path=self.source_dir)
-                        elif member.name.startswith("Config/"):
-                            config_dir = self.config.paths.server_dir / "Pal" / "Saved" / "Config"
-                            member.name = member.name[len("Config/"):]
-                            tar.extract(member, path=config_dir)
+                    # 4. Clean staging directory
+                    if staging_dir.exists():
+                        import shutil
+                        shutil.rmtree(staging_dir)
+                    staging_dir.mkdir(parents=True, exist_ok=True)
+
+                    # 5. Extract to staging (preserving original member names for structure)
+                    tar.extractall(path=staging_dir, members=members)
+
+                    # 6. Atomically move extracted files to their target roots
+                    import shutil
+                    for member, (target_root, stripped) in allowed_roots.items():
+                        if member.isdir():
+                            continue  # directories are created by extractall
+                        staging_path = staging_dir / member.name
+                        if not staging_path.exists():
+                            continue
+                        dest = target_root / stripped
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.move(str(staging_path), str(dest))
+
+                    # 7. Clean up staging
+                    shutil.rmtree(staging_dir)
 
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, extract_tar)
+            await loop.run_in_executor(None, validate_and_extract)
 
             duration = round(time.time() - start_time, 2)
             log_backup_event(
@@ -363,6 +435,14 @@ class EnhancedBackupManager:
 
         except Exception as e:
             duration = round(time.time() - start_time, 2)
+            # Clean up staging on failure
+            if staging_dir is not None:
+                try:
+                    import shutil
+                    if staging_dir.exists():
+                        shutil.rmtree(staging_dir)
+                except Exception:
+                    pass
             self.logger.error(f"Backup restore failed: {e}")
             return {"success": False, "error": str(e), "duration_seconds": duration}
 

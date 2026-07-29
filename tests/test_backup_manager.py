@@ -180,3 +180,118 @@ class TestEnhancedBackupManager:
         # Verify restored content
         assert (save_dir / "level.sav").exists()
         assert (save_dir / "level.sav").read_text() == "world_data"
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_rejects_path_traversal(self, tmp_path):
+        """R2-P1-01: Archive with .. traversal is rejected."""
+        import tarfile
+
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        malicious = tmp_path / "escape.tar.gz"
+        with tarfile.open(malicious, "w:gz") as tar:
+            info = tarfile.TarInfo(name="SaveGames/../../etc/passwd")
+            info.type = tarfile.REGTYPE
+            tar.addfile(info, b"hacked")
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = backup_dir
+        manager = EnhancedBackupManager(config)
+
+        result = await manager.restore_backup(malicious)
+        assert result["success"] is False
+        assert "traversal" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_rejects_absolute_path(self, tmp_path):
+        """R2-P1-01: Archive with absolute path is rejected."""
+        import tarfile
+
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        malicious = tmp_path / "absolute.tar.gz"
+        with tarfile.open(malicious, "w:gz") as tar:
+            info = tarfile.TarInfo(name="/etc/passwd")
+            info.type = tarfile.REGTYPE
+            tar.addfile(info, b"hacked")
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = backup_dir
+        manager = EnhancedBackupManager(config)
+
+        result = await manager.restore_backup(malicious)
+        assert result["success"] is False
+        assert "absolute" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_rejects_symlink(self, tmp_path):
+        """R2-P1-01: Archive with symlink is rejected."""
+        import tarfile
+
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        malicious = tmp_path / "symlink.tar.gz"
+        with tarfile.open(malicious, "w:gz") as tar:
+            info = tarfile.TarInfo(name="SaveGames/link")
+            info.type = tarfile.SYMTYPE
+            info.linkname = "/etc/passwd"
+            tar.addfile(info)
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = backup_dir
+        manager = EnhancedBackupManager(config)
+
+        result = await manager.restore_backup(malicious)
+        assert result["success"] is False
+        assert "symbolic" in result["error"].lower() or "link" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_rejects_hardlink(self, tmp_path):
+        """R2-P1-01: Archive with hardlink is rejected."""
+        import tarfile
+
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        malicious = tmp_path / "hardlink.tar.gz"
+        with tarfile.open(malicious, "w:gz") as tar:
+            # Create a regular file then a hardlink to it
+            content = tarfile.TarInfo(name="SaveGames/target")
+            content.type = tarfile.REGTYPE
+            tar.addfile(content, b"data")
+            link = tarfile.TarInfo(name="SaveGames/link")
+            link.type = tarfile.LNKTYPE
+            link.linkname = "SaveGames/target"
+            tar.addfile(link)
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = backup_dir
+        manager = EnhancedBackupManager(config)
+
+        result = await manager.restore_backup(malicious)
+        assert result["success"] is False
+        assert "hard link" in result["error"].lower() or "link" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_rejects_special_entry(self, tmp_path):
+        """R2-P1-01: Archive with device/FIFO entry is rejected."""
+        import tarfile
+
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        malicious = tmp_path / "fifo.tar.gz"
+        with tarfile.open(malicious, "w:gz") as tar:
+            info = tarfile.TarInfo(name="SaveGames/fifo")
+            info.type = tarfile.FIFOTYPE
+            tar.addfile(info)
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = backup_dir
+        manager = EnhancedBackupManager(config)
+
+        result = await manager.restore_backup(malicious)
+        assert result["success"] is False
