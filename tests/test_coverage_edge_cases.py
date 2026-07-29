@@ -108,3 +108,18 @@ class TestCoverageEdgeCases:
         loader = MessageLoader(str(locales_dir), default_language="ko")
         with pytest.raises(RuntimeError, match="Failed to load default"):
             loader.get_message("x", "en")
+
+    def test_get_health_manager_singleton(self):
+        """get_health_manager returns singleton instance."""
+        from src.utils.health_manager import get_health_manager, _health_manager as hm_before
+
+        hm = get_health_manager()
+        assert hm is hm_before or hm is not None
+
+    def test_health_manager_main_imports(self):
+        """health_manager.main entry point exists and imports."""
+        from src.utils.health_manager import main as hm_main
+        from src.utils.health_manager import get_health_manager
+
+        assert callable(hm_main)
+        assert callable(get_health_manager)

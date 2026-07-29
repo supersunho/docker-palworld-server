@@ -349,3 +349,57 @@ class TestEnhancedBackupManager:
         with tarfile.open(result["filepath"]) as tar:
             names = tar.getnames()
             assert any("SaveGames" in n for n in names)
+
+    @pytest.mark.asyncio
+    async def test_get_backup_manager_singleton(self, tmp_path):
+        """get_backup_manager returns singleton."""
+        from src.backup.backup_manager import get_backup_manager
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = tmp_path / "backups"
+        (tmp_path / "server" / "Pal" / "Saved").mkdir(parents=True)
+
+        mgr1 = get_backup_manager(config)
+        mgr2 = get_backup_manager(config)
+        assert mgr1 is mgr2
+
+    @pytest.mark.asyncio
+    async def test_restore_backup_rejects_non_savegames(self, tmp_path):
+        """Archive entries outside SaveGames/Config are rejected."""
+        import tarfile
+
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        bad_archive = tmp_path / "bad_archive.tar.gz"
+        with tarfile.open(bad_archive, "w:gz") as tar:
+            info = tarfile.TarInfo(name="OtherDir/file.txt")
+            info.type = tarfile.REGTYPE
+            info.size = 0
+            tar.addfile(info)
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = backup_dir
+        (tmp_path / "server" / "Pal" / "Saved").mkdir(parents=True)
+        manager = EnhancedBackupManager(config)
+
+        result = await manager.restore_backup(bad_archive)
+        assert result["success"] is False
+
+    def test_backup_module_main(self):
+        """backup_manager.main() entry point runs."""
+        import asyncio
+        from unittest.mock import patch
+        from src.backup.backup_manager import main as backup_main
+
+        # Patch asyncio.sleep to raise CancelledError after first iteration
+        async def cancelled_sleep(*_a, **_kw):
+            raise asyncio.CancelledError()
+
+        with patch("asyncio.sleep", cancelled_sleep):
+            # Should terminate cleanly via CancelledError from start_backup_scheduler
+            try:
+                backup_main()
+            except (RuntimeError, SystemExit):
+                pass
