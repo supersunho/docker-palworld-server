@@ -226,7 +226,7 @@ class PlayerMonitor:
         for attempt in range(self._retry_count):
             try:
                 api_start_time = time.time()
-                players_response = await self.api_manager.api_get_players()
+                players_response = await self.api_manager.get_players()
                 api_time = (time.time() - api_start_time) * 1000
 
                 self.logger.debug(f"API call completed in {api_time:.1f}ms (attempt {attempt + 1})")
