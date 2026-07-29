@@ -82,24 +82,38 @@ class ConfigLoader(IConfigProvider):
 
         return value
 
-    def _convert_value(self, value: str, target_type: type) -> Any:
-        """Convert a single env-var string to the target dataclass type."""
+    def _convert_value(self, value: str, target_type: type, field_path: str = "") -> Any:
+        """Convert a single env-var string to the target dataclass type.
+
+        Raises ValueError with field_path context on conversion failure.
+        """
         if target_type is str:
             return value
         if target_type is int:
             try:
                 return int(value)
             except (ValueError, TypeError):
-                return value
+                raise ValueError(
+                    f"{field_path}: cannot convert '{value}' to int"
+                )
         if target_type is float:
             try:
                 return float(value)
             except (ValueError, TypeError):
-                return value
+                raise ValueError(
+                    f"{field_path}: cannot convert '{value}' to float"
+                )
         if target_type is bool:
             if isinstance(value, bool):
                 return value
-            return value.lower() in ("true", "yes", "1", "on")
+            if value.lower() in ("true", "yes", "1", "on"):
+                return True
+            if value.lower() in ("false", "no", "0", "off"):
+                return False
+            raise ValueError(
+                f"{field_path}: unrecognised boolean value '{value}' — "
+                "expected one of true/false/yes/no/1/0/on/off"
+            )
         return value
 
     def _convert_types(self, value: Any) -> Any:
@@ -189,7 +203,7 @@ class ConfigLoader(IConfigProvider):
                 elif not isinstance(value, str) and f.type is not str:
                     pass  # already typed correctly
                 elif isinstance(value, str) and f.type is not str:
-                    value = self._convert_value(value, f.type)
+                    value = self._convert_value(value, f.type, field_path=dc_type.__name__ + "." + f.name)
                 elif f.type is str and not isinstance(value, str):
                     value = str(value)
                 kwargs[f.name] = value
