@@ -18,3 +18,6 @@ class BackupConfig:
     compress: bool = True
     max_backups: int = 100
     cleanup_interval: int = 86400
+    # Calendar-based schedule
+    schedule_type: str = "interval"  # "interval", "daily", "weekly", "monthly"
+    schedule_time: str = "04:00"  # HH:MM for daily/weekly/monthly

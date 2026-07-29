@@ -208,6 +208,8 @@ backup:
     compress: ${BACKUP_COMPRESS:true}
     max_backups: ${BACKUP_MAX_COUNT:100}
     cleanup_interval: ${BACKUP_CLEANUP_INTERVAL:86400}
+    schedule_type: ${BACKUP_SCHEDULE_TYPE:interval}
+    schedule_time: ${BACKUP_SCHEDULE_TIME:04:00}
 
 discord:
     webhook_url: "${DISCORD_WEBHOOK_URL:}"

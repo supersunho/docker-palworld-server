@@ -103,14 +103,75 @@ class EnhancedBackupManager:
 
         log_backup_event(self.logger, "backup_cleanup", "Backup scheduler stopped")
 
+    def _next_calendar_schedule(self) -> float:
+        """Calculate seconds until next scheduled backup.
+
+        Returns the delay in seconds based on schedule_type:
+        - "interval": aligned to interval_seconds boundary
+        - "daily": next occurrence of schedule_time (HH:MM) today or tomorrow
+        - "weekly": next Sunday at schedule_time
+        - "monthly": next 1st of month at schedule_time
+        """
+        now = datetime.now()
+        if self.config.backup.schedule_type == "interval":
+            ts = time.time()
+            aligned = ((ts // self.interval_seconds) + 1) * self.interval_seconds
+            return aligned - ts
+
+        try:
+            parts = self.config.backup.schedule_time.split(":")
+            target_hour = int(parts[0])
+            target_min = int(parts[1])
+        except (ValueError, IndexError):
+            self.logger.warning(
+                "Invalid schedule_time '%s', falling back to 04:00",
+                self.config.backup.schedule_time,
+            )
+            target_hour, target_min = 4, 0
+
+        if self.config.backup.schedule_type == "daily":
+            target = now.replace(hour=target_hour, minute=target_min, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+            return (target - now).total_seconds()
+
+        if self.config.backup.schedule_type == "weekly":
+            # Next Sunday (weekday() == 6)
+            days_ahead = (6 - now.weekday()) % 7
+            if days_ahead == 0 and now.hour >= target_hour:
+                days_ahead = 7  # Next Sunday if already past today's target time
+            target = (now + timedelta(days=days_ahead)).replace(
+                hour=target_hour, minute=target_min, second=0, microsecond=0
+            )
+            return max(0, (target - now).total_seconds())
+
+        if self.config.backup.schedule_type == "monthly":
+            # Next 1st of month
+            target = now.replace(day=1, hour=target_hour, minute=target_min, second=0, microsecond=0)
+            if target <= now:
+                # Move to next month
+                month = now.month + 1
+                year = now.year
+                if month > 12:
+                    month = 1
+                    year += 1
+                target = now.replace(year=year, month=month, day=1, hour=target_hour, minute=target_min, second=0, microsecond=0)
+            return (target - now).total_seconds()
+
+        # Fallback: interval
+        ts = time.time()
+        aligned = ((ts // self.interval_seconds) + 1) * self.interval_seconds
+        return aligned - ts
+
     async def _backup_loop(self):
-        """Main backup creation loop — schedule aligned to interval"""
-        # Delay the first backup so it aligns to the interval boundary.
-        # e.g. interval=3600 starts at the next :00 minute.
-        now = time.time()
-        aligned = ((now // self.interval_seconds) + 1) * self.interval_seconds
-        initial_delay = aligned - now
-        self.logger.info(f"First backup in {initial_delay:.0f}s (aligned to {self.interval_seconds}s interval)")
+        """Main backup creation loop — schedule-aware"""
+        initial_delay = self._next_calendar_schedule()
+        self.logger.info(
+            "First backup in %ds (schedule: %s%s)",
+            initial_delay,
+            self.config.backup.schedule_type,
+            f" @ {self.config.backup.schedule_time}" if self.config.backup.schedule_type != "interval" else "",
+        )
         await asyncio.sleep(initial_delay)
 
         while self._running:
@@ -141,7 +202,8 @@ class EnhancedBackupManager:
                         error=result.get("error"),
                     )
 
-                await asyncio.sleep(self.interval_seconds)
+                # Wait until next schedule
+                await asyncio.sleep(self._next_calendar_schedule())
 
             except asyncio.CancelledError:
                 break
