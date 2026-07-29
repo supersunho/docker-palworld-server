@@ -135,12 +135,19 @@ class ConfigLoader(IConfigProvider):
         the same name.  Missing keys fall back to the field default.
         Unknown keys in the section are silently ignored (see
         _warn_unknown_keys).
+
+        String fields are explicitly cast to str to prevent env-var
+        substitution from producing int/bool values in string fields
+        (e.g. ADMIN_PASSWORD=123456 or SERVER_NAME=true).
         """
         import dataclasses
         kwargs = {}
         for f in dataclasses.fields(dc_type):
             if f.name in section:
-                kwargs[f.name] = section[f.name]
+                value = section[f.name]
+                if f.type is str and not isinstance(value, str):
+                    value = str(value)
+                kwargs[f.name] = value
             elif f.default is not dataclasses.MISSING:
                 kwargs[f.name] = f.default
             elif f.default_factory is not dataclasses.MISSING:
