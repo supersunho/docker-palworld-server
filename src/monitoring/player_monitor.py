@@ -41,6 +41,7 @@ class PlayerMonitor:
         self.logger = get_logger("palworld.monitoring.players")
 
         self._previous_players: Set[str] = set()
+        self._player_count_known: bool = False
         self._first_check = True
         self._monitoring_active = False
         self._shutdown_event = asyncio.Event()
@@ -184,6 +185,7 @@ class PlayerMonitor:
                 current_players = await self._get_current_players()
 
                 if current_players is not None:
+                    self._player_count_known = True
                     if self._first_check:
                         self.logger.info(
                             f"First check completed. Found {len(current_players)} existing players: {list(current_players)}"
@@ -193,6 +195,8 @@ class PlayerMonitor:
                     else:
                         await self._process_player_changes(current_players)
                         self._previous_players = current_players
+                else:
+                    self._player_count_known = False
 
                 if self._debug_cycle_count % 6 == 0:
                     success_rate = (
@@ -360,6 +364,10 @@ class PlayerMonitor:
         """Get current player count"""
         return len(self._previous_players)
 
+    def is_player_count_known(self) -> bool:
+        """Whether the current player count is known (API returned data recently)"""
+        return self._player_count_known
+
     def get_current_players(self) -> Set[str]:
         """Get current player names"""
         return self._previous_players.copy()
@@ -381,6 +389,7 @@ class PlayerMonitor:
                 else "0/0"
             ),
             "current_player_count": len(self._previous_players),
+            "player_count_known": self._player_count_known,
             "current_players": list(self._previous_players),
             "registered_callbacks": {
                 event_type.value: len(callbacks)
