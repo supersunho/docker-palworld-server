@@ -146,6 +146,13 @@ class IdleRestartManager:
         current_player_count = self.player_monitor.get_current_player_count()
         current_time = time.time()
 
+        if not self.player_monitor.is_player_count_known():
+            self.logger.warning(
+                "Player count unknown — resetting idle timer to avoid unsafe action"
+            )
+            self._idle_start = None
+            return
+
         if current_player_count == 0:
             await self._handle_zero_players(current_time)
         else:
@@ -256,8 +263,20 @@ class IdleRestartManager:
                 )
                 if isinstance(players, list):
                     current_count = len(players)
+                elif players is None:
+                    self.logger.warning(
+                        "Player count unknown — REST and RCON both failed during safety check, aborting idle action"
+                    )
+                    self._idle_start = None
+                    self.stats.current_idle_duration = 0.0
+                    return
             except Exception:
-                pass
+                self.logger.warning(
+                    "Player count unknown — API call failed during safety check, aborting idle action"
+                )
+                self._idle_start = None
+                self.stats.current_idle_duration = 0.0
+                return
 
         if current_count > 0:
             self.logger.info(
