@@ -12,11 +12,34 @@ spec:
     - name: healthcheck
       image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
       command:
-        - /usr/local/bin/healthcheck
-      env:
-        - name: ADMIN_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.server.existingSecret | default (printf "%s-password" (include "palworld-server.fullname" .)) }}
-              key: {{ .Values.server.adminPasswordKey }}
+        - python3
+        - -c
+      args:
+        - |
+          import socket, sys
+          service = "{{ include "palworld-server.fullname" . }}"
+          port = {{ .Values.server.port }}
+          rest_port = {{ .Values.managementService.restApiPort }}
+          mgmt_enabled = {{ .Values.managementService.enabled | ternary "True" "False" }}
+          failures = 0
+          try:
+              socket.getaddrinfo(service, port, socket.AF_INET, socket.SOCK_DGRAM)
+              print(f"OK - Game service {service}:{port} resolved")
+          except Exception as e:
+              print(f"FAIL - Game service {service}:{port} resolution: {e}")
+              failures += 1
+          if mgmt_enabled:
+              mgmt_service = "{{ include "palworld-server.fullname" . }}-management"
+              try:
+                  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                  sock.settimeout(5)
+                  sock.connect((mgmt_service, rest_port))
+                  sock.close()
+                  print(f"OK - Management REST {mgmt_service}:{rest_port} reachable")
+              except Exception as e:
+                  print(f"FAIL - Management REST {mgmt_service}:{rest_port}: {e}")
+                  failures += 1
+          else:
+              print("SKIP - Management service disabled")
+          sys.exit(0 if failures == 0 else 1)
   restartPolicy: Never
