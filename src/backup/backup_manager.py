@@ -629,24 +629,31 @@ class EnhancedBackupManager:
                         tar.extractall(path=staging_dir, members=members)
 
                         # 6. Backup originals to recovery dir for rollback
+                        # Build the manifest first, then move, so a failure during
+                        # move still has a complete manifest for rollback.
                         import shutil
                         import json as _json
 
                         recovery_dir.mkdir(parents=True, exist_ok=True)
-                        rollback_map = []  # [[orig_dest_str, backup_rel_path_str], ...]
+                        rollback_orig = {}  # str(dest) -> dest_rel
+                        rollback_new = []   # str(dest) for files created by this restore
                         for member, (target_root, stripped) in allowed_roots.items():
                             if member.isdir():
                                 continue
                             dest = target_root / stripped
+                            dest_rel = str(dest).replace("/", "_").replace(":", "_")
                             if dest.exists():
-                                # Store in recovery dir under a sanitised relative path
-                                dest_rel = str(dest).replace("/", "_").replace(":", "_")
-                                backup_path_orig = recovery_dir / dest_rel
-                                shutil.move(str(dest), str(backup_path_orig))
-                                rollback_map.append([str(dest), dest_rel])
-                        # Write manifest for rollback
+                                rollback_orig[str(dest)] = dest_rel
+                            else:
+                                rollback_new.append(str(dest))
+                        # Write manifest BEFORE moving any files
+                        manifest = {"originals": rollback_orig, "new_files": rollback_new}
                         with open(recovery_dir / "_manifest.json", "w") as _mf:
-                            _json.dump(rollback_map, _mf)
+                            _json.dump(manifest, _mf)
+                        # Now move originals to recovery
+                        for dest_str, dest_rel in rollback_orig.items():
+                            backup_path_orig = recovery_dir / dest_rel
+                            shutil.move(dest_str, str(backup_path_orig))
 
                         # 7. Move staged files to their target roots
                         for member, (target_root, stripped) in allowed_roots.items():
@@ -685,13 +692,19 @@ class EnhancedBackupManager:
                         manifest_path = recovery_dir / "_manifest.json"
                         if manifest_path.exists():
                             with open(manifest_path) as _mf:
-                                rollback_map = _json.load(_mf)
-                            for orig_dest, backup_rel in rollback_map:
+                                manifest = _json.load(_mf)
+                            # Restore originals
+                            for orig_dest, backup_rel in manifest.get("originals", {}).items():
                                 backup_file = recovery_dir / backup_rel
                                 if backup_file.exists():
                                     orig_path = Path(orig_dest)
                                     orig_path.parent.mkdir(parents=True, exist_ok=True)
                                     shutil.move(str(backup_file), str(orig_path))
+                            # Remove new files that were committed before failure
+                            for new_dest in manifest.get("new_files", []):
+                                new_path = Path(new_dest)
+                                if new_path.exists():
+                                    new_path.unlink()
                         shutil.rmtree(recovery_dir)
                     except Exception:
                         pass
