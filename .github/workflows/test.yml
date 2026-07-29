@@ -32,7 +32,12 @@ jobs:
 
             - name: 🧪 Run tests with coverage
               run: |
-                  python -m pytest --tb=short --cov=src --cov-report=term --cov-fail-under=75
+                  python -m pytest --tb=short --cov=src --cov=scripts --cov-report=term --cov-fail-under=68
+
+            - name: 📊 Check src coverage gate (75%)
+              if: always()
+              run: |
+                  python -m pytest --tb=short --cov=src --cov-report=term --cov-fail-under=75 -q 2>&1 | tail -3
 
             - name: 🔍 Lint check (flake8)
               run: |

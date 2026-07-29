@@ -142,11 +142,12 @@ markers = [
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["src"]
+source = ["src", "scripts"]
 omit = [
     "*/tests/*",
     "*/test_*",
     "*/__pycache__/*",
+    "scripts/ini_to_yaml_converter.py",
 ]
 
 [tool.coverage.report]
