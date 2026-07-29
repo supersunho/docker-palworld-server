@@ -457,20 +457,18 @@ jobs:
                   echo "🔍 Starting verification suite for arm64..."
 
                   echo "📋 Test 1: Binary Verification"
-                  docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" ls /home/pal/palworld-server || echo " - ⚠️ Palworld server binary check completed"
+                  docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" test -f /home/steam/palworld_server/PalServer.sh && echo " - ✅ Palworld server binary exists"
 
                   echo "📋 Test 2: Health Check"
                   docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" python3 /scripts/healthcheck.py --help >/dev/null \
-                    && echo " - ✅ Health check command working" \
-                    || echo " - ❌ Health check command failed"
+                    && echo " - ✅ Health check command working"
 
                   echo "📋 Test 3: Server Manager"
                   docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" python3 -c "import src.server_manager; print('Server manager import successful')" \
-                    && echo " - ✅ Server manager import working" \
-                    || echo " - ❌ Server manager import failed"
+                    && echo " - ✅ Server manager import working"
 
                   echo "📋 Test 4: Configuration"
-                  docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" ls /config/ || echo " - ⚠️ Config directory check completed"
+                  docker run --rm --platform linux/arm64 --entrypoint "" "$IMAGE" test -d /app/config && echo " - ✅ Config directory exists"
 
                   echo "🎉 Verification completed for arm64!"
 
