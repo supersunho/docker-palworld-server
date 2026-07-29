@@ -61,6 +61,11 @@ class EnhancedBackupManager:
         self._backup_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._running = False
+        # Serialise backup operations to prevent concurrent archive creation
+        self._backup_lock = asyncio.Lock()
+        # Dedup tracking: completed daily/weekly/monthly bucket keys
+        # \"daily-YYYYMMDD\", \"weekly-YYYYWww\", \"monthly-YYYYMM\"
+        self._completed_buckets: Dict[str, int] = {}
 
     async def start_backup_scheduler(self):
         """Start automatic backup scheduler"""
@@ -256,16 +261,24 @@ class EnhancedBackupManager:
                     "error": f"Source directory does not exist: {self.source_dir}",
                 }
 
-            # Save world before backup for consistency
+            # Save world before backup — abort on failure
             if self.save_world_callback:
                 try:
                     saved = await self.save_world_callback()
                     if saved:
                         self.logger.info("World saved before backup")
                     else:
-                        self.logger.warning("Save-world returned False, proceeding with backup anyway")
+                        self.logger.error("Save-world returned False — aborting backup")
+                        return {
+                            "success": False,
+                            "error": "Save-world returned False, backup aborted to prevent data corruption",
+                        }
                 except Exception as e:
-                    self.logger.warning(f"Save-world failed before backup: {e} — proceeding anyway")
+                    self.logger.error(f"Save-world failed before backup: {e} — aborting backup")
+                    return {
+                        "success": False,
+                        "error": f"Save-world exception before backup: {e}",
+                    }
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             if name:
@@ -302,22 +315,57 @@ class EnhancedBackupManager:
             }
 
     async def _create_archive(self, backup_path: Path, backup_type: str):
-        """Create backup archive"""
+        """Create backup archive from a snapshot copy.
 
-        def create_tar():
-            compression = "gz" if self.compress else ""
-            mode = f"w:{compression}" if compression else "w"
+        Uses an asyncio.Lock to serialise concurrent backup attempts.
+        Copies the live source directory to a temp location, then
+        archives the snapshot so the server can keep writing during
+        the (relatively slow) compression phase.
+        """
+        async with self._backup_lock:
+            loop = asyncio.get_event_loop()
+            import shutil
+            import tempfile
 
-            with tarfile.open(backup_path, mode) as tar:
-                if self.source_dir.exists():
-                    tar.add(self.source_dir, arcname="SaveGames")
+            snapshot_dir = Path(tempfile.mkdtemp(prefix="palworld_backup_"))
+
+            try:
+                # Async snapshot — copy source to temp dir
+                await loop.run_in_executor(
+                    None,
+                    lambda: shutil.copytree(
+                        self.source_dir,
+                        snapshot_dir / "SaveGames",
+                        ignore=shutil.ignore_patterns("*.backup", "*.tmp"),
+                    ),
+                )
 
                 config_dir = self.config.paths.server_dir / "Pal" / "Saved" / "Config"
                 if config_dir.exists():
-                    tar.add(config_dir, arcname="Config")
+                    await loop.run_in_executor(
+                        None,
+                        lambda: shutil.copytree(
+                            config_dir,
+                            snapshot_dir / "Config",
+                        ),
+                    )
 
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, create_tar)
+                # Archive from snapshot
+                def create_tar():
+                    compression = "gz" if self.compress else ""
+                    mode = f"w:{compression}" if compression else "w"
+
+                    with tarfile.open(backup_path, mode) as tar:
+                        for item in snapshot_dir.iterdir():
+                            tar.add(item, arcname=item.name)
+
+                await loop.run_in_executor(None, create_tar)
+            finally:
+                # Clean up the snapshot directory
+                await loop.run_in_executor(
+                    None,
+                    lambda: shutil.rmtree(snapshot_dir, ignore_errors=True),
+                )
 
     def list_backups(self) -> List[BackupInfo]:
         """List all backup files with metadata"""
