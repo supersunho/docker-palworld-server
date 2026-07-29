@@ -14,6 +14,10 @@ from dataclasses import dataclass
 
 from ..config_loader import get_config, PalworldConfig
 from ..logging_setup import get_logger, log_backup_event
+from typing import Callable, Awaitable
+
+# Optional async callback for save-before-backup
+SaveWorldFn = Optional[Callable[[], Awaitable[bool]]]
 
 
 @dataclass
@@ -30,10 +34,15 @@ class BackupInfo:
 class EnhancedBackupManager:
     """Enhanced backup manager with config integration and retention policies"""
 
-    def __init__(self, config: Optional[PalworldConfig] = None):
+    def __init__(
+        self,
+        config: Optional[PalworldConfig] = None,
+        save_world_callback: SaveWorldFn = None,
+    ):
         """Initialize backup manager with config"""
         self.config = config or get_config()
         self.logger = get_logger("palworld.backup")
+        self.save_world_callback = save_world_callback
 
         self.backup_dir = self.config.paths.backup_dir
         self.source_dir = self.config.paths.server_dir / "Pal" / "Saved"
@@ -95,8 +104,14 @@ class EnhancedBackupManager:
         log_backup_event(self.logger, "backup_cleanup", "Backup scheduler stopped")
 
     async def _backup_loop(self):
-        """Main backup creation loop"""
-        await asyncio.sleep(600)
+        """Main backup creation loop — schedule aligned to interval"""
+        # Delay the first backup so it aligns to the interval boundary.
+        # e.g. interval=3600 starts at the next :00 minute.
+        now = time.time()
+        aligned = ((now // self.interval_seconds) + 1) * self.interval_seconds
+        initial_delay = aligned - now
+        self.logger.info(f"First backup in {initial_delay:.0f}s (aligned to {self.interval_seconds}s interval)")
+        await asyncio.sleep(initial_delay)
 
         while self._running:
             try:
@@ -178,6 +193,17 @@ class EnhancedBackupManager:
                     "success": False,
                     "error": f"Source directory does not exist: {self.source_dir}",
                 }
+
+            # Save world before backup for consistency
+            if self.save_world_callback:
+                try:
+                    saved = await self.save_world_callback()
+                    if saved:
+                        self.logger.info("World saved before backup")
+                    else:
+                        self.logger.warning("Save-world returned False, proceeding with backup anyway")
+                except Exception as e:
+                    self.logger.warning(f"Save-world failed before backup: {e} — proceeding anyway")
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             if name:

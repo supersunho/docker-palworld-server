@@ -161,9 +161,12 @@ class PalworldServerManager:
         self._ensure_directories()
 
         if self.config.backup.enabled:
-            from .backup.backup_manager import get_backup_manager
+            from .backup.backup_manager import EnhancedBackupManager
 
-            self._backup_manager = get_backup_manager(self.config)
+            self._backup_manager = EnhancedBackupManager(
+                self.config,
+                save_world_callback=self.save_world_any,
+            )
             await self._backup_manager.start_backup_scheduler()
 
             if hasattr(self._backup_manager, "add_completion_callback"):
