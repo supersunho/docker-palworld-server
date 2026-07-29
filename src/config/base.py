@@ -82,8 +82,33 @@ class ConfigLoader(IConfigProvider):
 
         return value
 
+    def _convert_value(self, value: str, target_type: type) -> Any:
+        """Convert a single env-var string to the target dataclass type."""
+        if target_type is str:
+            return value
+        if target_type is int:
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return value
+        if target_type is float:
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return value
+        if target_type is bool:
+            if isinstance(value, bool):
+                return value
+            return value.lower() in ("true", "yes", "1", "on")
+        return value
+
     def _convert_types(self, value: Any) -> Any:
-        """Convert strings to appropriate types"""
+        """Convert strings to appropriate types (per-env-var global pass).
+
+        String fields may get distorted here (e.g. '00123' -> 123).
+        _dict_to_dataclass later restores the raw value for str fields
+        from self._raw_config_after_env.
+        """
         if isinstance(value, str):
             if value.lower() in ("true", "yes", "1", "on"):
                 return True
@@ -123,12 +148,15 @@ class ConfigLoader(IConfigProvider):
             raise yaml.YAMLError(f"YAML file parsing error: {e}")
 
         self._processed_config = self._substitute_env_vars(self._raw_config)
+        # Preserve raw env-var substituted values for string fields so
+        # _dict_to_dataclass can restore the original value (e.g.
+        # ADMIN_PASSWORD=00123 vs the int 123 that _convert_types produces).
+        self._raw_config_after_env = self._processed_config
         self._processed_config = self._convert_types(self._processed_config)
 
         return self._create_config_instance()
 
-    @staticmethod
-    def _dict_to_dataclass(dc_type: type[_DC], section: dict) -> _DC:
+    def _dict_to_dataclass(self, dc_type: type[_DC], section: dict) -> _DC:
         """Build a dataclass instance from a config dict section.
 
         Introspects dataclass fields and maps them to dict keys with
@@ -136,16 +164,32 @@ class ConfigLoader(IConfigProvider):
         Unknown keys in the section are silently ignored (see
         _warn_unknown_keys).
 
-        String fields are explicitly cast to str to prevent env-var
-        substitution from producing int/bool values in string fields
-        (e.g. ADMIN_PASSWORD=123456 or SERVER_NAME=true).
+        For str-typed fields the value is looked up from the raw
+        env-var substituted dict (_raw_config_after_env) so that the
+        original string is preserved even when _convert_types has
+        coerced '00123' to 123 or 'true' to True.
         """
         import dataclasses
         kwargs = {}
         for f in dataclasses.fields(dc_type):
             if f.name in section:
                 value = section[f.name]
-                if f.type is str and not isinstance(value, str):
+                # Restore raw string for str fields from pre-conversion data
+                raw_env = getattr(self, "_raw_config_after_env", None)
+                if f.type is str and raw_env:
+                    raw = raw_env
+                    for key in self._config_path_for_section(dc_type, f.name):
+                        raw = raw.get(key, {}) if isinstance(raw, dict) else {}
+                    raw_val = raw.get(f.name, value) if isinstance(raw, dict) else value
+                    if isinstance(raw_val, str):
+                        value = raw_val
+                    elif not isinstance(value, str):
+                        value = str(value)
+                elif not isinstance(value, str) and f.type is not str:
+                    pass  # already typed correctly
+                elif isinstance(value, str) and f.type is not str:
+                    value = self._convert_value(value, f.type)
+                elif f.type is str and not isinstance(value, str):
                     value = str(value)
                 kwargs[f.name] = value
             elif f.default is not dataclasses.MISSING:
@@ -153,6 +197,53 @@ class ConfigLoader(IConfigProvider):
             elif f.default_factory is not dataclasses.MISSING:
                 kwargs[f.name] = f.default_factory()
         return dc_type(**kwargs)
+
+    @staticmethod
+    def _config_path_for_section(dc_type: type, field_name: str) -> tuple:
+        """Map a dataclass type to its config section key path.
+
+        Returns the sequence of dict keys to reach the raw config
+        section that corresponds to this dataclass.
+        """
+        from .server.server import ServerConfig, ServerStartupConfig
+        from .server.rcon import RconConfig
+        from .server.rest_api import RestAPIConfig
+        from .monitoring.monitoring import MonitoringConfig
+        from .monitoring.backup import BackupConfig
+        from .monitoring.idle_restart import IdleRestartConfig
+        from .integration.discord import DiscordConfig
+        from .integration.steamcmd import SteamCMDConfig
+        from .game.gameplay import GameplayConfig
+        from .game.items import ItemsConfig
+        from .game.base_camp import BaseCampConfig
+        from .game.guild import GuildConfig
+        from .game.pal_settings import PalSettingsConfig
+        from .game.building import BuildingConfig
+        from .game.difficulty import DifficultyConfig
+        from .palworld.engine import EngineConfig
+        from .palworld.settings import PalworldSettings
+
+        mapping = {
+            ServerConfig: ("server",),
+            ServerStartupConfig: ("server_startup",),
+            RconConfig: ("rcon",),
+            RestAPIConfig: ("rest_api",),
+            MonitoringConfig: ("monitoring",),
+            BackupConfig: ("backup",),
+            IdleRestartConfig: ("monitoring", "idle_restart"),
+            DiscordConfig: ("discord",),
+            SteamCMDConfig: ("steamcmd",),
+            GameplayConfig: ("gameplay",),
+            ItemsConfig: ("items",),
+            BaseCampConfig: ("base_camp",),
+            GuildConfig: ("guild",),
+            PalSettingsConfig: ("pal_settings",),
+            BuildingConfig: ("building",),
+            DifficultyConfig: ("difficulty",),
+            EngineConfig: ("engine",),
+            PalworldSettings: ("palworld_settings",),
+        }
+        return mapping.get(dc_type, ())
 
     @staticmethod
     def _warn_unknown_keys(section_name: str, dc_type: type, section: dict, logger=None) -> None:
