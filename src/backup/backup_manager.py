@@ -398,3 +398,8 @@ async def _async_main():
 def main():
     """Sync entry point for console_scripts: wraps the async backup scheduler."""
     return asyncio.run(_async_main())
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())

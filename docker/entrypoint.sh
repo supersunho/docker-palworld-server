@@ -191,7 +191,7 @@ run_server() {
             ;;
         "--backup-only")
             print_info "Starting backup-only mode..."
-            $cmd_prefix python -m src.backup.backup_manager &
+            $cmd_prefix palworld-backup &
             SERVER_PID=$!
             wait $SERVER_PID
             ;;
