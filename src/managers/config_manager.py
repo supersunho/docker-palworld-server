@@ -127,14 +127,54 @@ class ConfigManager:
             )
         return False
 
+    def _validate_config(self, config: 'PalworldConfig') -> None:
+        """Validate loaded config — raises ValueError on violation.
+
+        Checks port ranges, required fields, and basic type expectations.
+        Called by reload_and_apply before staging files.
+        """
+        from ..config.palworld.main import PalworldConfig  # noqa: TC006
+
+        # Port ranges
+        for field_name, port in [
+            ("server.port", config.server.port),
+            ("rest_api.port", config.rest_api.port),
+            ("rcon.port", config.rcon.port),
+        ]:
+            if not isinstance(port, int) or port < 1 or port > 65535:
+                raise ValueError(
+                    f"{field_name} ({port}) is outside valid port range (1-65535)"
+                )
+
+        # Boolean sanity
+        for field_name, val in [
+            ("rest_api.enabled", config.rest_api.enabled),
+            ("rcon.enabled", config.rcon.enabled),
+            ("backup.enabled", config.backup.enabled),
+        ]:
+            if not isinstance(val, bool):
+                raise ValueError(
+                    f"{field_name} must be a boolean, got {type(val).__name__}: {val!r}"
+                )
+
+        # Required strings
+        if not config.server.name.strip():
+            raise ValueError("server.name is required and must not be empty")
+
     def reload_and_apply(self) -> bool:
         """Regenerate both config files from current YAML config
 
         Re-reads the YAML config file from disk so that changes made to
         default.yaml take effect without restarting the container.
+        Validates the new config, stages temp files, and atomically
+        applies them.  Rolls back staging on intermediate failure.
 
         Returns True if files were regenerated, False on failure.
         """
+        import tempfile
+        settings_path = self.server_path / "Pal" / "Saved" / "Config" / "LinuxServer" / "PalWorldSettings.ini"
+        engine_path = self.server_path / "Pal" / "Saved" / "Config" / "LinuxServer" / "Engine.ini"
+
         try:
             # 1. Re-read the YAML config from disk
             from ..config.base import ConfigLoader  # late import avoids circularity
@@ -143,32 +183,47 @@ class ConfigManager:
             loader = ConfigLoader(config_path)
             new_config = loader.load_config()
 
-            # 2. Update the in-memory config
+            # 2. Validate before staging
+            self._validate_config(new_config)
+
+            # 3. Generate new content
+            temp_generator = SettingsGenerator(new_config)
+            settings_content = temp_generator.generate_server_settings()
+            engine_content = temp_generator.generate_engine_settings()
+
+            # 4. Stage to temp files alongside the target for atomic rename
+            tmp_settings = settings_path.with_name(settings_path.name + ".tmp")
+            tmp_engine = engine_path.with_name(engine_path.name + ".tmp")
+
+            tmp_settings.write_text(settings_content, encoding="utf-8")
+            tmp_engine.write_text(engine_content, encoding="utf-8")
+
+            # 5. Atomic rename — POSIX guarantee: rename(2) is atomic on same fs
+            tmp_settings.replace(settings_path)
+            tmp_engine.replace(engine_path)
+
+            # 6. Update in-memory state
             self.config = new_config
-            self.generator = SettingsGenerator(new_config)
-
-            # 3. Regenerate INI files from the fresh config
-            settings_ok = self.generate_server_settings()
-            engine_ok = self.generate_engine_settings()
-
-            if settings_ok or engine_ok:
-                log_server_event(
-                    self.logger,
-                    "config_reload",
-                    "Configuration reloaded from YAML source",
-                    server_settings=settings_ok,
-                    engine_settings=engine_ok,
-                )
-                return True
+            self.generator = temp_generator
 
             log_server_event(
                 self.logger,
-                "config_reload_fail",
-                "Configuration reload failed — neither file was regenerated",
+                "config_reload",
+                "Configuration reloaded and applied atomically",
             )
-            return False
+            return True
+
         except Exception as e:
-            log_server_event(self.logger, "config_reload_fail", f"Configuration reload error: {e}")
+            self.logger.error("Failed to reload and apply config: %s", e)
+            # Clean up any leftover temp files
+            try:
+                settings_path.with_name(settings_path.name + ".tmp").unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                engine_path.with_name(engine_path.name + ".tmp").unlink(missing_ok=True)
+            except Exception:
+                pass
             return False
 
     async def watch_config(

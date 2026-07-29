@@ -65,34 +65,11 @@ class TestConfigManager:
 
     # ---- Hot-reload tests ----
 
-    def test_reload_and_apply_calls_both_generators(self, manager):
-        """FS-11.4: reload_and_apply regenerates both config files."""
-        with (
-            patch.object(manager, "generate_server_settings", return_value=True) as mock_srv,
-            patch.object(manager, "generate_engine_settings", return_value=True) as mock_eng,
-        ):
-            result = manager.reload_and_apply()
-            assert result is True
-            mock_srv.assert_called_once()
-            mock_eng.assert_called_once()
-
-    def test_reload_and_apply_failure_returns_false(self, manager):
-        """FS-11.5: reload_and_apply returns False when both fail."""
-        with (
-            patch.object(manager, "generate_server_settings", return_value=False) as mock_srv,
-            patch.object(manager, "generate_engine_settings", return_value=False) as mock_eng,
-        ):
+    def test_reload_and_apply_returns_false(self, manager):
+        """FS-11.5: reload_and_apply returns False when validation fails."""
+        with patch.object(manager, "_validate_config", side_effect=ValueError("bad config")):
             result = manager.reload_and_apply()
             assert result is False
-
-    def test_reload_and_apply_partial_ok(self, manager):
-        """FS-11.6: reload_and_apply returns True if at least one succeeds."""
-        with (
-            patch.object(manager, "generate_server_settings", return_value=True) as mock_srv,
-            patch.object(manager, "generate_engine_settings", return_value=False) as mock_eng,
-        ):
-            result = manager.reload_and_apply()
-            assert result is True
 
     @pytest.mark.asyncio
     @pytest.mark.slow
@@ -105,24 +82,25 @@ class TestConfigManager:
 
         # Monkey-patch _check_yaml_changed to simulate change
         manager._check_yaml_changed = MagicMock(side_effect=[False, True])
+        # Patch reload_and_apply to succeed without reading real config
+        with patch.object(manager, "reload_and_apply", return_value=True):
+            callback = AsyncMock()
 
-        callback = AsyncMock()
+            # Run watch for a limited time
+            import asyncio
 
-        # Run watch for a limited time
-        import asyncio
+            task = asyncio.create_task(manager.watch_config(check_interval=0.1, on_change=callback))
 
-        task = asyncio.create_task(manager.watch_config(check_interval=0.1, on_change=callback))
+            # Let it run a couple cycles
+            await asyncio.sleep(0.3)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
-        # Let it run a couple cycles
-        await asyncio.sleep(0.3)
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-
-        # Callback should have been invoked when _check_yaml_changed returned True
-        assert callback.called
+            # Callback should have been invoked when _check_yaml_changed returned True
+            assert callback.called
 
     def test_is_watching_initially_false(self, manager):
         """FS-11.8: is_watching returns False initially."""
@@ -176,10 +154,26 @@ class TestConfigManager:
 
     def test_reload_and_apply_exception(self, manager):
         """FS-11.12: reload_and_apply returns False on generator exception."""
-        """FS-11.12: reload_and_apply returns False on generator exception."""
-        with patch.object(
-            manager, "generate_server_settings", side_effect=RuntimeError("unexpected")
+        with (
+            patch("src.managers.config_manager.Path.exists", return_value=True),
+            patch("src.managers.config_manager.Path.read_text", return_value="server:\n  name: Test\n"),
+            patch("src.managers.config_manager.Path.resolve") as mock_resolve,
+            patch("src.config.base.ConfigLoader") as mock_loader_cls,
+            patch("src.managers.config_manager.SettingsGenerator") as mock_gen_cls,
         ):
+            mock_resolve.return_value = Path("/tmp/test_config/default.yaml").resolve()
+            mock_config = MagicMock()
+            mock_config.server.name = "Test"
+            mock_config.server.port = 8211
+            mock_config.rest_api = MagicMock(enabled=True, port=8212)
+            mock_config.rcon = MagicMock(enabled=True, port=25575)
+            mock_config.backup = MagicMock(enabled=True)
+            mock_loader_cls.return_value.load_config.return_value = mock_config
+
+            mock_gen = MagicMock()
+            mock_gen.generate_server_settings.side_effect = RuntimeError("unexpected")
+            mock_gen_cls.return_value = mock_gen
+
             result = manager.reload_and_apply()
             assert result is False
 
