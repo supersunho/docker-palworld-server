@@ -59,6 +59,8 @@ spec:
               value: {{ .Values.server.maxPlayers | quote }}
             - name: SERVER_PORT
               value: {{ .Values.server.port | quote }}
+            - name: QUERY_PORT
+              value: {{ .Values.service.queryPort | quote }}
             - name: SERVER_DESCRIPTION
               value: {{ .Values.server.description | quote }}
             - name: REST_API_ENABLED

@@ -83,7 +83,7 @@ persistence:
 service:
   type: LoadBalancer
   gamePort: 8211
-  queryPort: 27015
+  queryPort: 27018
 
 # Management service (REST API + RCON)
 # Disabled by default; enable only when external access is required.
