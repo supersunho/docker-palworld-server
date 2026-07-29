@@ -419,7 +419,7 @@ class ConfigLoader(IConfigProvider):
                 f"Invalid worker threads count: {config.server_startup.worker_threads_count}"
             )
 
-        valid_languages = ["ko", "en", "ja", "zh"]
+        valid_languages = ["ko", "en", "ja"]
         if config.language not in valid_languages:
             raise ValueError(f"Invalid language: {config.language}. Supported: {valid_languages}")
 
