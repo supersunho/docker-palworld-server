@@ -1,7 +1,7 @@
 # Palworld Server Helm Chart Values
 # This is a YAML-formatted file.
 
-# Number of replicas (only 1 supported for game server)
+# Number of replicas (only 1 supported — Palworld is a single-server game)
 replicaCount: 1
 
 image:

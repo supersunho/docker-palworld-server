@@ -8,7 +8,10 @@ metadata:
     release: {{ .Release.Name }}
 spec:
   serviceName: {{ include "palworld-server.fullname" . }}
-  replicas: {{ .Values.replicaCount }}
+  {{- if ne (int .Values.replicaCount) 1 }}
+  {{- fail "replicaCount must be 1 — Palworld is a single-server game and multiple replicas would share the same PersistentVolume" }}
+  {{- end }}
+  replicas: 1
   selector:
     matchLabels:
       app: {{ include "palworld-server.name" . }}
