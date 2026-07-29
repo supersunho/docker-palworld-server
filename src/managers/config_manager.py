@@ -206,9 +206,33 @@ class ConfigManager:
             tmp_settings.write_text(settings_content, encoding="utf-8")
             tmp_engine.write_text(engine_content, encoding="utf-8")
 
-            # 5. Atomic rename — POSIX guarantee: rename(2) is atomic on same fs
+            # 5. Snapshot originals for rollback, then atomic rename
+            snapshot_settings = None
+            snapshot_engine = None
+            try:
+                snapshot_settings = (
+                    settings_path.read_bytes() if settings_path.exists() else None
+                )
+                snapshot_engine = (
+                    engine_path.read_bytes() if engine_path.exists() else None
+                )
+            except Exception:
+                pass
+
             tmp_settings.replace(settings_path)
-            tmp_engine.replace(engine_path)
+
+            try:
+                tmp_engine.replace(engine_path)
+            except Exception:
+                # Rollback: restore settings to previous state
+                try:
+                    if snapshot_settings is not None:
+                        settings_path.write_bytes(snapshot_settings)
+                    elif settings_path.exists():
+                        settings_path.unlink()
+                except Exception:
+                    pass
+                raise
 
             # 6. Update in-memory state
             self.config = new_config
