@@ -284,7 +284,7 @@ class EnhancedBackupManager:
                     filename=backup_file.name,
                     filepath=backup_file,
                     size_bytes=backup_file.stat().st_size,
-                    created_time=datetime.fromtimestamp(backup_file.stat().st_ctime),
+                    created_time=datetime.fromtimestamp(backup_file.stat().st_mtime),
                     backup_type=backup_type,
                 )
 
