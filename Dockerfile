@@ -44,6 +44,14 @@ RUN DOWNLOAD_URL=$(curl -s https://api.github.com/repos/itzg/rcon-cli/releases/l
     fi && \
     rm -rf /tmp/rcon-cli* /tmp/LICENSE /tmp/README.md
 
+# Build project wheel for console scripts (palworld-backup, palworld-health, etc.)
+COPY pyproject.toml ./
+COPY src/ ./src/
+COPY config/ ./config/
+COPY scripts/ ./scripts/
+RUN /opt/venv/bin/pip install --no-deps --no-build-isolation . && \
+    /opt/venv/bin/pip wheel --no-deps --no-build-isolation -w /opt/wheels .
+
 # ============================================================
 # Stage 2: Runtime — minimal production image
 # ============================================================
@@ -77,6 +85,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy Python virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /usr/local/bin/rcon-cli /usr/local/bin/rcon-cli
+# Copy and install the project wheel for console scripts
+COPY --from=builder /opt/wheels/ /tmp/wheels/
+RUN /opt/venv/bin/pip install --no-deps /tmp/wheels/*.whl && rm -rf /tmp/wheels
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -114,9 +125,10 @@ COPY docker/supervisor/ /etc/supervisor/conf.d/
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY --chmod=755 scripts/healthcheck.py /usr/local/bin/healthcheck
 
-# Verify: config loading + Python package imports
+# Verify: config loading + Python package imports + console scripts
 RUN python -c "from src.config_loader import get_config; get_config()" && \
-    python -c "import yaml, aiohttp, structlog; yaml.safe_load(open('config/default.yaml'))"
+    python -c "import yaml, aiohttp, structlog; yaml.safe_load(open('config/default.yaml'))" && \
+    python -c "from importlib.metadata import entry_points; eps = entry_points(group='console_scripts'); print([e.name for e in eps if 'palworld' in e.name])"
 
 RUN chown -R steam:steam \
     /app \
