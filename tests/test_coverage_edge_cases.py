@@ -137,3 +137,26 @@ class TestCoverageEdgeCases:
         assert mock_health.perform_health_check.called
         assert mock_health._update_health_history.called
         assert mock_health._handle_health_result.called
+
+    def test_supervisor_env_vars_match_dockerfile(self):
+        """Every %(ENV_VAR)s in palworld.conf has a default in Dockerfile."""
+        import re
+
+        sup_path = "docker/supervisor/palworld.conf"
+        with open(sup_path) as f:
+            sup_content = f.read()
+
+        env_refs = set(re.findall(r"%\(ENV_(\w+)\)s", sup_content))
+        assert env_refs, "No ENV_ references found in supervisor config"
+
+        df_path = "Dockerfile"
+        with open(df_path) as f:
+            df_content = f.read()
+
+        df_env_vars = set(re.findall(r"^    ENV_(\w+)=", df_content, re.MULTILINE))
+        assert df_env_vars, "No ENV_ vars found in Dockerfile"
+
+        missing = env_refs - df_env_vars
+        assert not missing, (
+            f"Supervisor ENV references missing from Dockerfile: {missing}"
+        )

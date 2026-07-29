@@ -112,7 +112,18 @@ ENV PYTHONUNBUFFERED=1 \
     BACKUP_INTERVAL=3600 \
     BACKUP_RETENTION_DAYS=7 \
     PUID=1002 \
-    PGID=1002
+    PGID=1002 \
+    \
+    # Supervisor ENV_ prefixed variables (required by palworld.conf)
+    ENV_USE_PERFORMANCE_THREADS=true \
+    ENV_QUERY_PORT=27018 \
+    ENV_RCON_ENABLED=true \
+    ENV_REST_API_ENABLED=true \
+    ENV_LOG_LEVEL=INFO \
+    ENV_HEALTH_CHECK_INTERVAL=60 \
+    ENV_HEALTH_CHECK_ENABLED=true \
+    ENV_BACKUP_INTERVAL=3600 \
+    ENV_BACKUP_RETENTION_DAYS=7
 
 RUN mkdir -p /app /home/steam/palworld_server/Pal/Saved/Config/LinuxServer /home/steam/backups /home/steam/logs/palworld /etc/supervisor/conf.d
 
