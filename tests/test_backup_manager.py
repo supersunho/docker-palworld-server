@@ -184,6 +184,47 @@ class TestEnhancedBackupManager:
         assert (save_dir / "level.sav").read_text() == "world_data"
 
     @pytest.mark.asyncio
+    async def test_restore_backup_preserves_recovery_on_rollback_failure(self, tmp_path):
+        """F-03: Failed rollback keeps recovery artifacts for manual recovery."""
+        import shutil
+
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = tmp_path / "backups"
+        save_dir = config.paths.server_dir / "Pal" / "Saved" / "SaveGames" / "world"
+        save_dir.mkdir(parents=True)
+        (save_dir / "first.sav").write_text("first")
+        (save_dir / "second.sav").write_text("second")
+
+        manager = EnhancedBackupManager(config)
+        backup_result = await manager.create_backup("rollback_failure", "manual")
+        assert backup_result["success"]
+
+        real_move = shutil.move
+        move_count = 0
+
+        def move_with_failures(source, destination):
+            nonlocal move_count
+            move_count += 1
+            if move_count == 2:
+                raise OSError("original move failed")
+            if move_count == 3:
+                raise OSError("rollback move failed")
+            return real_move(source, destination)
+
+        with patch("shutil.move", side_effect=move_with_failures):
+            result = await manager.restore_backup(Path(backup_result["filepath"]))
+
+        assert result["success"] is False
+        assert "rollback failed" in result["error"].lower()
+        assert "recovery directory preserved" in result["error"].lower()
+
+        recovery_dir = Path(result["recovery_dir"])
+        assert recovery_dir.exists()
+        assert (recovery_dir / "_manifest.json").exists()
+        assert any(path.name != "_manifest.json" for path in recovery_dir.iterdir())
+
+    @pytest.mark.asyncio
     async def test_restore_backup_rejects_path_traversal(self, tmp_path):
         """R2-P1-01: Archive with .. traversal is rejected."""
         import tarfile

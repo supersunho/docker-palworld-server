@@ -61,9 +61,8 @@ class EnhancedBackupManager:
         self._backup_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._running = False
-        # Serialise backup operations to prevent concurrent archive creation
-        self._backup_lock = asyncio.Lock()
-        self._restore_lock = asyncio.Lock()
+        # Serialise all storage mutations, including archive creation and restore.
+        self._storage_lock = asyncio.Lock()
         # Dedup tracking: completed daily/weekly/monthly bucket keys
         # \"daily-YYYYMMDD\", \"weekly-YYYYWww\", \"monthly-YYYYMM\"
         self._completed_buckets: Dict[str, int] = {}
@@ -410,12 +409,13 @@ class EnhancedBackupManager:
     async def _create_archive(self, backup_path: Path, backup_type: str):
         """Create backup archive from a snapshot copy.
 
-        Uses an asyncio.Lock to serialise concurrent backup attempts.
+        Uses the shared storage lock to serialise concurrent backup and restore
+        operations.
         Copies the live source directory to a temp location, then
         archives the snapshot so the server can keep writing during
         the (relatively slow) compression phase.
         """
-        async with self._backup_lock:
+        async with self._storage_lock:
             loop = asyncio.get_event_loop()
             import shutil
             import tempfile
@@ -504,7 +504,8 @@ class EnhancedBackupManager:
         """Restore server data from a backup archive.
 
         Extracts the backup archive to a unique staging directory with
-        rollback support. Uses _restore_lock to prevent concurrent restores.
+        rollback support. Uses the shared storage lock to prevent concurrent
+        backup and restore operations.
 
         Security: rejects path traversal, absolute paths, symlinks,
         hardlinks, and device entries.
@@ -519,7 +520,7 @@ class EnhancedBackupManager:
         start_time = time.time()
         staging_dir = None
         recovery_dir = None
-        async with self._restore_lock:
+        async with self._storage_lock:
             try:
                 if not backup_path.exists():
                     return {
@@ -683,6 +684,7 @@ class EnhancedBackupManager:
 
             except Exception as e:
                 duration = round(time.time() - start_time, 2)
+                rollback_error = None
                 # Rollback: restore originals from recovery dir
                 if recovery_dir is not None and recovery_dir.exists():
                     try:
@@ -706,8 +708,13 @@ class EnhancedBackupManager:
                                 if new_path.exists():
                                     new_path.unlink()
                         shutil.rmtree(recovery_dir)
-                    except Exception:
-                        pass
+                    except Exception as rollback_exc:
+                        rollback_error = rollback_exc
+                        self.logger.critical(
+                            f"Backup restore rollback failed; recovery directory "
+                            f"preserved at {recovery_dir}: {rollback_exc}",
+                            exc_info=True,
+                        )
                 # Clean up staging on failure
                 if staging_dir is not None:
                     try:
@@ -718,6 +725,16 @@ class EnhancedBackupManager:
                     except Exception:
                         pass
                 self.logger.error(f"Backup restore failed: {e}")
+                if rollback_error is not None:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"{e}; rollback failed: {rollback_error}; "
+                            f"recovery directory preserved at {recovery_dir}"
+                        ),
+                        "recovery_dir": str(recovery_dir),
+                        "duration_seconds": duration,
+                    }
                 return {"success": False, "error": str(e), "duration_seconds": duration}
 
     def cleanup_old_backups(self) -> int:
