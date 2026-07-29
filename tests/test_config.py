@@ -3,7 +3,6 @@
 import os
 import yaml
 import pytest
-from pathlib import Path
 from unittest.mock import patch
 
 from src.config.base import ConfigLoader, get_config, reload_config
@@ -54,6 +53,39 @@ language: ko
             loader = ConfigLoader(config_file)
             config = loader.load_config()
             assert config.server.name == "EnvName"
+
+    @pytest.mark.parametrize("worker_threads", ["0", "1"])
+    def test_env_numeric_values_follow_field_types(self, worker_threads):
+        """Numeric env values must not be globally coerced to booleans."""
+        with patch.dict(
+            os.environ,
+            {
+                "WORKER_THREADS_COUNT": worker_threads,
+                "ENGINE_LAN_TICK_RATE": "121",
+                "SERVER_PORT": "8213",
+                "SERVER_NAME": "1",
+            },
+            clear=False,
+        ):
+            config = ConfigLoader("config/default.yaml").load_config()
+
+        assert type(config.server_startup.worker_threads_count) is int
+        assert config.server_startup.worker_threads_count == int(worker_threads)
+        assert type(config.engine.lan_server_max_tick_rate) is int
+        assert config.engine.lan_server_max_tick_rate == 121
+        assert type(config.server.port) is int
+        assert config.server.port == 8213
+        assert type(config.server.name) is str
+        assert config.server.name == "1"
+
+    @pytest.mark.parametrize(("enabled", "expected"), [("true", True), ("false", False)])
+    def test_env_boolean_values_follow_bool_fields(self, enabled, expected):
+        """Boolean env values still parse according to boolean fields."""
+        with patch.dict(os.environ, {"REST_API_ENABLED": enabled}, clear=False):
+            config = ConfigLoader("config/default.yaml").load_config()
+
+        assert type(config.rest_api.enabled) is bool
+        assert config.rest_api.enabled is expected
 
     def test_type_conversion_bool(self, tmp_path):
         """FS-1.1.3: String-to-bool conversion for true/false/yes/no/1/0/on/off."""

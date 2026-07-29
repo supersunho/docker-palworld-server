@@ -5,10 +5,12 @@ Base configuration classes
 
 import os
 import re
+import types
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, TypeVar
+from typing import Any, Dict, Optional, Union, TypeVar, get_args, get_origin, get_type_hints
 from dataclasses import dataclass, field
+import dataclasses
 from typing import TYPE_CHECKING
 
 from ..protocols import IConfigProvider
@@ -82,46 +84,112 @@ class ConfigLoader(IConfigProvider):
 
         return value
 
-    def _convert_value(self, value: str, target_type: type, field_path: str = "") -> Any:
-        """Convert a single env-var string to the target dataclass type.
+    def _convert_value(self, value: Any, target_type: Any, field_path: str = "") -> Any:
+        """Convert a value according to a dataclass field's declared type.
 
         Raises ValueError with field_path context on conversion failure.
         """
-        if target_type is str:
+        origin = get_origin(target_type)
+        if origin in (Union, types.UnionType):
+            union_types = get_args(target_type)
+            if value is None and type(None) in union_types:
+                return None
+            if isinstance(value, str) and str in union_types:
+                return value
+
+            conversion_errors = []
+            for union_type in union_types:
+                if union_type is type(None):
+                    continue
+                try:
+                    return self._convert_value(value, union_type, field_path)
+                except (TypeError, ValueError) as error:
+                    conversion_errors.append(error)
+            raise ValueError(f"{field_path}: cannot convert '{value}' to {target_type}") from (
+                conversion_errors[-1] if conversion_errors else None
+            )
+
+        if target_type is Any or target_type is None:
             return value
+
+        if value is None:
+            return None
+
+        if target_type is str:
+            return value if isinstance(value, str) else str(value)
+
         if target_type is int:
             try:
                 return int(value)
-            except (ValueError, TypeError):
-                raise ValueError(
-                    f"{field_path}: cannot convert '{value}' to int"
-                )
+            except (ValueError, TypeError) as error:
+                raise ValueError(f"{field_path}: cannot convert '{value}' to int") from error
+
         if target_type is float:
             try:
                 return float(value)
-            except (ValueError, TypeError):
-                raise ValueError(
-                    f"{field_path}: cannot convert '{value}' to float"
-                )
+            except (ValueError, TypeError) as error:
+                raise ValueError(f"{field_path}: cannot convert '{value}' to float") from error
+
         if target_type is bool:
             if isinstance(value, bool):
                 return value
-            if value.lower() in ("true", "yes", "1", "on"):
+            if isinstance(value, str) and value.lower() in ("true", "yes", "1", "on"):
                 return True
-            if value.lower() in ("false", "no", "0", "off"):
+            if isinstance(value, str) and value.lower() in ("false", "no", "0", "off"):
                 return False
+            if isinstance(value, (int, float)):
+                return bool(value)
             raise ValueError(
                 f"{field_path}: unrecognised boolean value '{value}' — "
                 "expected one of true/false/yes/no/1/0/on/off"
             )
+
+        if target_type is Path:
+            try:
+                return value if isinstance(value, Path) else Path(value)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"{field_path}: cannot convert '{value}' to Path") from error
+
+        if isinstance(target_type, type) and dataclasses.is_dataclass(target_type):
+            if isinstance(value, target_type):
+                return value
+            if isinstance(value, dict):
+                return self._dict_to_dataclass(target_type, value, field_path)
+            raise ValueError(f"{field_path}: expected a mapping for {target_type.__name__}")
+
+        if origin is list:
+            if isinstance(value, str):
+                value = yaml.safe_load(value)
+            if not isinstance(value, list):
+                raise ValueError(f"{field_path}: expected a list")
+            item_type = get_args(target_type)[0] if get_args(target_type) else Any
+            return [
+                self._convert_value(item, item_type, f"{field_path}[{index}]")
+                for index, item in enumerate(value)
+            ]
+
+        if origin is dict:
+            if isinstance(value, str):
+                value = yaml.safe_load(value)
+            if not isinstance(value, dict):
+                raise ValueError(f"{field_path}: expected a mapping")
+            key_type, item_type = get_args(target_type) or (Any, Any)
+            return {
+                self._convert_value(key, key_type, f"{field_path}.<key>"): self._convert_value(
+                    item, item_type, f"{field_path}.{key}"
+                )
+                for key, item in value.items()
+            }
+
         return value
 
     def _convert_types(self, value: Any) -> Any:
-        """Convert strings to appropriate types (per-env-var global pass).
+        """Legacy recursive lexical conversion helper.
 
-        String fields may get distorted here (e.g. '00123' -> 123).
-        _dict_to_dataclass later restores the raw value for str fields
-        from self._raw_config_after_env.
+        Configuration loading no longer calls this global pass because it cannot
+        distinguish lexical strings from values that belong to numeric fields.
+        It remains available for backwards compatibility with callers that use
+        this private helper directly.
         """
         if isinstance(value, str):
             if value.lower() in ("true", "yes", "1", "on"):
@@ -162,15 +230,13 @@ class ConfigLoader(IConfigProvider):
             raise yaml.YAMLError(f"YAML file parsing error: {e}")
 
         self._processed_config = self._substitute_env_vars(self._raw_config)
-        # Preserve raw env-var substituted values for string fields so
-        # _dict_to_dataclass can restore the original value (e.g.
-        # ADMIN_PASSWORD=00123 vs the int 123 that _convert_types produces).
+        # Keep the substituted tree intact so field-aware conversion can decide
+        # whether each string belongs to a string, numeric, boolean, or nested field.
         self._raw_config_after_env = self._processed_config
-        self._processed_config = self._convert_types(self._processed_config)
 
         return self._create_config_instance()
 
-    def _dict_to_dataclass(self, dc_type: type[_DC], section: dict) -> _DC:
+    def _dict_to_dataclass(self, dc_type: type[_DC], section: dict, field_prefix: str = "") -> _DC:
         """Build a dataclass instance from a config dict section.
 
         Introspects dataclass fields and maps them to dict keys with
@@ -178,34 +244,22 @@ class ConfigLoader(IConfigProvider):
         Unknown keys in the section are silently ignored (see
         _warn_unknown_keys).
 
-        For str-typed fields the value is looked up from the raw
-        env-var substituted dict (_raw_config_after_env) so that the
-        original string is preserved even when _convert_types has
-        coerced '00123' to 123 or 'true' to True.
+        Values are converted according to each field's declared type, including
+        nested dataclasses and typed containers.
         """
-        import dataclasses
-
         kwargs = {}
+        try:
+            type_hints = get_type_hints(dc_type)
+        except (NameError, TypeError):
+            type_hints = {}
+
         for f in dataclasses.fields(dc_type):
             if f.name in section:
                 value = section[f.name]
-                # Restore raw string for str fields from pre-conversion data
-                raw_env = getattr(self, "_raw_config_after_env", None)
-                if f.type is str and raw_env:
-                    raw = raw_env
-                    for key in self._config_path_for_section(dc_type, f.name):
-                        raw = raw.get(key, {}) if isinstance(raw, dict) else {}
-                    raw_val = raw.get(f.name, value) if isinstance(raw, dict) else value
-                    if isinstance(raw_val, str):
-                        value = raw_val
-                    elif not isinstance(value, str):
-                        value = str(value)
-                elif not isinstance(value, str) and f.type is not str:
-                    pass  # already typed correctly
-                elif isinstance(value, str) and f.type is not str:
-                    value = self._convert_value(value, f.type, field_path=dc_type.__name__ + "." + f.name)
-                elif f.type is str and not isinstance(value, str):
-                    value = str(value)
+                field_path = ".".join(part for part in (field_prefix, f.name) if part)
+                value = self._convert_value(
+                    value, type_hints.get(f.name, f.type), field_path=field_path
+                )
                 kwargs[f.name] = value
             elif f.default is not dataclasses.MISSING:
                 kwargs[f.name] = f.default
@@ -298,7 +352,6 @@ class ConfigLoader(IConfigProvider):
         from .palworld.settings import PalworldSettings
 
         config_dict = self._processed_config
-        from pathlib import Path
 
         # --- Simple section-mapped configs ---
         simple_configs = [
@@ -325,57 +378,21 @@ class ConfigLoader(IConfigProvider):
 
         # --- MonitoringConfig with nested IdleRestartConfig ---
         monitoring_section = config_dict.get("monitoring", {})
-        idle_restart_section = monitoring_section.get("idle_restart", {})
-        idle_restart_config = self._dict_to_dataclass(IdleRestartConfig, idle_restart_section)
-        monitoring_config = MonitoringConfig(
-            mode=monitoring_section.get("mode", "both"),
-            log_level=monitoring_section.get("log_level", "INFO"),
-            metrics_interval=monitoring_section.get("metrics_interval", 60),
-            enable_dashboard=monitoring_section.get("enable_dashboard", True),
-            dashboard_port=monitoring_section.get("dashboard_port", 8080),
-            log_format_style=monitoring_section.get("log_format_style", "simple"),
-            idle_restart=idle_restart_config,
-        )
+        monitoring_config = self._dict_to_dataclass(MonitoringConfig, monitoring_section)
 
         # --- DiscordConfig with nested events dict ---
-        discord_section = config_dict.get("discord", {})
-        discord_events = discord_section.get("events", {})
-        discord_config = DiscordConfig(
-            webhook_url=discord_section.get("webhook_url", ""),
-            enabled=discord_section.get("enabled", False),
-            mention_role=discord_section.get("mention_role", ""),
-            events=(
-                discord_events
-                if discord_events
-                else {
-                    "server_start": True,
-                    "server_stop": True,
-                    "player_join": True,
-                    "player_leave": True,
-                    "backup_complete": True,
-                    "errors": True,
-                    "idle_restart": True,
-                }
-            ),
-        )
+        discord_section = dict(config_dict.get("discord", {}))
+        if not discord_section.get("events"):
+            discord_section.pop("events", None)
+        discord_config = self._dict_to_dataclass(DiscordConfig, discord_section)
 
         # --- ConfigPaths with Path() wrapper ---
         paths_section = config_dict.get("paths", {})
-        paths_config = ConfigPaths(
-            server_dir=Path(paths_section.get("server_dir", "/home/steam/palworld_server")),
-            backup_dir=Path(paths_section.get("backup_dir", "/home/steam/backups")),
-            log_dir=Path(paths_section.get("log_dir", "/home/steam/logs")),
-            steamcmd_dir=Path(paths_section.get("steamcmd_dir", "/home/steam/steamcmd")),
-        )
+        paths_config = self._dict_to_dataclass(ConfigPaths, paths_section)
 
         # --- PalworldSettings with CamelCase keys ---
         palworld_settings_dict = config_dict.get("palworld_settings", {})
-        palworld_settings_config = PalworldSettings(
-            **{
-                f.name: palworld_settings_dict.get(f.name, f.default)
-                for f in __import__("dataclasses").fields(PalworldSettings)
-            }
-        )
+        palworld_settings_config = self._dict_to_dataclass(PalworldSettings, palworld_settings_dict)
 
         language = config_dict.get("language", "ko")
 
