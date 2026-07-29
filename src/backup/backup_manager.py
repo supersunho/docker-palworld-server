@@ -323,10 +323,20 @@ class EnhancedBackupManager:
         return "daily"
 
     def _parse_schedule_time(self) -> tuple[int, int]:
-        """Parse schedule_time config into (hour, minute), defaulting to (4, 0)."""
+        """Parse schedule_time config into (hour, minute), defaulting to (4, 0).
+
+        Validates hour (0-23) and minute (0-59). Returns fallback on invalid values.
+        """
         try:
             parts = self.config.backup.schedule_time.split(":")
-            return int(parts[0]), int(parts[1])
+            hour, minute = int(parts[0]), int(parts[1])
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return hour, minute
+            self.logger.warning(
+                "schedule_time '%s' out of range, falling back to 04:00",
+                self.config.backup.schedule_time,
+            )
+            return 4, 0
         except (ValueError, IndexError):
             return 4, 0
 

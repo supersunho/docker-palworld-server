@@ -130,9 +130,19 @@ class ConfigManager:
     def _validate_config(self, config: "PalworldConfig") -> None:
         """Validate loaded config — raises ValueError on violation.
 
-        Checks port ranges, required fields, and basic type expectations.
+        First delegates to ConfigLoader.validate_config for schema/range
+        checks (monitoring mode, log format, language, port ranges, etc.),
+        then does a quick port sanity for the three main service ports.
+
         Called by reload_and_apply before staging files.
         """
+        # Full schema validation via ConfigLoader
+        from ..config.base import ConfigLoader
+
+        loader = ConfigLoader()
+        loader.validate_config(config)
+
+        # Port sanity check
         self._config: Optional[PalworldConfig] = None
         for field_name, port in [
             ("server.port", config.server.port),

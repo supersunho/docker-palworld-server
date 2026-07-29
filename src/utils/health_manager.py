@@ -309,3 +309,42 @@ def get_health_manager(config: Optional[PalworldConfig] = None) -> HealthManager
         _health_manager.register_recovery_callback(restart_server_recovery)
 
     return _health_manager
+
+
+def main():
+    """Module entry point for Supervisor-managed health monitor.
+
+    Loads configuration and runs the health manager as a polling loop.
+    """
+    import asyncio
+    from ..config_loader import get_config
+
+    logger = get_logger("health_monitor")
+
+    try:
+        config = get_config()
+        manager = get_health_manager(config)
+        logger.info("Health monitor started — polling every %ds", config.monitoring.metrics_interval)
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        async def _run():
+            # Run periodic health checks until cancelled
+            while True:
+                try:
+                    await manager.check_health()
+                except Exception as e:
+                    logger.error("Health check error: %s", e)
+                await asyncio.sleep(config.monitoring.metrics_interval)
+
+        loop.run_until_complete(_run())
+    except KeyboardInterrupt:
+        logger.info("Health monitor stopped")
+    except Exception as e:
+        logger.error("Health monitor failed: %s", e)
+        raise
+
+
+if __name__ == "__main__":
+    main()
