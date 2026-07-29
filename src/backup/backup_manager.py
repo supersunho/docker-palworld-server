@@ -534,6 +534,7 @@ class EnhancedBackupManager:
 
                 # Unique staging and recovery directories
                 import uuid
+
                 staging_suffix = f".restore_staging_{uuid.uuid4().hex[:8]}"
                 staging_dir = self.backup_dir / staging_suffix
                 recovery_suffix = f".restore_recovery_{uuid.uuid4().hex[:8]}"
@@ -577,11 +578,15 @@ class EnhancedBackupManager:
 
                             if norm.startswith("SaveGames/") or norm == "SaveGames":
                                 stripped = (
-                                    norm[len("SaveGames/") :] if norm.startswith("SaveGames/") else ""
+                                    norm[len("SaveGames/") :]
+                                    if norm.startswith("SaveGames/")
+                                    else ""
                                 )
                                 target_root = Path(self.source_dir).resolve()
                             elif norm.startswith("Config/") or norm == "Config":
-                                stripped = norm[len("Config/") :] if norm.startswith("Config/") else ""
+                                stripped = (
+                                    norm[len("Config/") :] if norm.startswith("Config/") else ""
+                                )
                                 target_root = Path(config_dir).resolve()
                             else:
                                 raise ValueError(
@@ -676,6 +681,7 @@ class EnhancedBackupManager:
                     try:
                         import shutil
                         import json as _json
+
                         manifest_path = recovery_dir / "_manifest.json"
                         if manifest_path.exists():
                             with open(manifest_path) as _mf:

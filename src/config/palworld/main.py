@@ -2,6 +2,7 @@
 """
 Complete Palworld configuration
 """
+
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from ..base import ConfigPaths

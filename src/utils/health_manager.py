@@ -324,7 +324,9 @@ def main():
     try:
         config = get_config()
         manager = get_health_manager(config)
-        logger.info("Health monitor started — polling every %ds", config.monitoring.metrics_interval)
+        logger.info(
+            "Health monitor started — polling every %ds", config.monitoring.metrics_interval
+        )
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

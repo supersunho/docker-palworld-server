@@ -48,8 +48,8 @@ class TestHelpers:
         assert format_bytes(2048) == "2.0 KB"
         assert format_bytes(3 * 1024 * 1024) == "3.0 MB"
         assert format_bytes(2 * 1024 * 1024 * 1024) == "2.0 GB"
-        assert format_bytes(1024 ** 4) == "1.0 TB"
-        assert format_bytes(1024 ** 5) == "1.0 PB"
+        assert format_bytes(1024**4) == "1.0 TB"
+        assert format_bytes(1024**5) == "1.0 PB"
 
     def test_format_duration(self):
         """FS-22: Human-readable durations."""

@@ -55,7 +55,11 @@ typecheck:
 
 ## Format with black
 format:
-	.venv/bin/python -m black src/ tests/ --line-length=100
+	.venv/bin/python -m black src/ tests/
+
+## Check formatting (CI gate)
+fmtcheck:
+	.venv/bin/python -m black --check src/ tests/
 
 # ── Setup ───────────────────────────────────────────────────────────────
 

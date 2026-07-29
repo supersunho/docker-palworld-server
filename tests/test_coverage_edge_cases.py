@@ -25,9 +25,7 @@ class TestCoverageEdgeCases:
         """Format ValueError returns raw message, not exception."""
         locales_dir = tmp_path / "locales"
         locales_dir.mkdir()
-        (locales_dir / "ko.json").write_text(
-            json.dumps({"msg": "{missing}"}), encoding="utf-8"
-        )
+        (locales_dir / "ko.json").write_text(json.dumps({"msg": "{missing}"}), encoding="utf-8")
         loader = MessageLoader(str(locales_dir), default_language="ko")
         # Passing only 'other' when '{missing}' is required
         msg = loader.get_message("msg", "ko", other="val")
