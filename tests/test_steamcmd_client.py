@@ -122,6 +122,11 @@ def test_is_state_0x6_failure_exact_marker():
     assert is_state_0x6_failure(lines, 2394010) is True
 
 
+def test_is_state_0x6_failure_missing_period():
+    """The exact marker without its trailing period does not classify."""
+    lines = ["App '2394010' state is 0x6 after update job"]
+    assert is_state_0x6_failure(lines, 2394010) is False
+
 def test_is_state_0x6_failure_different_app_id():
     """A 0x6 marker for another app id does not classify."""
     lines = ["App '2394020' state is 0x6 after update job."]

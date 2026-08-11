@@ -30,10 +30,12 @@ def is_state_0x6_failure(output_lines: List[str], app_id: int | str) -> bool:
     ``0x6`` does not classify as recoverable.
     """
     app = str(app_id)
-    # The marker is a complete SteamCMD status line ending in a period. Anchor
-    # to the trailing period / end-of-line so "after update job" with appended
-    # text does not classify.
-    pattern = re.compile(rf"App '{re.escape(app)}' state is 0x6 after update job\.?\s*$")
+    # The marker is the complete SteamCMD status line ending in a period:
+    # "App '<app_id>' state is 0x6 after update job." Match the app id and
+    # state together, anchored to the trailing period / end-of-line, so a
+    # different app id, a different state, a missing-period line, or
+    # unrelated output containing 0x6 does not classify as recoverable.
+    pattern = re.compile(rf"App '{re.escape(app)}' state is 0x6 after update job\.\s*$")
     return any(pattern.search(line) for line in output_lines)
 
 
