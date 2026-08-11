@@ -147,3 +147,9 @@ def test_is_state_0x6_failure_unrelated_nonzero_output():
         "update job failed",
     ]
     assert is_state_0x6_failure(lines, 2394010) is False
+
+def test_is_state_0x6_failure_appended_text_after_marker():
+    """Marker anchored end-of-line: a true marker with trailing text after
+    the period is not classified as the exact 0x6 failure (TEST-01)."""
+    lines = ["App '2394010' state is 0x6 after update job. extra output"]
+    assert is_state_0x6_failure(lines, 2394010) is False

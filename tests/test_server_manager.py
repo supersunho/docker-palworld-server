@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 from datetime import datetime
+import hashlib
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1172,3 +1173,272 @@ class TestSteamcmdRecoveryTransaction:
                 await task
 
         assert announced
+
+    def _protected_snapshot(self, server_dir) -> dict:
+        """Recursively hash EVERY protected file (PalServer.sh + all bytes
+        under Pal/), keyed by relative path. Whole-tree invariance is proven
+        only when this snapshot equals the transaction's before-state."""
+        roots = [server_dir / "PalServer.sh", server_dir / "Pal"]
+        snapshot = {}
+        for root in roots:
+            entries = [root] if root.is_file() else sorted(p for p in root.rglob("*") if p.is_file())
+            for p in entries:
+                snapshot[str(p.relative_to(server_dir))] = hashlib.sha256(p.read_bytes()).hexdigest()
+        return snapshot
+
+    def _make_protected_tree(self, server_dir, executable: bool):
+        """Mirror a real install: PalServer.sh (optionally exec bit) plus a
+        multi-file tree under Pal/ and Pal/Saved/ (configs + world saves).
+        Returns the whole-tree snapshot {relative_path: sha256}."""
+        pal_sh = server_dir / "PalServer.sh"
+        pal_sh.write_bytes(
+            b"#!/bin/sh\n"
+            b"exec ./Pal/Binaries/Linux/PalServer-Linux-Shipping -publiclobby\n"
+        )
+        if executable:
+            pal_sh.chmod(0o755)
+        config = server_dir / "Pal" / "Config.txt"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_bytes(b"OptionSettings=(DedicatedServerName=regression)\n")
+        ini = server_dir / "Pal" / "PalWorldSettings.ini"
+        ini.write_bytes(b"[ServerSettings]\nPlayerCount=8\n")
+        gus = server_dir / "Pal" / "Saved" / "Config" / "LinuxServer" / "GameUserSettings.ini"
+        gus.parent.mkdir(parents=True, exist_ok=True)
+        gus.write_bytes(b"[ScalabilitySettings]\nsg.ResolutionQuality=100\n")
+        sav = server_dir / "Pal" / "Saved" / "SaveGames" / "0" / "level.sav"
+        sav.parent.mkdir(parents=True, exist_ok=True)
+        sav.write_bytes(b"PALWORLD-PROTECTED-SAVE-BYTES")
+        player = server_dir / "Pal" / "Saved" / "SaveGames" / "0" / "Players" / "0000.sav"
+        player.parent.mkdir(parents=True, exist_ok=True)
+        player.write_bytes(b"PALWORLD-PLAYER-SAVE-BYTES")
+        return self._protected_snapshot(server_dir)
+
+    @pytest.mark.asyncio
+    async def test_recovery_retry_failure_leaves_protected_files_unchanged(
+        self, recovery_manager, tmp_path
+    ):
+        """REC-05: a 0x6 reset->retry->fatal transaction moves only disposable
+        SteamCMD metadata and never protected install/world bytes."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        # PalServer.sh WITHOUT exec bit -> no runnable fallback -> fatal.
+        protected = self._make_protected_tree(tmp_path, executable=False)
+        moves = self._make_targets(tmp_path, app, which=("manifest", "downloading"))
+        marker = self._marker(app)
+        m.steamcmd_manager.run_command = AsyncMock(
+            side_effect=[(False, [marker]), (False, ["ERROR! Failed to install"])]
+        )
+        result = await m.download_server_files()
+        # Reset ran, retry failed -> fatal (D-02/D-03).
+        assert result.success is True
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is True
+        assert result.fallback_used is False
+        # Every protected file under PalServer.sh + Pal/ (incl. Pal/Saved/)
+        # is byte-identical: exact path set AND content hash unchanged.
+        assert self._protected_snapshot(tmp_path) == protected
+        # Only the disposable metadata moved into a retained snapshot.
+        assert not moves["manifest"].exists()
+        assert not moves["downloading"].exists()
+        snapshots = list((tmp_path / ".steamcmd-recovery").glob(f"app-{app}-*"))
+        assert len(snapshots) == 1
+
+    @pytest.mark.asyncio
+    async def test_recovery_retry_success_leaves_protected_files_unchanged(
+        self, recovery_manager, tmp_path
+    ):
+        """REC-05: the retry-success outcome also leaves protected bytes intact."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        protected = self._make_protected_tree(tmp_path, executable=True)
+        moves = self._make_targets(tmp_path, app, which=("manifest", "downloading"))
+        marker = self._marker(app)
+        m.steamcmd_manager.run_command = AsyncMock(
+            side_effect=[(False, [marker]), (True, ["Success! App '2394010' fully installed."])]
+        )
+        result = await m.download_server_files()
+        assert result.success is True
+        assert result.can_start is True
+        assert result.was_updated is True
+        assert result.recovery_attempted is True
+        assert self._protected_snapshot(tmp_path) == protected
+        assert not moves["manifest"].exists()
+        assert not moves["downloading"].exists()
+        snapshots = list((tmp_path / ".steamcmd-recovery").glob(f"app-{app}-*"))
+        assert len(snapshots) == 1
+
+    @pytest.mark.asyncio
+    async def test_recovery_rollback_leaves_protected_files_unchanged(
+        self, recovery_manager, tmp_path, monkeypatch
+    ):
+        """REC-05: a rolled-back transaction never moves anything and leaves
+        protected bytes untouched; no retry runs."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        protected = self._make_protected_tree(tmp_path, executable=True)
+        moves = self._make_targets(tmp_path, app, which=("manifest", "downloading"))
+        marker = self._marker(app)
+        monkeypatch.setattr(
+            m, "_recover_steamcmd_metadata",
+            MagicMock(return_value=(False, None, [], "simulated rollback")),
+        )
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+        result = await m.download_server_files()
+        assert result.success is False
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is False
+        # Exactly one run: the failed initial command, never a retry.
+        assert len(m.steamcmd_manager.run_command.await_args_list) == 1
+        assert self._protected_snapshot(tmp_path) == protected
+        # Targets were never moved by the rolled-back recovery.
+        assert moves["manifest"].exists()
+        assert moves["downloading"].exists()
+        assert not (tmp_path / ".steamcmd-recovery").exists()
+
+    @pytest.mark.asyncio
+    async def test_build_update_commands_exact_no_validate(self, recovery_manager):
+        """REC-04/TEST-03: exact command construction with validate off."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        m.config.steamcmd.validate = False
+        assert m._build_update_commands() == [
+            "+force_install_dir",
+            str(m.config.paths.server_dir),
+            "+login",
+            "anonymous",
+            "+app_update",
+            str(app),
+            "+quit",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_build_update_commands_exact_validate(self, recovery_manager):
+        """REC-04/TEST-03: exact command construction with validate on."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        m.config.steamcmd.validate = True
+        assert m._build_update_commands() == [
+            "+force_install_dir",
+            str(m.config.paths.server_dir),
+            "+login",
+            "anonymous",
+            "+app_update",
+            str(app),
+            "validate",
+            "+quit",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_build_update_commands_force_update_byte_parity(self, recovery_manager):
+        """REC-04: command list byte-identical whether FORCE_UPDATE is on/off."""
+        m = recovery_manager
+        m.config.steamcmd.validate = True
+        base = m._build_update_commands()
+        m.config.steamcmd.force_update = True
+        forced = m._build_update_commands()
+        m.config.steamcmd.force_update = False
+        assert forced == base
+        assert m._build_update_commands() == base
+
+    @pytest.mark.asyncio
+    async def test_non_0x6_failure_does_not_move_metadata(
+        self, recovery_manager, tmp_path
+    ):
+        """TEST-03: the non-0x6 fatal path leaves SteamCMD metadata in place."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        moves = self._make_targets(tmp_path, app, which=("manifest", "downloading"))
+        m.steamcmd_manager.run_command = AsyncMock(
+            return_value=(False, ["Download failed: disk full", "ERROR! Failed to install app '2394010'."])
+        )
+        result = await m.download_server_files()
+        assert result.success is False
+        assert result.recovery_attempted is False
+        assert len(m.steamcmd_manager.run_command.await_args_list) == 1
+        m.monitoring_manager.handle_error.assert_awaited_once_with(
+            "Server file download failed"
+        )
+        # No recovery ran, so disposable metadata was never moved/retained.
+        assert moves["manifest"].exists()
+        assert moves["downloading"].exists()
+        assert list((tmp_path / "steamapps" / "downloading" / str(app)).iterdir())
+        assert not (tmp_path / ".steamcmd-recovery").exists()
+
+    @pytest.mark.asyncio
+    async def test_recovery_and_retry_serialize_concurrent_downloads(
+        self, recovery_manager, tmp_path
+    ):
+        """TEST-04: two concurrent download_server_files() calls on one manager
+        serialize on _steamcmd_update_lock. Proven by recorded run_command
+        entry/exit events and a gated first retry, not by a lock-wait
+        assumption: exactly 3 SteamCMD invocations (first initial + first retry
+        + second initial), the second initial strictly after the first retry,
+        one recovery snapshot, and the second call never re-runs recovery."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+        seq = [
+            (False, [marker]),
+            (True, ["Success! App '2394010' fully installed."]),
+            (False, [marker]),
+        ]
+        counter = {"n": 0}
+        events = []
+        retry_paused = asyncio.Event()
+        release_retry = asyncio.Event()
+
+        async def instrumented_run(command, timeout=1800):
+            counter["n"] += 1
+            n = counter["n"]
+            events.append(("run_entry", n))
+            try:
+                if n == 2:
+                    # First call's retry: pause inside the lock so we can prove
+                    # the second call is parked on the lock, not interleaved.
+                    retry_paused.set()
+                    await release_retry.wait()
+                return seq.pop(0)
+            finally:
+                events.append(("run_exit", n))
+
+        m.steamcmd_manager.run_command = instrumented_run
+
+        t1 = asyncio.create_task(m.download_server_files())
+        await asyncio.sleep(0)
+        # First call reached its gated retry -> confirms it holds the lock.
+        await retry_paused.wait()
+        # Second rapid liveliness: second call must now block on the lock.
+        t2 = asyncio.create_task(m.download_server_files())
+        await asyncio.sleep(0)
+        assert not t2.done()
+        release_retry.set()
+        results = await asyncio.gather(t1, t2)
+        r1, r2 = results
+
+        # Exactly 3 SteamCMD invocations, fully serialized (entry always
+        # immediately followed by its own exit; no interleaving).
+        assert counter["n"] == 3
+        assert events == [
+            ("run_entry", 1), ("run_exit", 1),
+            ("run_entry", 2), ("run_exit", 2),
+            ("run_entry", 3), ("run_exit", 3),
+        ]
+        # The second call's only run is strictly after the first retry's exit.
+        assert events.index(("run_entry", 3)) > events.index(("run_exit", 2))
+        # One recovery snapshot; the instance gate was consumed once, by the
+        # first call only.
+        snapshots = list((tmp_path / ".steamcmd-recovery").glob(f"app-{app}-*"))
+        assert len(snapshots) == 1
+        assert r1.success is True and r1.can_start is True
+        assert r1.was_updated is True
+        assert r1.recovery_attempted is True
+        # Second call re-failed 0x6 but the gate was consumed -> no reset, no
+        # retry; fatal fallback outcome (success True, can_start False, D-03).
+        assert r2.success is True
+        assert r2.recovery_attempted is False
+        assert r2.was_updated is False
+        assert r2.can_start is False
+        assert r2.fallback_used is False
