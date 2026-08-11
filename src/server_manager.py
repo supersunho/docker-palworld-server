@@ -6,23 +6,23 @@ Waits for REST API to be ready before starting monitoring systems
 
 import asyncio
 import time
-import aiohttp
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
-from .config_loader import PalworldConfig, get_config
-from .logging_setup import get_logger, log_server_event, setup_logging
+import aiohttp
 
 from .clients import SteamCMDManager
 from .clients.steamcmd_client import is_state_0x6_failure
-from .managers import ProcessManager, ConfigManager
-from .monitoring import MonitoringManager
-from .managers.lifecycle_manager import ServerLifecycleManager
-from .managers.api_facade import ServerAPIFacade
-from .managers.settings_generator import SettingsGenerator
+from .config_loader import PalworldConfig, get_config
 from .container import ServiceContainer
-from dataclasses import dataclass
+from .logging_setup import get_logger, log_server_event, setup_logging
+from .managers import ConfigManager, ProcessManager
+from .managers.api_facade import ServerAPIFacade
+from .managers.lifecycle_manager import ServerLifecycleManager
+from .managers.settings_generator import SettingsGenerator
+from .monitoring import MonitoringManager
 
 
 @dataclass
@@ -43,6 +43,15 @@ class ServerDownloadResult:
     was_updated: bool
     recovery_attempted: bool = False
     fallback_used: bool = False
+
+
+# Console-only warning emitted when startup proceeds from an existing
+# installation after a failed SteamCMD recovery (D-08). Exact literal stays
+# stable as part of the BOOT-02 acceptance contract.
+FALLBACK_WARNING = (
+    "UPDATE DEFERRED: SteamCMD recovery failed; "
+    "starting existing server build (may be older)"
+)
 
 
 async def wait_for_api_ready(manager, max_wait_time: int = 60, check_interval: int = 2) -> bool:
@@ -395,6 +404,17 @@ class PalworldServerManager:
 
         return True, snapshot, [o for o, _ in moved], None
 
+    def _has_valid_server_executable(self) -> bool:
+        """True when a runnable existing installation is available (D-06).
+
+        The PalServer.sh entry must exist as a regular file and carry an
+        executable bit. Used to decide whether a startup may fall back to a
+        deferred/possibly-older install after a failed recovery rather than
+        failing fatally (D-07/D-08).
+        """
+        path = self.config.paths.server_dir / "PalServer.sh"
+        return path.is_file() and bool(path.stat().st_mode & 0o111)
+
     async def download_server_files(self) -> ServerDownloadResult:
         """Download/update Palworld server files via SteamCMD.
         Always runs SteamCMD to check for and apply updates, even when
@@ -507,19 +527,36 @@ class PalworldServerManager:
                         was_updated=was_updated,
                         recovery_attempted=True,
                     )
+                # Reset executed but the identical retry also failed (D-02).
+                # Fall back to a valid existing installation (D-06/D-07): the
+                # PalServer.sh entry must exist and carry the executable bit.
+                if self._has_valid_server_executable():
+                    print(FALLBACK_WARNING)
+                    log_server_event(self.logger, "server_fallback", FALLBACK_WARNING)
+                    return ServerDownloadResult(
+                        success=True,
+                        can_start=True,
+                        was_updated=False,
+                        recovery_attempted=True,
+                        fallback_used=True,
+                    )
+                # No runnable installation remains: fatal. success=True is
+                # intentional (D-03) -- the operation ran to a terminal state
+                # but startup may not proceed.
                 log_server_event(
                     self.logger,
                     "server_download_fail",
-                    "Server file download failed after recovery",
+                    "Server file download failed after recovery; no valid executable",
                 )
                 await self.monitoring_manager.handle_error(
-                    "Server file download failed after recovery"
+                    "Server file download failed after recovery; no valid executable"
                 )
                 return ServerDownloadResult(
-                    success=False,
+                    success=True,
                     can_start=False,
                     was_updated=False,
                     recovery_attempted=True,
+                    fallback_used=False,
                 )
 
             log_server_event(self.logger, "server_download_fail", "Server file download failed")

@@ -1,15 +1,21 @@
 """Integration tests for the main server manager."""
 
-import pytest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
-from src.server_manager import PalworldServerManager, wait_for_api_ready
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from src.container import ServiceContainer
-from src.managers.lifecycle_manager import ServerLifecycleManager
 from src.managers.api_facade import ServerAPIFacade
-from src.managers.settings_generator import SettingsGenerator
+from src.managers.lifecycle_manager import ServerLifecycleManager
 from src.managers.process_manager import ProcessManager
+from src.managers.settings_generator import SettingsGenerator
+from src.server_manager import (
+    PalworldServerManager,
+    ServerDownloadResult,
+    wait_for_api_ready,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -687,8 +693,9 @@ class TestSteamcmdRecoveryTransaction:
     def test_recovery_snapshot_collision_never_merges(self, recovery_manager, tmp_path, monkeypatch):
         """REC-02: a pre-existing/colliding snapshot directory is never reused;
         recovery allocates a suffixed sibling and leaves the existing entry intact."""
-        import src.server_manager as sm
         from datetime import timezone as tzmod
+
+        import src.server_manager as sm
 
         m = recovery_manager
         app = m.config.steamcmd.app_id
@@ -718,3 +725,143 @@ class TestSteamcmdRecoveryTransaction:
             snapshot / f"steamapps/appmanifest_{app}.acf"
         ).read_bytes() == b"manifest-bytes"
         assert not created["manifest"].exists()
+
+    @pytest.mark.asyncio
+    async def test_retry_failure_falls_back_to_valid_executable(
+        self, recovery_manager, tmp_path, monkeypatch, capsys
+    ):
+        """BOOT-02/D-06..D-08: retry failure + valid executable -> fallback
+        with the exact deferred-update warning; handle_error not called."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+        exe = tmp_path / "PalServer.sh"
+        exe.write_text("#!/bin/sh\nexec ./PalServer-Linux-Test\n")
+        exe.chmod(0o755)
+
+        import src.server_manager as sm
+
+        events = []
+
+        def capture(logger, event_type, message, **kwargs):
+            events.append((event_type, message))
+
+        monkeypatch.setattr(sm, "log_server_event", capture)
+
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+        result = await m.download_server_files()
+
+        assert result.success is True
+        assert result.can_start is True
+        assert result.was_updated is False
+        assert result.recovery_attempted is True
+        assert result.fallback_used is True
+        # Exact deferred-update literal on the console (D-08) and in the
+        # structured server_fallback log event.
+        out = capsys.readouterr().out
+        assert (
+            "UPDATE DEFERRED: SteamCMD recovery failed; "
+            "starting existing server build (may be older)" in out
+        )
+        assert ("server_fallback", sm.FALLBACK_WARNING) in events
+        # Instance is startable, not failed: no error handling.
+        m.monitoring_manager.handle_error.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_retry_failure_missing_executable_is_fatal(
+        self, recovery_manager, tmp_path
+    ):
+        """BOOT-02/D-06: retry failure with no PalServer.sh -> fatal, no
+        fallback; success=True but can_start=False (D-03)."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+        result = await m.download_server_files()
+
+        assert result.success is True
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is True
+        assert result.fallback_used is False
+        assert len(m.steamcmd_manager.run_command.await_args_list) == 2
+        m.monitoring_manager.handle_error.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_retry_failure_non_executable_is_invalid(
+        self, recovery_manager, tmp_path
+    ):
+        """BOOT-02/D-06: a non-executable PalServer.sh is not a valid
+        fallback and stays fatal."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+        exe = tmp_path / "PalServer.sh"
+        exe.write_text("plain text, not executable")
+        exe.chmod(0o644)
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+        result = await m.download_server_files()
+
+        assert result.success is True
+        assert result.can_start is False
+        assert result.fallback_used is False
+        assert result.recovery_attempted is True
+        m.monitoring_manager.handle_error.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_async_main_proceeds_via_normal_start_on_fallback(
+        self, monkeypatch
+    ):
+        """BOOT-02/D-07: can_start=True (fallback_used=True) routes startup
+        through the normal generate/start flow -- not a bypass."""
+        import src.server_manager as sm
+
+        manager = MagicMock()
+        manager.__aenter__ = AsyncMock(return_value=manager)
+        manager.__aexit__ = AsyncMock(return_value=False)
+        manager.download_server_files = AsyncMock(
+            return_value=ServerDownloadResult(
+                success=True,
+                can_start=True,
+                was_updated=False,
+                recovery_attempted=True,
+                fallback_used=True,
+            )
+        )
+        manager.generate_server_settings = MagicMock(return_value=True)
+        manager.generate_engine_settings = MagicMock(return_value=True)
+        manager.start_server_with_verification = AsyncMock(return_value=True)
+        manager.get_overall_status = MagicMock(
+            return_value={
+                "monitoring": {"monitoring_active": True},
+                "startup_completed": True,
+            }
+        )
+        manager.is_server_running = MagicMock(return_value=False)
+        manager.config = MagicMock()
+        manager.config.monitoring.mode = "none"
+        manager.config.steamcmd.check_version_update = False
+
+        config = MagicMock()
+        config.server.name = "Test"
+        config.server.port = 8211
+        config.server.max_players = 32
+        config.monitoring.log_level = "info"
+        config.monitoring.log_format_style = "plain"
+        config.monitoring.mode = "none"
+        config.paths.log_dir = "logs"
+        config.steamcmd.update_on_start = True
+        config.steamcmd.check_version_update = False
+
+        monkeypatch.setattr(sm, "get_config", lambda: config)
+        monkeypatch.setattr(sm, "setup_logging", lambda **kwargs: None)
+        monkeypatch.setattr(sm, "PalworldServerManager", lambda cfg: manager)
+
+        exit_code = await sm._async_main()
+
+        assert exit_code == 0
+        manager.download_server_files.assert_awaited_once()
+        manager.start_server_with_verification.assert_awaited_once()
