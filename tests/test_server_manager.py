@@ -1,6 +1,7 @@
 """Integration tests for the main server manager."""
 
 import pytest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock, patch
 from src.server_manager import PalworldServerManager, wait_for_api_ready
@@ -664,3 +665,38 @@ class TestSteamcmdRecoveryTransaction:
         # Manifest untouched; the file root is still a plain file.
         assert (tmp_path / "steamapps" / f"appmanifest_{app}.acf").read_bytes() == b"manifest-bytes"
         assert (tmp_path / ".steamcmd-recovery").is_file()
+
+    def test_recovery_snapshot_collision_never_merges(self, recovery_manager, tmp_path, monkeypatch):
+        """REC-02: a pre-existing/colliding snapshot directory is never reused;
+        recovery allocates a suffixed sibling and leaves the existing entry intact."""
+        import src.server_manager as sm
+        from datetime import timezone as tzmod
+
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        created = self._make_targets(tmp_path, app, which=("manifest",))
+
+        # Freeze the clock so the first candidate is deterministic.
+        class FakeDateTime:
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 8, 11, 12, 0, 0, 123456, tzinfo=tzmod.utc)
+
+        monkeypatch.setattr(sm, "datetime", FakeDateTime)
+        recovery_root = tmp_path / ".steamcmd-recovery"
+        recovery_root.mkdir(exist_ok=True)
+        candidate = recovery_root / f"app-{app}-20260811T120000123456Z"
+        candidate.mkdir()
+        (candidate / "stale.bin").write_bytes(b"pre-existing")
+
+        ok, snapshot, moved, reason = m._recover_steamcmd_metadata()
+        assert ok is True
+        assert reason is None
+        # A distinct suffixed snapshot was allocated; the colliding dir is intact.
+        assert snapshot.name == f"app-{app}-20260811T120000123456Z-1"
+        assert (candidate / "stale.bin").read_bytes() == b"pre-existing"
+        # Manifest moved into the new suffixed snapshot under the preserved path.
+        assert (
+            snapshot / f"steamapps/appmanifest_{app}.acf"
+        ).read_bytes() == b"manifest-bytes"
+        assert not created["manifest"].exists()

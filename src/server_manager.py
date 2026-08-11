@@ -333,12 +333,23 @@ class PalworldServerManager:
         if recovery_root.is_symlink():
             return False, None, [], f"refusing symlinked recovery root: {recovery_root}"
 
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        snapshot = recovery_root / f"app-{self.config.steamcmd.app_id}-{timestamp}"
-        try:
-            snapshot.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            return False, None, [], f"snapshot creation failed: {exc}"
+        base_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        # Create the snapshot directory exclusively so a pre-existing or
+        # colliding app-<id>-<timestamp> entry can never be reused/merged,
+        # guaranteeing a unique retained snapshot (REC-02). On collision,
+        # retry with a counter suffix a bounded number of times.
+        snapshot = recovery_root / f"app-{self.config.steamcmd.app_id}-{base_timestamp}"
+        for attempt in range(100):
+            try:
+                snapshot.mkdir(parents=True, exist_ok=False)
+                break
+            except FileExistsError:
+                snapshot = recovery_root / f"app-{self.config.steamcmd.app_id}-{base_timestamp}-{attempt + 1}"
+            except OSError as exc:
+                return False, None, [], f"snapshot creation failed: {exc}"
+        else:
+            return False, None, [], "snapshot creation failed: could not allocate a unique snapshot"
+
 
         moved: list[tuple[Path, Path]] = []
         try:
