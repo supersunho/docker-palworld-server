@@ -5,7 +5,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
-from src.clients.steamcmd_client import SteamCMDManager
+from src.clients.steamcmd_client import SteamCMDManager, is_state_0x6_failure
 
 pytestmark = pytest.mark.unit
 
@@ -110,3 +110,35 @@ class TestSteamCMDManager:
         ):
             mock_ras.side_effect = Exception("Unexpected error")
             assert await steamcmd_manager.run_command(["+quit"]) == (False, [])
+
+
+def test_is_state_0x6_failure_exact_marker():
+    """Exact configured app id + state 0x6 marker classifies as recoverable."""
+    lines = [
+        "Update state (0x5) verifying, progress: 0.99 (238 / 240)",
+        "App '2394010' state is 0x6 after update job.",
+        "Success! App '2394010' already up to date.",
+    ]
+    assert is_state_0x6_failure(lines, 2394010) is True
+
+
+def test_is_state_0x6_failure_different_app_id():
+    """A 0x6 marker for another app id does not classify."""
+    lines = ["App '2394020' state is 0x6 after update job."]
+    assert is_state_0x6_failure(lines, 2394010) is False
+
+
+def test_is_state_0x6_failure_different_state():
+    """The same app id with a different state does not classify."""
+    lines = ["App '2394010' state is 0x4 after update job."]
+    assert is_state_0x6_failure(lines, 2394010) is False
+
+
+def test_is_state_0x6_failure_unrelated_nonzero_output():
+    """Unrelated lines containing 0x6 but no app state marker do not classify."""
+    lines = [
+        "Error code 0x6 while reading manifest",
+        "Downloaded 100 MB, checksum 0x6a3f",
+        "update job failed",
+    ]
+    assert is_state_0x6_failure(lines, 2394010) is False

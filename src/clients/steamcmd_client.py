@@ -5,6 +5,7 @@ Handles server file downloads and updates via SteamCMD.
 """
 
 import os
+import re
 import shlex
 import hashlib
 import asyncio
@@ -12,6 +13,28 @@ from pathlib import Path
 from typing import List
 
 from ..logging_setup import log_server_event
+
+
+def is_state_0x6_failure(output_lines: List[str], app_id: int | str) -> bool:
+    """Return True when the SteamCMD output contains the exact state-0x6
+    failure marker for the requested app.
+
+    SteamCMD reports a failed/aborted update like::
+
+        App '2394010' state is 0x6 after update job.
+
+    State 0x6 is the Steam "Update Required" failure that leaves the app
+    stuck until its appmanifest/+downloading metadata is cleared. We match
+    the app id and the state together, anchored to the full marker, so a
+    different app id, a different state, or unrelated output containing
+    ``0x6`` does not classify as recoverable.
+    """
+    app = str(app_id)
+    # The marker is a complete SteamCMD status line ending in a period. Anchor
+    # to the trailing period / end-of-line so "after update job" with appended
+    # text does not classify.
+    pattern = re.compile(rf"App '{re.escape(app)}' state is 0x6 after update job\.?\s*$")
+    return any(pattern.search(line) for line in output_lines)
 
 
 class SteamCMDManager:
