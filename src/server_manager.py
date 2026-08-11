@@ -314,15 +314,31 @@ class PalworldServerManager:
             # the configured server directory (the root may be a bind mount).
             if target.is_symlink():
                 return False, None, [], f"refusing symlinked target: {target}"
+            # Containment guard: every target must live beneath the
+            # configured server directory (REC-03 path derivation).
+            try:
+                target.relative_to(server_dir)
+            except ValueError:
+                return False, None, [], f"target outside server dir: {target}"
             parent = target.parent
             while parent != server_dir:
                 if parent.is_symlink():
                     return False, None, [], f"refusing symlinked parent: {parent}"
                 parent = parent.parent
 
+        # Reject a pre-existing symlinked recovery root: snapshot.mkdir() and
+        # target.rename() would follow it out of the configured server
+        # directory, moving metadata outside the root (REC-03 containment).
+        recovery_root = server_dir / ".steamcmd-recovery"
+        if recovery_root.is_symlink():
+            return False, None, [], f"refusing symlinked recovery root: {recovery_root}"
+
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        snapshot = server_dir / ".steamcmd-recovery" / f"app-{self.config.steamcmd.app_id}-{timestamp}"
-        snapshot.mkdir(parents=True, exist_ok=True)
+        snapshot = recovery_root / f"app-{self.config.steamcmd.app_id}-{timestamp}"
+        try:
+            snapshot.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return False, None, [], f"snapshot creation failed: {exc}"
 
         moved: list[tuple[Path, Path]] = []
         try:

@@ -584,3 +584,83 @@ class TestSteamcmdRecoveryTransaction:
         retry = [e for e in events if e[0] == "steamcmd_recovery_retry"]
         assert len(retry) == 1
         assert retry[0][2]["retry_success"] is True
+
+    def test_recovery_rejects_symlinked_recovery_root(self, recovery_manager, tmp_path):
+        """REC-03: a pre-existing symlinked .steamcmd-recovery root is rejected
+        so snapshot mkdir/rename cannot escape the server directory."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        created = self._make_targets(tmp_path, app, which=("manifest",))
+        outside = tmp_path.parent / "outside-recovery"
+        outside.mkdir(exist_ok=True)
+        (tmp_path / ".steamcmd-recovery").symlink_to(outside, target_is_directory=True)
+
+        ok, snapshot, moved, reason = m._recover_steamcmd_metadata()
+        assert ok is False
+        assert "recovery root" in (reason or "")
+        assert snapshot is None
+        assert moved == []
+        # Metadata stayed in place; nothing written through the symlink.
+        assert created["manifest"].read_bytes() == b"manifest-bytes"
+        assert list(outside.iterdir()) == []
+
+    @pytest.mark.asyncio
+    async def test_symlinked_recovery_root_never_retries(
+        self, recovery_manager, tmp_path
+    ):
+        """REC-03: rejected recovery root -> no retry, prior behavior preserved."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+        outside = tmp_path.parent / "outside-recovery-2"
+        outside.mkdir(exist_ok=True)
+        (tmp_path / ".steamcmd-recovery").symlink_to(outside, target_is_directory=True)
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+
+        success, was_updated = await m.download_server_files()
+        assert success is False
+        assert was_updated is False
+        # Only the failed initial command ran; no retry after rejection.
+        assert len(m.steamcmd_manager.run_command.await_args_list) == 1
+        assert list(outside.iterdir()) == []
+
+    def test_recovery_rejects_out_of_root_target(self, recovery_manager, tmp_path, monkeypatch):
+        """REC-03: containment guard rejects a helper returning an out-of-root
+        target instead of letting the parent loop climb past server_dir."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        outside = tmp_path.parent / "outside-target.acf"
+        outside.write_bytes(b"outside")
+
+        monkeypatch.setattr(
+            m,
+            "_steamcmd_recovery_targets",
+            lambda: [tmp_path / "steamapps" / f"appmanifest_{app}.acf", outside],
+        )
+        ok, snapshot, moved, reason = m._recover_steamcmd_metadata()
+        assert ok is False
+        assert "outside server dir" in (reason or "")
+        assert snapshot is None
+        assert moved == []
+        assert outside.exists()
+
+    @pytest.mark.asyncio
+    async def test_non_directory_recovery_root_fails_structured(self, recovery_manager, tmp_path):
+        """REC-03/05: a regular-file recovery root fails snapshot creation with
+        a structured reason; one SteamCMD call, no retry, no crash."""
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+        (tmp_path / ".steamcmd-recovery").write_text("not-a-directory")
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+
+        success, was_updated = await m.download_server_files()
+        assert success is False
+        assert was_updated is False
+        assert len(m.steamcmd_manager.run_command.await_args_list) == 1
+        m.monitoring_manager.handle_error.assert_awaited_once()
+        # Manifest untouched; the file root is still a plain file.
+        assert (tmp_path / "steamapps" / f"appmanifest_{app}.acf").read_bytes() == b"manifest-bytes"
+        assert (tmp_path / ".steamcmd-recovery").is_file()
