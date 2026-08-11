@@ -155,6 +155,12 @@ class PalworldServerManager:
         # startup calls cannot interleave metadata moves or SteamCMD runs.
         self._steamcmd_update_lock = asyncio.Lock()
 
+        # BOOT-04/D-13: one metadata reset + retry per manager-instance
+        # lifetime. Consumed at recovery-transaction entry so even a rollback
+        # (ok=False) cannot let the next periodic cycle re-run the same reset.
+        # NOT reset on successful start.
+        self._recovery_used = False
+
     def _setup_container_services(self):
         """Setup default services in the container if not already registered"""
         if not self.container.has_service(ProcessManager):
@@ -415,6 +421,36 @@ class PalworldServerManager:
         path = self.config.paths.server_dir / "PalServer.sh"
         return path.is_file() and bool(path.stat().st_mode & 0o111)
 
+    async def _fallback_or_fatal(self, recovery_attempted: bool) -> ServerDownloadResult:
+        """Decide startup after a failed recovery (BOOT-02/BOOT-04).
+
+        Shared by the retry-failure path (a reset did run this transaction,
+        ``recovery_attempted=True``) and the already-exhausted-gate path (no
+        reset ran this call, ``recovery_attempted=False``). Fall back to an
+        existing runnable build with a deferred-update warning, otherwise fail
+        fatally (success=True, can_start=False per D-03).
+        """
+        if self._has_valid_server_executable():
+            print(FALLBACK_WARNING)
+            log_server_event(self.logger, "server_fallback", FALLBACK_WARNING)
+            return ServerDownloadResult(
+                success=True,
+                can_start=True,
+                was_updated=False,
+                recovery_attempted=recovery_attempted,
+                fallback_used=True,
+            )
+        message = "Server file download failed after recovery; no valid executable"
+        log_server_event(self.logger, "server_download_fail", message)
+        await self.monitoring_manager.handle_error(message)
+        return ServerDownloadResult(
+            success=True,
+            can_start=False,
+            was_updated=False,
+            recovery_attempted=recovery_attempted,
+            fallback_used=False,
+        )
+
     async def download_server_files(self) -> ServerDownloadResult:
         """Download/update Palworld server files via SteamCMD.
         Always runs SteamCMD to check for and apply updates, even when
@@ -470,94 +506,77 @@ class PalworldServerManager:
             # the exact app + state 0x6 marker; any other failure preserves
             # the previous behavior.
             if is_state_0x6_failure(output_lines, self.config.steamcmd.app_id):
-                ok, snapshot, moved_paths, failure_reason = self._recover_steamcmd_metadata()
-                log_server_event(
-                    self.logger,
-                    "steamcmd_recovery",
-                    "SteamCMD state 0x6 metadata recovery attempted",
-                    app_id=self.config.steamcmd.app_id,
-                    snapshot_path=str(snapshot) if snapshot else None,
-                    moved_paths=[str(p) for p in moved_paths],
-                    recovery_ok=ok,
-                    failure_reason=failure_reason,
-                )
-                if not ok:
-                    # Incomplete transaction -- never retry, reset never ran
-                    # (D-12: recovery_attempted=False).
+                if not self._recovery_used:
+                    # Consume the instance's one reset/retry at transaction
+                    # entry (BOOT-04/D-13): even a rollback (ok=False) must
+                    # not let the next periodic cycle re-run the same reset.
+                    self._recovery_used = True
+                    ok, snapshot, moved_paths, failure_reason = self._recover_steamcmd_metadata()
                     log_server_event(
                         self.logger,
-                        "server_download_fail",
-                        "Server file download failed (recovery rolled back)",
+                        "steamcmd_recovery",
+                        "SteamCMD state 0x6 metadata recovery attempted",
+                        app_id=self.config.steamcmd.app_id,
+                        snapshot_path=str(snapshot) if snapshot else None,
+                        moved_paths=[str(p) for p in moved_paths],
+                        recovery_ok=ok,
+                        failure_reason=failure_reason,
                     )
-                    await self.monitoring_manager.handle_error(
-                        "Server file download failed (recovery rolled back)"
+                    if not ok:
+                        # Incomplete transaction -- never retry, reset never
+                        # ran (D-12: recovery_attempted=False).
+                        log_server_event(
+                            self.logger,
+                            "server_download_fail",
+                            "Server file download failed (recovery rolled back)",
+                        )
+                        await self.monitoring_manager.handle_error(
+                            "Server file download failed (recovery rolled back)"
+                        )
+                        return ServerDownloadResult(
+                            success=False,
+                            can_start=False,
+                            was_updated=False,
+                            recovery_attempted=False,
+                        )
+                    # Reset succeeded: run the exact same command exactly once
+                    # more.
+                    retry_success, retry_output = await self.steamcmd_manager.run_command(
+                        commands, timeout=1800
                     )
-                    return ServerDownloadResult(
-                        success=False,
-                        can_start=False,
-                        was_updated=False,
-                        recovery_attempted=False,
-                    )
-                # Reset succeeded: run the exact same command exactly once more.
-                retry_success, retry_output = await self.steamcmd_manager.run_command(
-                    commands, timeout=1800
-                )
-                log_server_event(
-                    self.logger,
-                    "steamcmd_recovery_retry",
-                    "SteamCMD retry after metadata recovery",
-                    app_id=self.config.steamcmd.app_id,
-                    snapshot_path=str(snapshot) if snapshot else None,
-                    retry_success=retry_success,
-                )
-                if retry_success:
-                    was_updated = True
-                    for line in retry_output:
-                        if "already up to date" in line.lower():
-                            was_updated = False
-                            break
                     log_server_event(
                         self.logger,
-                        "server_download_complete",
-                        "Server file download completed after recovery",
+                        "steamcmd_recovery_retry",
+                        "SteamCMD retry after metadata recovery",
+                        app_id=self.config.steamcmd.app_id,
+                        snapshot_path=str(snapshot) if snapshot else None,
+                        retry_success=retry_success,
                     )
-                    return ServerDownloadResult(
-                        success=True,
-                        can_start=True,
-                        was_updated=was_updated,
-                        recovery_attempted=True,
-                    )
-                # Reset executed but the identical retry also failed (D-02).
-                # Fall back to a valid existing installation (D-06/D-07): the
-                # PalServer.sh entry must exist and carry the executable bit.
-                if self._has_valid_server_executable():
-                    print(FALLBACK_WARNING)
-                    log_server_event(self.logger, "server_fallback", FALLBACK_WARNING)
-                    return ServerDownloadResult(
-                        success=True,
-                        can_start=True,
-                        was_updated=False,
-                        recovery_attempted=True,
-                        fallback_used=True,
-                    )
-                # No runnable installation remains: fatal. success=True is
-                # intentional (D-03) -- the operation ran to a terminal state
-                # but startup may not proceed.
-                log_server_event(
-                    self.logger,
-                    "server_download_fail",
-                    "Server file download failed after recovery; no valid executable",
-                )
-                await self.monitoring_manager.handle_error(
-                    "Server file download failed after recovery; no valid executable"
-                )
-                return ServerDownloadResult(
-                    success=True,
-                    can_start=False,
-                    was_updated=False,
-                    recovery_attempted=True,
-                    fallback_used=False,
-                )
+                    if retry_success:
+                        was_updated = True
+                        for line in retry_output:
+                            if "already up to date" in line.lower():
+                                was_updated = False
+                                break
+                        log_server_event(
+                            self.logger,
+                            "server_download_complete",
+                            "Server file download completed after recovery",
+                        )
+                        return ServerDownloadResult(
+                            success=True,
+                            can_start=True,
+                            was_updated=was_updated,
+                            recovery_attempted=True,
+                        )
+                    # Reset executed but the identical retry also failed
+                    # (D-02). A reset did run this transaction, so
+                    # recovery_attempted=True (D-12).
+                    return await self._fallback_or_fatal(True)
+                # Instance already consumed its one reset/retry: skip reset and
+                # retry, go straight to the fallback/fatal decision (BOOT-04).
+                # No reset ran this call -> recovery_attempted=False (D-12).
+                return await self._fallback_or_fatal(False)
 
             log_server_event(self.logger, "server_download_fail", "Server file download failed")
             await self.monitoring_manager.handle_error("Server file download failed")
@@ -822,6 +841,19 @@ async def _async_main():
                                                 new_version="new",
                                                 language=manager.config.language,
                                             )
+                                elif result.fallback_used:
+                                    # BOOT-04/D-09..D-11: recovery failed and we
+                                    # start an existing (possibly older) build.
+                                    # Deferred update: no restart, no in-game/
+                                    # Discord announcement; retried next cycle.
+                                    print(FALLBACK_WARNING)
+                                elif result.can_start is False:
+                                    # No startable build remains: fatal outcome.
+                                    # Do not announce an update.
+                                    print(
+                                        "Version check: server update failed; "
+                                        "no startable build remains (fatal)"
+                                    )
                                 elif result.success and not result.was_updated:
                                     print("Version check: Server files are up to date.")
                             except Exception as e:

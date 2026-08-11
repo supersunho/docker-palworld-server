@@ -1,5 +1,7 @@
 """Integration tests for the main server manager."""
 
+import asyncio
+import contextlib
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -865,3 +867,308 @@ class TestSteamcmdRecoveryTransaction:
         assert exit_code == 0
         manager.download_server_files.assert_awaited_once()
         manager.start_server_with_verification.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_recovery_gate_consumed_causes_single_reset(
+        self, recovery_manager, tmp_path, monkeypatch
+    ):
+        """BOOT-04/D-13: two 0x6 failures on one instance run exactly one
+        reset; the second call skips reset/retry and reports
+        recovery_attempted=False."""
+        import src.server_manager as sm
+
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+
+        calls = []
+        real_recover = sm.PalworldServerManager._recover_steamcmd_metadata
+
+        def counting_recover(instance):
+            calls.append(1)
+            return real_recover(instance)
+
+        monkeypatch.setattr(
+            sm.PalworldServerManager, "_recover_steamcmd_metadata", counting_recover
+        )
+
+        # Call 1: initial 0x6 -> gate consumed, reset + retry run, retry fails,
+        # no executable -> fatal (recovery_attempted=True).
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+        r1 = await m.download_server_files()
+        assert r1.recovery_attempted is True
+        assert r1.fallback_used is False
+        assert r1.can_start is False
+        assert len(calls) == 1
+        # Call 2 on the same instance: gate already consumed -> skip reset and
+        # retry, straight to fallback/fatal, recovery_attempted=False.
+        r2 = await m.download_server_files()
+        assert r2.recovery_attempted is False
+        assert r2.can_start is False
+        # Exactly one reset across the whole instance lifetime.
+        assert len(calls) == 1
+        # Call 1 = initial + retry; call 2 = initial only (no retry).
+        assert len(m.steamcmd_manager.run_command.await_args_list) == 3
+
+    @pytest.mark.asyncio
+    async def test_recovery_gate_consumed_even_on_rollback(
+        self, recovery_manager, tmp_path, monkeypatch
+    ):
+        """BOOT-04: a rollback (reset ok=False) still consumes the instance
+        gate at transaction entry -- a later 0x6 does not re-run the reset."""
+        import src.server_manager as sm
+
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+
+        calls = []
+
+        def rollback_recover(instance):
+            calls.append(1)
+            return (False, None, [], "simulated rollback")
+
+        monkeypatch.setattr(
+            sm.PalworldServerManager, "_recover_steamcmd_metadata", rollback_recover
+        )
+
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+        # First call: gate consumed, reset rolled back (ok=False) -> no reset
+        # ran this call (recovery_attempted=False) but the gate stays consumed.
+        r1 = await m.download_server_files()
+        assert r1.recovery_attempted is False
+        assert r1.can_start is False
+        assert len(calls) == 1
+        # Second 0x6 on the same instance: gate already consumed -> skip reset,
+        # straight to fallback/fatal, recovery_attempted=False.
+        r2 = await m.download_server_files()
+        assert r2.recovery_attempted is False
+        assert len(calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_recovery_gate_not_reset_by_successful_start(
+        self, recovery_manager, tmp_path, monkeypatch
+    ):
+        """BOOT-04: a later successful start/update does NOT reset the
+        instance one-reset limit; a subsequent 0x6 still skips recovery."""
+        import src.server_manager as sm
+
+        m = recovery_manager
+        app = m.config.steamcmd.app_id
+        self._make_targets(tmp_path, app, which=("manifest",))
+        marker = self._marker(app)
+
+        calls = []
+        real_recover = sm.PalworldServerManager._recover_steamcmd_metadata
+
+        def counting_recover(instance):
+            calls.append(1)
+            return real_recover(instance)
+
+        monkeypatch.setattr(
+            sm.PalworldServerManager, "_recover_steamcmd_metadata", counting_recover
+        )
+
+        # First call: initial 0x6, reset ok, retry succeeds -> was_updated.
+        m.steamcmd_manager.run_command = AsyncMock(
+            side_effect=[(False, [marker]), (True, ["update complete"])]
+        )
+        r1 = await m.download_server_files()
+        assert r1.recovery_attempted is True
+        assert r1.can_start is True
+        assert r1.was_updated is True
+        assert len(calls) == 1
+
+        # Later 0x6 failure on the same instance: no recovery re-run.
+        m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
+        r2 = await m.download_server_files()
+        assert r2.recovery_attempted is False
+        assert len(calls) == 1  # limit survives the successful start
+
+    @pytest.mark.asyncio
+    async def test_update_loop_fallback_defers_without_restart_or_announce(
+        self, monkeypatch, capsys
+    ):
+        """BOOT-04/D-09..D-11: periodic loop on fallback_used=True logs the
+        exact warning, does NOT announce an update or restart, and reschedules
+        at the normal 6h interval."""
+        import src.server_manager as sm
+
+        real_sleep = asyncio.sleep
+        manager = MagicMock()
+        manager.__aenter__ = AsyncMock(return_value=manager)
+        manager.__aexit__ = AsyncMock(return_value=False)
+        manager.config.monitoring.mode = "none"
+        manager.config.steamcmd.check_version_update = True
+        manager.config.steamcmd.update_on_start = True
+        manager.generate_server_settings = MagicMock(return_value=True)
+        manager.generate_engine_settings = MagicMock(return_value=True)
+
+        fallback_calls = {"n": 0}
+
+        async def fake_download():
+            fallback_calls["n"] += 1
+            return ServerDownloadResult(
+                success=True,
+                can_start=True,
+                was_updated=False,
+                recovery_attempted=True,
+                fallback_used=True,
+            )
+
+        manager.download_server_files = fake_download
+        manager.start_server_with_verification = AsyncMock(return_value=True)
+        manager.is_server_running = MagicMock(return_value=True)
+        manager.announce_message_any = AsyncMock(return_value=True)
+        manager.get_overall_status = MagicMock(
+            return_value={
+                "monitoring": {"monitoring_active": True},
+                "startup_completed": True,
+            }
+        )
+        mm = MagicMock()
+        mm.get_monitoring_status = MagicMock(return_value={"player_count": 0})
+        mm.event_dispatcher.discord_notifier = None
+        manager.get_monitoring_manager = MagicMock(return_value=mm)
+
+        config = MagicMock()
+        config.server.name = "Test"
+        config.server.port = 8211
+        config.server.max_players = 32
+        config.monitoring.log_level = "info"
+        config.monitoring.log_format_style = "plain"
+        config.monitoring.mode = "none"
+        config.paths.log_dir = "logs"
+        config.steamcmd.update_on_start = True
+        config.steamcmd.check_version_update = True
+
+        sleep_durations = []
+
+        def fake_sleep(*args, **kwargs):
+            if args:
+                sleep_durations.append(args[0])
+            return real_sleep(0)
+
+        monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(sm, "get_config", lambda: config)
+        monkeypatch.setattr(sm, "setup_logging", lambda **kwargs: None)
+        monkeypatch.setattr(sm, "PalworldServerManager", lambda cfg: manager)
+
+        task = asyncio.create_task(sm._async_main())
+        observed = False
+        try:
+            deadline = asyncio.get_event_loop().time() + 5
+            while not observed:
+                if asyncio.get_event_loop().time() > deadline:
+                    raise AssertionError(
+                        "update loop never reached the fallback reschedule"
+                    )
+                # Startup download (call 1) + at least one periodic download
+                # (call 2), and the normal-6h reschedule sleep recorded.
+                if fallback_calls["n"] >= 2 and (6 * 3600) in sleep_durations:
+                    observed = True
+                    break
+                await real_sleep(0.01)
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        out = capsys.readouterr().out
+        assert (
+            "UPDATE DEFERRED: SteamCMD recovery failed; "
+            "starting existing server build (may be older)" in out
+        )
+        # Pre-check announcement is kept, but the update/restart notify is NOT
+        # issued for a deferred fallback.
+        announce_msgs = [c.args[0] for c in manager.announce_message_any.call_args_list]
+        assert any("Server update check in progress..." in a for a in announce_msgs)
+        assert not any(
+            "A new Palworld update has been downloaded" in a for a in announce_msgs
+        )
+        # No restart: start_server_with_verification only from startup.
+        manager.start_server_with_verification.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_update_loop_was_updated_still_announces(self, monkeypatch):
+        """BOOT-04 regression: periodic loop with was_updated=True still
+        announces the update in-game."""
+        import src.server_manager as sm
+
+        real_sleep = asyncio.sleep
+        manager = MagicMock()
+        manager.__aenter__ = AsyncMock(return_value=manager)
+        manager.__aexit__ = AsyncMock(return_value=False)
+        manager.config.monitoring.mode = "none"
+        manager.config.steamcmd.check_version_update = True
+        manager.config.steamcmd.update_on_start = True
+        manager.generate_server_settings = MagicMock(return_value=True)
+        manager.generate_engine_settings = MagicMock(return_value=True)
+
+        async def fake_download():
+            return ServerDownloadResult(
+                success=True,
+                can_start=True,
+                was_updated=True,
+                recovery_attempted=False,
+                fallback_used=False,
+            )
+
+        manager.download_server_files = fake_download
+        manager.start_server_with_verification = AsyncMock(return_value=True)
+        manager.is_server_running = MagicMock(return_value=True)
+        manager.announce_message_any = AsyncMock(return_value=True)
+        manager.get_overall_status = MagicMock(
+            return_value={
+                "monitoring": {"monitoring_active": True},
+                "startup_completed": True,
+            }
+        )
+        mm = MagicMock()
+        mm.get_monitoring_status = MagicMock(return_value={"player_count": 0})
+        mm.event_dispatcher.discord_notifier = None
+        manager.get_monitoring_manager = MagicMock(return_value=mm)
+
+        config = MagicMock()
+        config.server.name = "Test"
+        config.server.port = 8211
+        config.server.max_players = 32
+        config.monitoring.log_level = "info"
+        config.monitoring.log_format_style = "plain"
+        config.monitoring.mode = "none"
+        config.paths.log_dir = "logs"
+        config.steamcmd.update_on_start = True
+        config.steamcmd.check_version_update = True
+
+        def fake_sleep(*args, **kwargs):
+            return real_sleep(0)
+
+        monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(sm, "get_config", lambda: config)
+        monkeypatch.setattr(sm, "setup_logging", lambda **kwargs: None)
+        monkeypatch.setattr(sm, "PalworldServerManager", lambda cfg: manager)
+
+        task = asyncio.create_task(sm._async_main())
+        announced = False
+        try:
+            deadline = asyncio.get_event_loop().time() + 5
+            while not announced:
+                if asyncio.get_event_loop().time() > deadline:
+                    raise AssertionError("update loop never announced an update")
+                msgs = [
+                    c.args[0]
+                    for c in manager.announce_message_any.call_args_list
+                    if c.args
+                ]
+                if any("A new Palworld update has been downloaded" in m for m in msgs):
+                    announced = True
+                    break
+                await real_sleep(0.01)
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        assert announced
