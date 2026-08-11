@@ -511,7 +511,7 @@ jobs:
             SOURCE_VERSION_BASE: ${{ needs.prepare.outputs.source_version_base }}
         steps:
             - name: 📥 Download digest artifact
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   path: /tmp/digests
                   pattern: digests-*
@@ -610,7 +610,7 @@ jobs:
             BUILD_VERSION_BASE: ${{ needs.prepare.outputs.build_version_base }}
         steps:
             - name: 📥 Download digest artifact
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   path: /tmp/digests
                   pattern: digests-*
