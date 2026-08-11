@@ -7,12 +7,15 @@ Waits for REST API to be ready before starting monitoring systems
 import asyncio
 import time
 import aiohttp
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Any
 
 from .config_loader import PalworldConfig, get_config
 from .logging_setup import get_logger, log_server_event, setup_logging
 
 from .clients import SteamCMDManager
+from .clients.steamcmd_client import is_state_0x6_failure
 from .managers import ProcessManager, ConfigManager
 from .monitoring import MonitoringManager
 from .managers.lifecycle_manager import ServerLifecycleManager
@@ -118,6 +121,9 @@ class PalworldServerManager:
 
         self._backup_manager: Optional[Any] = None
         self._startup_completed = False
+        # Serializes the full update/recovery transaction so periodic and
+        # startup calls cannot interleave metadata moves or SteamCMD runs.
+        self._steamcmd_update_lock = asyncio.Lock()
 
     def _setup_container_services(self):
         """Setup default services in the container if not already registered"""
@@ -247,36 +253,12 @@ class PalworldServerManager:
         self._startup_completed = True
         return True
 
-    async def download_server_files(self) -> tuple[bool, bool]:
-        """Download/update Palworld server files via SteamCMD.
+    def _build_update_commands(self) -> list[str]:
+        """Construct the SteamCMD update command for the configured app.
 
-        Always runs SteamCMD to check for and apply updates, even when
-        server files already exist on disk. Set FORCE_UPDATE=true in
-        .env.palworld to force a full re-download when files exist.
-
-        Returns (success, was_updated).
-        was_updated is True only when SteamCMD actually downloaded new files.
+        Identical whether or not FORCE_UPDATE is enabled -- force only changes
+        logging. Recovery retries reuse this exact command.
         """
-        server_exe = self.config.paths.server_dir / "PalServer.sh"
-        should_force = self.config.steamcmd.force_update
-
-        if server_exe.exists() and not should_force:
-            log_server_event(
-                self.logger,
-                "server_update_check",
-                "Server files exist, checking for updates via SteamCMD...",
-            )
-        elif server_exe.exists() and should_force:
-            log_server_event(
-                self.logger,
-                "server_download_force",
-                "Forcing full re-download of server files...",
-            )
-
-        log_server_event(
-            self.logger, "server_download_start", "Starting Palworld server file download"
-        )
-
         commands = [
             "+force_install_dir",
             str(self.config.paths.server_dir),
@@ -285,29 +267,199 @@ class PalworldServerManager:
             "+app_update",
             str(self.config.steamcmd.app_id),
         ]
-
         if self.config.steamcmd.validate:
             commands.append("validate")
         commands.append("+quit")
-        success, output_lines = await self.steamcmd_manager.run_command(commands, timeout=1800)
+        return commands
 
-        if success:
-            # Detect if an actual update was downloaded vs "already up to date"
-            was_updated = True
-            for line in output_lines:
-                if "already up to date" in line.lower():
-                    was_updated = False
-                    break
+    def _steamcmd_recovery_targets(self) -> list[Path]:
+        """Allowed SteamCMD metadata targets for the configured app.
 
+        Only the app manifest and the per-app ``downloading``/``temp``
+        entries may be moved by recovery. All paths derive from the
+        configured server directory and numeric app id.
+        """
+        server_dir = self.config.paths.server_dir
+        app = str(self.config.steamcmd.app_id)
+        return [
+            server_dir / "steamapps" / f"appmanifest_{app}.acf",
+            server_dir / "steamapps" / "downloading" / app,
+            server_dir / "steamapps" / "temp" / app,
+        ]
+
+    def _recover_steamcmd_metadata(
+        self,
+    ) -> tuple[bool, Optional[Path], list[Path], Optional[str]]:
+        """Move allowed SteamCMD metadata into a retained recovery snapshot.
+
+        Returns (ok, snapshot, moved_paths, failure_reason).
+
+        - Rejects symlinked targets and any symlinked parent entry below the
+          server directory.
+        - Preserves each target's original relative path beneath the snapshot
+          so equal basenames cannot collide.
+        - On a mid-transaction move failure, rolls back earlier moves using
+          the recorded (original, snapshot) mapping and returns ``ok=False``.
+        - Never deletes the snapshot automatically.
+        """
+        server_dir = self.config.paths.server_dir
+        targets = [
+            t for t in self._steamcmd_recovery_targets() if t.exists() or t.is_symlink()
+        ]
+        if not targets:
+            return True, None, [], None
+
+        for target in targets:
+            # Reject symlinks for the target itself and every parent below
+            # the configured server directory (the root may be a bind mount).
+            if target.is_symlink():
+                return False, None, [], f"refusing symlinked target: {target}"
+            parent = target.parent
+            while parent != server_dir:
+                if parent.is_symlink():
+                    return False, None, [], f"refusing symlinked parent: {parent}"
+                parent = parent.parent
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        snapshot = server_dir / ".steamcmd-recovery" / f"app-{self.config.steamcmd.app_id}-{timestamp}"
+        snapshot.mkdir(parents=True, exist_ok=True)
+
+        moved: list[tuple[Path, Path]] = []
+        try:
+            for target in targets:
+                destination = snapshot / target.relative_to(server_dir)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                target.rename(destination)
+                moved.append((target, destination))
+        except OSError as exc:
+            # Roll back earlier moves in reverse order to their exact
+            # original locations, then report failure -- no retry.
+            rollback_failures: list[str] = []
+            for original, destination in reversed(moved):
+                try:
+                    destination.rename(original)
+                except OSError as rb_exc:
+                    rollback_failures.append(f"{destination} -> {original}: {rb_exc}")
+            reason = f"metadata move failed: {exc}"
+            if rollback_failures:
+                reason += "; rollback incomplete: " + "; ".join(rollback_failures)
+            return False, None, [o for o, _ in moved], reason
+
+        return True, snapshot, [o for o, _ in moved], None
+
+    async def download_server_files(self) -> tuple[bool, bool]:
+        """Download/update Palworld server files via SteamCMD.
+        Always runs SteamCMD to check for and apply updates, even when
+        server files already exist on disk. Set FORCE_UPDATE=true in
+        .env.palworld to force a full re-download when files exist.
+        Returns (success, was_updated).
+        was_updated is True only when SteamCMD actually downloaded new files.
+        On the exact Issue #25 state (app id + ``state 0x6``), moves only the
+        disposable SteamCMD metadata into a retained snapshot and runs the
+        same update command exactly once more. Non-``0x6`` failures keep the
+        previous behavior.
+        """
+        async with self._steamcmd_update_lock:
+            server_exe = self.config.paths.server_dir / "PalServer.sh"
+            should_force = self.config.steamcmd.force_update
+            if server_exe.exists() and not should_force:
+                log_server_event(
+                    self.logger,
+                    "server_update_check",
+                    "Server files exist, checking for updates via SteamCMD...",
+                )
+            elif server_exe.exists() and should_force:
+                log_server_event(
+                    self.logger,
+                    "server_download_force",
+                    "Forcing full re-download of server files...",
+                )
             log_server_event(
-                self.logger, "server_download_complete", "Server file download completed"
+                self.logger, "server_download_start", "Starting Palworld server file download"
             )
-        else:
+            commands = self._build_update_commands()
+            success, output_lines = await self.steamcmd_manager.run_command(
+                commands, timeout=1800
+            )
+            if success:
+                was_updated = True
+                for line in output_lines:
+                    if "already up to date" in line.lower():
+                        was_updated = False
+                        break
+                log_server_event(
+                    self.logger,
+                    "server_download_complete",
+                    "Server file download completed",
+                )
+                return success, was_updated
+
+            # Initial command failed. Exact Issue #25 recovery applies only to
+            # the exact app + state 0x6 marker; any other failure preserves
+            # the previous behavior.
+            if is_state_0x6_failure(output_lines, self.config.steamcmd.app_id):
+                ok, snapshot, moved_paths, failure_reason = self._recover_steamcmd_metadata()
+                log_server_event(
+                    self.logger,
+                    "steamcmd_recovery",
+                    "SteamCMD state 0x6 metadata recovery attempted",
+                    app_id=self.config.steamcmd.app_id,
+                    snapshot_path=str(snapshot) if snapshot else None,
+                    moved_paths=[str(p) for p in moved_paths],
+                    recovery_ok=ok,
+                    failure_reason=failure_reason,
+                )
+                if not ok:
+                    # Incomplete transaction -- never retry.
+                    was_updated = False
+                    log_server_event(
+                        self.logger,
+                        "server_download_fail",
+                        "Server file download failed (recovery rolled back)",
+                    )
+                    await self.monitoring_manager.handle_error(
+                        "Server file download failed (recovery rolled back)"
+                    )
+                    return success, was_updated
+                # Reset succeeded: run the exact same command exactly once more.
+                retry_success, retry_output = await self.steamcmd_manager.run_command(
+                    commands, timeout=1800
+                )
+                log_server_event(
+                    self.logger,
+                    "steamcmd_recovery_retry",
+                    "SteamCMD retry after metadata recovery",
+                    app_id=self.config.steamcmd.app_id,
+                    snapshot_path=str(snapshot) if snapshot else None,
+                    retry_success=retry_success,
+                )
+                if retry_success:
+                    was_updated = True
+                    for line in retry_output:
+                        if "already up to date" in line.lower():
+                            was_updated = False
+                            break
+                    log_server_event(
+                        self.logger,
+                        "server_download_complete",
+                        "Server file download completed after recovery",
+                    )
+                    return True, was_updated
+                was_updated = False
+                log_server_event(
+                    self.logger,
+                    "server_download_fail",
+                    "Server file download failed after recovery",
+                )
+                await self.monitoring_manager.handle_error(
+                    "Server file download failed after recovery"
+                )
+                return False, was_updated
+
             was_updated = False
             log_server_event(self.logger, "server_download_fail", "Server file download failed")
             await self.monitoring_manager.handle_error("Server file download failed")
-
-        return success, was_updated
+            return success, was_updated
 
     def is_server_running(self) -> bool:
         """Check if server is currently running"""
