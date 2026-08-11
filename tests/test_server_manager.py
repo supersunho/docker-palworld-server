@@ -169,7 +169,11 @@ class TestPalworldServerManager:
     async def test_download_server_files(self, manager):
         """FS-13.1.2: SteamCMD download."""
         result = await manager.download_server_files()
-        assert result == (True, True)
+        assert result.success is True
+        assert result.can_start is True
+        assert result.was_updated is True
+        assert result.recovery_attempted is False
+        assert result.fallback_used is False
 
 
 class TestWaitForApiReady:
@@ -428,10 +432,12 @@ class TestSteamcmdRecoveryTransaction:
         m.steamcmd_manager.run_command = AsyncMock(
             side_effect=[(False, [marker]), (True, ["Success! App '2394010' fully installed."])]
         )
-        success, was_updated = await m.download_server_files()
+        result = await m.download_server_files()
 
-        assert success is True
-        assert was_updated is True
+        assert result.success is True
+        assert result.was_updated is True
+        assert result.can_start is True
+        assert result.recovery_attempted is True
         calls = m.steamcmd_manager.run_command.await_args_list
         assert len(calls) == 2
         # Identical command construction on both invocations.
@@ -466,9 +472,11 @@ class TestSteamcmdRecoveryTransaction:
                 (True, ["Success. App '2394010' already up to date."]),
             ]
         )
-        success, was_updated = await m.download_server_files()
-        assert success is True
-        assert was_updated is False
+        result = await m.download_server_files()
+        assert result.success is True
+        assert result.can_start is True
+        assert result.was_updated is False
+        assert result.recovery_attempted is True
         assert len(m.steamcmd_manager.run_command.await_args_list) == 2
 
     @pytest.mark.asyncio
@@ -478,9 +486,11 @@ class TestSteamcmdRecoveryTransaction:
         m.steamcmd_manager.run_command = AsyncMock(
             return_value=(False, ["Download failed: disk full", "ERROR! Failed to install app '2394010'."])
         )
-        success, was_updated = await m.download_server_files()
-        assert success is False
-        assert was_updated is False
+        result = await m.download_server_files()
+        assert result.success is False
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is False
         assert len(m.steamcmd_manager.run_command.await_args_list) == 1
         m.monitoring_manager.handle_error.assert_awaited_once_with(
             "Server file download failed"
@@ -493,9 +503,11 @@ class TestSteamcmdRecoveryTransaction:
         m.steamcmd_manager.run_command = AsyncMock(
             return_value=(False, ["App '9999999' state is 0x6 after update job."])
         )
-        success, was_updated = await m.download_server_files()
-        assert success is False
-        assert was_updated is False
+        result = await m.download_server_files()
+        assert result.success is False
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is False
         assert len(m.steamcmd_manager.run_command.await_args_list) == 1
 
     @pytest.mark.asyncio
@@ -519,9 +531,11 @@ class TestSteamcmdRecoveryTransaction:
         monkeypatch.setattr(Path, "rename", flaky_rename)
         m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
 
-        success, was_updated = await m.download_server_files()
-        assert success is False
-        assert was_updated is False
+        result = await m.download_server_files()
+        assert result.success is False
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is False
         # Exactly one run: the failed initial command, never a retry.
         assert len(m.steamcmd_manager.run_command.await_args_list) == 1
         m.monitoring_manager.handle_error.assert_awaited_once()
@@ -540,8 +554,8 @@ class TestSteamcmdRecoveryTransaction:
         m.steamcmd_manager.run_command = AsyncMock(
             side_effect=[(False, [marker]), (True, ["Success! App '2394010' fully installed."])]
         )
-        success, was_updated = await m.download_server_files()
-        assert success is True
+        result = await m.download_server_files()
+        assert result.success is True
         calls = m.steamcmd_manager.run_command.await_args_list
         assert len(calls) == 2
         assert calls[0].args[0] == calls[1].args[0]
@@ -619,9 +633,11 @@ class TestSteamcmdRecoveryTransaction:
         (tmp_path / ".steamcmd-recovery").symlink_to(outside, target_is_directory=True)
         m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
 
-        success, was_updated = await m.download_server_files()
-        assert success is False
-        assert was_updated is False
+        result = await m.download_server_files()
+        assert result.success is False
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is False
         # Only the failed initial command ran; no retry after rejection.
         assert len(m.steamcmd_manager.run_command.await_args_list) == 1
         assert list(outside.iterdir()) == []
@@ -657,9 +673,11 @@ class TestSteamcmdRecoveryTransaction:
         (tmp_path / ".steamcmd-recovery").write_text("not-a-directory")
         m.steamcmd_manager.run_command = AsyncMock(return_value=(False, [marker]))
 
-        success, was_updated = await m.download_server_files()
-        assert success is False
-        assert was_updated is False
+        result = await m.download_server_files()
+        assert result.success is False
+        assert result.can_start is False
+        assert result.was_updated is False
+        assert result.recovery_attempted is False
         assert len(m.steamcmd_manager.run_command.await_args_list) == 1
         m.monitoring_manager.handle_error.assert_awaited_once()
         # Manifest untouched; the file root is still a plain file.

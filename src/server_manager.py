@@ -22,6 +22,27 @@ from .managers.lifecycle_manager import ServerLifecycleManager
 from .managers.api_facade import ServerAPIFacade
 from .managers.settings_generator import SettingsGenerator
 from .container import ServiceContainer
+from dataclasses import dataclass
+
+
+@dataclass
+class ServerDownloadResult:
+    """Outcome contract of a SteamCMD download/update attempt (D-02).
+
+    ``success`` records that the operation completed; ``can_start`` records
+    that startup may proceed. They are independent (D-03): a terminal update
+    that leaves no runnable installation reports ``success=True,
+    can_start=False``. ``recovery_attempted`` is True only when the metadata
+    reset actually executed (D-12). ``fallback_used`` is True only when
+    startup proceeds from a deferred/possibly-older existing installation
+    after a failed recovery (D-07/D-08).
+    """
+
+    success: bool
+    can_start: bool
+    was_updated: bool
+    recovery_attempted: bool = False
+    fallback_used: bool = False
 
 
 async def wait_for_api_ready(manager, max_wait_time: int = 60, check_interval: int = 2) -> bool:
@@ -374,17 +395,19 @@ class PalworldServerManager:
 
         return True, snapshot, [o for o, _ in moved], None
 
-    async def download_server_files(self) -> tuple[bool, bool]:
+    async def download_server_files(self) -> ServerDownloadResult:
         """Download/update Palworld server files via SteamCMD.
         Always runs SteamCMD to check for and apply updates, even when
         server files already exist on disk. Set FORCE_UPDATE=true in
         .env.palworld to force a full re-download when files exist.
-        Returns (success, was_updated).
-        was_updated is True only when SteamCMD actually downloaded new files.
-        On the exact Issue #25 state (app id + ``state 0x6``), moves only the
-        disposable SteamCMD metadata into a retained snapshot and runs the
-        same update command exactly once more. Non-``0x6`` failures keep the
-        previous behavior.
+        Returns a ServerDownloadResult (D-02). ``success`` records that the
+        operation completed; ``can_start`` records whether startup may
+        proceed (D-03). ``was_updated`` is True only when SteamCMD actually
+        downloaded new files. On the exact Issue #25 state (app id + ``state
+        0x6``), moves only the disposable SteamCMD metadata into a retained
+        snapshot and runs the same update command exactly once more.
+        ``recovery_attempted`` is True only when that reset actually ran
+        (D-12). Non-``0x6`` failures keep the previous behavior.
         """
         async with self._steamcmd_update_lock:
             server_exe = self.config.paths.server_dir / "PalServer.sh"
@@ -419,7 +442,9 @@ class PalworldServerManager:
                     "server_download_complete",
                     "Server file download completed",
                 )
-                return success, was_updated
+                return ServerDownloadResult(
+                    success=True, can_start=True, was_updated=was_updated
+                )
 
             # Initial command failed. Exact Issue #25 recovery applies only to
             # the exact app + state 0x6 marker; any other failure preserves
@@ -437,8 +462,8 @@ class PalworldServerManager:
                     failure_reason=failure_reason,
                 )
                 if not ok:
-                    # Incomplete transaction -- never retry.
-                    was_updated = False
+                    # Incomplete transaction -- never retry, reset never ran
+                    # (D-12: recovery_attempted=False).
                     log_server_event(
                         self.logger,
                         "server_download_fail",
@@ -447,7 +472,12 @@ class PalworldServerManager:
                     await self.monitoring_manager.handle_error(
                         "Server file download failed (recovery rolled back)"
                     )
-                    return success, was_updated
+                    return ServerDownloadResult(
+                        success=False,
+                        can_start=False,
+                        was_updated=False,
+                        recovery_attempted=False,
+                    )
                 # Reset succeeded: run the exact same command exactly once more.
                 retry_success, retry_output = await self.steamcmd_manager.run_command(
                     commands, timeout=1800
@@ -471,8 +501,12 @@ class PalworldServerManager:
                         "server_download_complete",
                         "Server file download completed after recovery",
                     )
-                    return True, was_updated
-                was_updated = False
+                    return ServerDownloadResult(
+                        success=True,
+                        can_start=True,
+                        was_updated=was_updated,
+                        recovery_attempted=True,
+                    )
                 log_server_event(
                     self.logger,
                     "server_download_fail",
@@ -481,12 +515,21 @@ class PalworldServerManager:
                 await self.monitoring_manager.handle_error(
                     "Server file download failed after recovery"
                 )
-                return False, was_updated
+                return ServerDownloadResult(
+                    success=False,
+                    can_start=False,
+                    was_updated=False,
+                    recovery_attempted=True,
+                )
 
-            was_updated = False
             log_server_event(self.logger, "server_download_fail", "Server file download failed")
             await self.monitoring_manager.handle_error("Server file download failed")
-            return success, was_updated
+            return ServerDownloadResult(
+                success=False,
+                can_start=False,
+                was_updated=False,
+                recovery_attempted=False,
+            )
 
     def is_server_running(self) -> bool:
         """Check if server is currently running"""
@@ -655,8 +698,8 @@ async def _async_main():
     async with PalworldServerManager(config) as manager:
         if config.steamcmd.update_on_start:
             print("Downloading/updating server files...")
-            download_success, _ = await manager.download_server_files()
-            if not download_success:
+            result = await manager.download_server_files()
+            if not result.can_start:
                 print("Server file download failed")
                 return 1
 
@@ -723,8 +766,8 @@ async def _async_main():
                                 await manager.announce_message_any(
                                     "Server update check in progress..."
                                 )
-                                success, was_updated = await manager.download_server_files()
-                                if success and was_updated:
+                                result = await manager.download_server_files()
+                                if result.success and result.was_updated:
                                     print("Version check: Palworld update detected!")
                                     # Notify in-game via RCON
                                     await manager.announce_message_any(
@@ -742,7 +785,7 @@ async def _async_main():
                                                 new_version="new",
                                                 language=manager.config.language,
                                             )
-                                elif success and not was_updated:
+                                elif result.success and not result.was_updated:
                                     print("Version check: Server files are up to date.")
                             except Exception as e:
                                 print(f"Version check failed: {e}")
