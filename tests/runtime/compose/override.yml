@@ -1,0 +1,36 @@
+# Phase 4 compose override — Issue #25 runtime reproduction.
+# Drives the same ARM64 image through the controlled SteamCMD driver so the
+# bounded 0x6 recovery reaches a stable, healthy state under `docker compose`.
+# Used only by tests/runtime/compose/run_compose.sh (not the production stack).
+#
+# All three data mounts are redirected to isolated temp roots supplied by the
+# runner (PALRUNTIME_DATA_DIR / PALRUNTIME_BACKUP_DIR / PALRUNTIME_LOG_DIR) so
+# the production ./palworld_data* directories are never touched.
+services:
+    palworld-server:
+        image: supersunho/palworld-server:test
+        container_name: palworld-server
+        restart: unless-stopped
+        environment:
+            SERVER_NAME: "pal-runtime-compose"
+            ADMIN_PASSWORD: "hashed_11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff"
+            MAX_PLAYERS: "8"
+            SERVER_PORT: "8211"
+            REST_API_PORT: "8212"
+            REST_API_ENABLED: "true"
+            RCON_ENABLED: "false"
+            STEAMCMD_SCENARIO: "retry_success"
+            STEAMCMD_STATE_FILE: "/home/steam/run_state"
+            UPDATE_ON_START: "true"
+        volumes:
+            - "${PALRUNTIME_DATA_DIR:-./palworld_data}:/home/steam/palworld_server"
+            - "${PALRUNTIME_BACKUP_DIR:-./palworld_backups}:/home/steam/backups"
+            - "${PALRUNTIME_LOG_DIR:-./palworld_logs}:/home/steam/logs"
+            - ./tests/runtime/drivers/steamcmd/steamcmd.sh:/home/steam/steamcmd/steamcmd.sh:ro
+            - /etc/localtime:/etc/localtime:ro
+        healthcheck:
+            test: ["CMD", "/usr/local/bin/healthcheck"]
+            interval: 5s
+            timeout: 5s
+            retries: 3
+            start_period: 5s
