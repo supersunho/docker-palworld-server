@@ -14,10 +14,14 @@ REPO="$(cd "$(dirname "$0")/../../.." && pwd -P)"
 cd "$REPO"
 
 DRV=tests/runtime/drivers
-CNAME=palworld-server
 COMPOSE_ARGS=(-f docker-compose.yml -f tests/runtime/compose/override.yml)
 
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/palrt-compose.XXXXXX")"
+# Unique per-run Compose project: guarantees this harness stack (and its `down`
+# cleanup) never collides with or tears down any other stack, even though the
+# data mounts are redirected to temp roots.
+PRJ="$(basename "$ROOT" | tr -cd '[:alnum:]_-' | tr '[:upper:]' '[:lower:]')"
+export COMPOSE_PROJECT_NAME="${PRJ}"
 DATA="$ROOT/data"
 BACKUP="$ROOT/backups"
 LOGS="$ROOT/logs"
@@ -48,6 +52,10 @@ echo "$PROTECTED_BEFORE" > "$ROOT/protected.before"
 # ---- bring the stack up (isolated mounts) and wait for HEALTHY
 export PALRUNTIME_DATA_DIR="$DATA" PALRUNTIME_BACKUP_DIR="$BACKUP" PALRUNTIME_LOG_DIR="$LOGS"
 docker compose "${COMPOSE_ARGS[@]}" up -d --remove-orphans >/dev/null
+# Resolve the container by project-scoped ID (`ps -q` — no global
+# container_name, so no collision with a production stack of that name).
+CNAME="$(docker compose "${COMPOSE_ARGS[@]}" ps -q | head -1)"
+[ -n "$CNAME" ] || { echo "compose container not found"; exit 1; }
 
 DEADLINE=$((SECONDS + 180))
 STATUS=starting

@@ -15,6 +15,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd -P)"             # tests/runtime
 REPO="$(cd "$(dirname "$0")/../.." && pwd -P)"       # project root
 SCENARIO="${1:?usage: run_scenario.sh <scenario>}"
+# Constrain scenario to a plain basename. Prevents path traversal via the
+# $ROOT/scenarios/$SCENARIO/run.conf source below (an untrusted arg must never
+# escape the scenarios/ dir or relocate mktemp outside ${TMPDIR}).
+if [[ ! "$SCENARIO" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "invalid scenario name '$SCENARIO' (must match ^[A-Za-z0-9_-]+\$)" >&2; exit 2
+fi
 CONF="$ROOT/scenarios/$SCENARIO/run.conf"
 [ -f "$CONF" ] || { echo "no scenario $SCENARIO ($CONF)"; exit 2; }
 

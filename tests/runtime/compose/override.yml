@@ -9,7 +9,7 @@
 services:
     palworld-server:
         image: supersunho/palworld-server:test
-        container_name: palworld-server
+        container_name: "palrt-verify-${COMPOSE_PROJECT_NAME}"
         restart: unless-stopped
         environment:
             SERVER_NAME: "pal-runtime-compose"
