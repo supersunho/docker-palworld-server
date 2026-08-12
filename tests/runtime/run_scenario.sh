@@ -26,13 +26,24 @@ CONF="$ROOT/scenarios/$SCENARIO/run.conf"
 
 IMAGE="${RUNTIME_IMAGE:-supersunho/palworld-server:test}"
 NAME="pal-runtime-$SCENARIO"
-CONTAINER="palrt-$SCENARIO-$$"
+RUN_TOKEN="$(od -An -N8 -tx1 /dev/urandom | tr -d ' 
+')"
+CONTAINER="palrt-$SCENARIO-$RUN_TOKEN"
+CONTAINER_LABEL="com.palworld-harness.run=$RUN_TOKEN"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/palrt-$SCENARIO.XXXXXX")"
 # Clean up the detached test container and scratch dir on ANY exit path
 # (normal completion, fatal exit, SIGINT/TERM). Prevents leaked containers /
 # stale temp roots after an abnormal termination.
 cleanup() {
-    [ -n "${CONTAINER:-}" ] && docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+    [ -n "${CONTAINER:-}" ] && {
+        # Fail-closed: remove ONLY a container that proves it was created by this
+        # exact run via its creation label. Missing/errored inspect or label
+        # mismatch means the name is not ours — never docker rm -f it.
+        OWNER="$(docker inspect -f '{{ index .Config.Labels "com.palworld-harness.run" }}' "$CONTAINER" 2>/dev/null || true)"
+        if [ -n "$OWNER" ] && [ "$OWNER" = "$RUN_TOKEN" ]; then
+            docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+        fi
+    }
     [ -n "${WORK:-}" ] && rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -71,8 +82,8 @@ for rel in "${PROTECTED[@]}"; do
 done
 
 # ---- launch detached so we can observe both steady-state (healthy) and exit (fatal)
-docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 docker run -d --name "$CONTAINER" \
+    --label "$CONTAINER_LABEL" \
     -e SERVER_NAME="pal-runtime-$SCENARIO" \
     -e ADMIN_PASSWORD="hashed_11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff" \
     -e MAX_PLAYERS=8 -e SERVER_PORT=8211 -e REST_API_PORT=8212 \
@@ -200,7 +211,9 @@ fi
 echo "===== healthcheck(after) ====="
 [ -f "$WORK/healthcheck.out" ] && cat "$WORK/healthcheck.out" || true
 
-docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+# Teardown is handled by the EXIT trap (label-verified remove_owned cleanup);
+# no unconditional `docker rm -f` here — it could delete an unowned container
+# whose name collides with this run's.
 if [ "$FAIL" -eq 0 ]; then
     echo "RESULT: PASS ($SCENARIO)  [work=$WORK]"
     exit 0
