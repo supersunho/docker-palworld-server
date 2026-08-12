@@ -11,6 +11,11 @@ services:
         image: supersunho/palworld-server:test
         container_name: "palrt-verify-${COMPOSE_PROJECT_NAME}"
         restart: unless-stopped
+        # Null the base-stack host exposure: no inherited host ports (8211/udp,
+        # 27018/udp) and no inherited .env.palworld secret env_file for this
+        # ephemeral test container.
+        ports: !reset []
+        env_file: []
         environment:
             SERVER_NAME: "pal-runtime-compose"
             ADMIN_PASSWORD: "hashed_11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff"

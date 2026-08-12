@@ -26,8 +26,16 @@ CONF="$ROOT/scenarios/$SCENARIO/run.conf"
 
 IMAGE="${RUNTIME_IMAGE:-supersunho/palworld-server:test}"
 NAME="pal-runtime-$SCENARIO"
-CONTAINER="palrt-$SCENARIO"
+CONTAINER="palrt-$SCENARIO-$$"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/palrt-$SCENARIO.XXXXXX")"
+# Clean up the detached test container and scratch dir on ANY exit path
+# (normal completion, fatal exit, SIGINT/TERM). Prevents leaked containers /
+# stale temp roots after an abnormal termination.
+cleanup() {
+    [ -n "${CONTAINER:-}" ] && docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+    [ -n "${WORK:-}" ] && rm -rf "$WORK"
+}
+trap cleanup EXIT
 SERVER_DIR="$WORK/server"
 LOG="$WORK/manager.log"
 RESULT="$WORK/result.txt"
