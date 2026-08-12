@@ -26,8 +26,7 @@ CONF="$ROOT/scenarios/$SCENARIO/run.conf"
 
 IMAGE="${RUNTIME_IMAGE:-supersunho/palworld-server:test}"
 NAME="pal-runtime-$SCENARIO"
-RUN_TOKEN="$(od -An -N8 -tx1 /dev/urandom | tr -d ' 
-')"
+RUN_TOKEN="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \\n')"
 CONTAINER="palrt-$SCENARIO-$RUN_TOKEN"
 CONTAINER_LABEL="com.palworld-harness.run=$RUN_TOKEN"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/palrt-$SCENARIO.XXXXXX")"
