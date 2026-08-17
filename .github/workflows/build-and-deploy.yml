@@ -72,7 +72,7 @@ jobs:
 
         steps:
             - name: 📥 Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: 🔍 Determine source and build versions
               id: get-version
@@ -116,7 +116,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 📥 Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: 🐍 Set up Python 3.12
               uses: actions/setup-python@v5
@@ -155,7 +155,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 📥 Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: 🔧 Install Helm
               uses: azure/setup-helm@v4
@@ -382,7 +382,7 @@ jobs:
 
             - name: 📥 Checkout repository
               if: steps.check-images.outputs.build_image == 'true'
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: 🛠️ Set up QEMU
               if: steps.check-images.outputs.build_image == 'true'
@@ -698,7 +698,7 @@ jobs:
             SOURCE_VERSION_BASE: ${{ needs.prepare.outputs.source_version_base }}
         steps:
             - name: 📥 Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   fetch-depth: 0 # Fetch all history for commit history
             - name: 📥 Download digest artifact
