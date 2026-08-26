@@ -433,7 +433,7 @@ jobs:
             - name: 🚀 Build and push (linux/arm64)
               if: steps.check-images.outputs.build_image == 'true'
               id: build
-              uses: docker/build-push-action@v5
+              uses: docker/build-push-action@v7
               with:
                   context: .
                   platforms: linux/arm64
