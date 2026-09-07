@@ -818,13 +818,21 @@ async def _async_main():
                                     await asyncio.sleep(check_interval)
                                     continue
 
-                                print("Version check: Searching for Palworld server updates...")
+                                log_server_event(
+                                    manager.logger,
+                                    "update_check",
+                                    "Periodic update check started",
+                                )
                                 await manager.announce_message_any(
                                     "Server update check in progress..."
                                 )
                                 result = await manager.download_server_files()
                                 if result.success and result.was_updated:
-                                    print("Version check: Palworld update detected!")
+                                    log_server_event(
+                                        manager.logger,
+                                        "update_available",
+                                        "Palworld update detected",
+                                    )
                                     # Notify in-game via RCON
                                     await manager.announce_message_any(
                                         "A new Palworld update has been downloaded. "
@@ -846,18 +854,31 @@ async def _async_main():
                                     # start an existing (possibly older) build.
                                     # Deferred update: no restart, no in-game/
                                     # Discord announcement; retried next cycle.
-                                    print(FALLBACK_WARNING)
+                                    log_server_event(
+                                        manager.logger,
+                                        "update_fallback",
+                                        FALLBACK_WARNING,
+                                    )
                                 elif result.can_start is False:
                                     # No startable build remains: fatal outcome.
                                     # Do not announce an update.
-                                    print(
-                                        "Version check: server update failed; "
-                                        "no startable build remains (fatal)"
+                                    log_server_event(
+                                        manager.logger,
+                                        "update_fatal",
+                                        "Update failed; no startable build remains (fatal)",
                                     )
                                 elif result.success and not result.was_updated:
-                                    print("Version check: Server files are up to date.")
+                                    log_server_event(
+                                        manager.logger,
+                                        "update_noop",
+                                        "Server files are up to date",
+                                    )
                             except Exception as e:
-                                print(f"Version check failed: {e}")
+                                log_server_event(
+                                    manager.logger,
+                                    "update_check_fail",
+                                    f"Periodic version check failed: {e}",
+                                )
                             await asyncio.sleep(check_interval)
 
                     asyncio.create_task(_check_update_loop())
