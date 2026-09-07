@@ -14,6 +14,11 @@ from datetime import datetime
 class MessageLoader:
     """Load and manage multi-language messages from external JSON files"""
 
+    # Maximum recursion depth when falling back to the default language.
+    # With one default language the practical depth is 1, but a misconfigured
+    # chain of fallbacks (e.g. chained references) must not blow the stack.
+    _MAX_FALLBACK_DEPTH = 5
+
     def __init__(self, locales_dir: Optional[str] = None, default_language: str = "ko"):
         """
         Initialize message loader
@@ -34,14 +39,27 @@ class MessageLoader:
         if not self.locales_dir.exists():
             raise FileNotFoundError(f"Locales directory not found: {self.locales_dir}")
 
-    def _load_language(self, language_code: str) -> Dict[str, Any]:
-        """Load language file into memory"""
+    def _load_language(
+        self, language_code: str, _depth: int = 0
+    ) -> Dict[str, Any]:
+        """Load language file into memory.
+
+        ``_depth`` is the recursion guard for fallback to ``default_language``.
+        Without it, a malformed default file and a language configured as the
+        default could recurse forever and overflow the stack.
+        """
+        if _depth > self._MAX_FALLBACK_DEPTH:
+            raise RuntimeError(
+                f"Locale fallback exceeded {_depth} depth while loading "
+                f"{language_code!r} (default={self.default_language!r})"
+            )
+
         language_file = self.locales_dir / f"{language_code}.json"
 
         # Fallback to default language if file doesn't exist
         if not language_file.exists():
             if language_code != self.default_language:
-                return self._load_language(self.default_language)
+                return self._load_language(self.default_language, _depth + 1)
             else:
                 raise FileNotFoundError(f"Default language file not found: {language_file}")
 
@@ -51,12 +69,19 @@ class MessageLoader:
         except (json.JSONDecodeError, IOError) as e:
             if language_code != self.default_language:
                 # Fallback to default language on error
-                return self._load_language(self.default_language)
+                return self._load_language(self.default_language, _depth + 1)
             else:
-                raise RuntimeError(f"Failed to load default language file: {e}")
+                raise RuntimeError(
+                    f"Failed to load default language file "
+                    f"{language_file}: {e}"
+                )
 
     def get_message(
-        self, message_path: str, language: Optional[str] = None, **format_kwargs
+        self,
+        message_path: str,
+        language: Optional[str] = None,
+        _depth: int = 0,
+        **format_kwargs,
     ) -> str:
         """
         Get localized message with random variation support
@@ -69,6 +94,9 @@ class MessageLoader:
         Returns:
             Formatted localized message
         """
+        if _depth > self._MAX_FALLBACK_DEPTH:
+            return f"Message not found: {message_path}"
+
         lang = language or self.default_language
 
         # Load language if not already loaded
@@ -85,7 +113,12 @@ class MessageLoader:
         except (KeyError, TypeError):
             # Fallback to default language
             if lang != self.default_language:
-                return self.get_message(message_path, self.default_language, **format_kwargs)
+                return self.get_message(
+                    message_path,
+                    self.default_language,
+                    _depth=_depth + 1,
+                    **format_kwargs,
+                )
             else:
                 return f"Message not found: {message_path}"
 

@@ -170,3 +170,34 @@ class TestMessageLoader:
         shutil.rmtree(str(locales_dir))
         langs = loader.get_available_languages()
         assert langs == []
+
+
+class TestMessageLoaderFallbackDepth:
+    """L-5: Locale and message fallbacks must not recurse unbounded."""
+
+    def test_load_language_depth_cap_raises_runtime(self, tmp_path):
+        """When every fallback depth fails, _load_language raises
+        RuntimeError instead of overflowing the stack."""
+        locales_dir = tmp_path / "locales"
+        locales_dir.mkdir()
+        # Default language file is intentionally malformed so JSON parsing fails.
+        (locales_dir / "ko.json").write_text("{ not valid json")
+
+        loader = MessageLoader(str(locales_dir), default_language="ko")
+
+        with pytest.raises(RuntimeError, match="exceeded"):
+            loader._load_language("en", _depth=loader._MAX_FALLBACK_DEPTH + 1)
+
+    def test_get_message_depth_cap_returns_not_found(self, tmp_path):
+        """Even at the recursion cap, get_message returns a string
+        instead of raising."""
+        locales_dir = tmp_path / "locales"
+        locales_dir.mkdir()
+        loader = MessageLoader(str(locales_dir), default_language="ko")
+
+        result = loader.get_message(
+            "missing.path",
+            language="en",
+            _depth=loader._MAX_FALLBACK_DEPTH + 1,
+        )
+        assert result.startswith("Message not found")
