@@ -1,0 +1,236 @@
+name: Promote Release to Stable
+
+on:
+    workflow_dispatch:
+        inputs:
+            existing_tag:
+                description: "Existing pre-release tag to promote (e.g., 1.2.0-beta.1)"
+                required: true
+                type: string
+
+            promote_to:
+                description: "Stable version tag (e.g., 1.2.0)"
+                required: true
+                type: string
+
+jobs:
+    promote:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            packages: write
+        env:
+            REGISTRY: ghcr.io
+            IMAGE_NAME: ${{ github.repository }}
+            DOCKERHUB_REPO: supersunho/palworld-server
+
+        steps:
+            - name: 🏷️ Validate tag formats
+              env:
+                  EXISTING_TAG: ${{ inputs.existing_tag }}
+                  PROMOTE_TAG: ${{ inputs.promote_to }}
+              run: |
+                set -euo pipefail
+
+                # Palworld tags allow an optional v prefix and 1-3 numeric
+                # parts; pre-releases carry a -suffix (dots allowed inside).
+                if ! [[ "$EXISTING_TAG" =~ ^[vV]?[0-9]+(\.[0-9]+){0,2}-[0-9A-Za-z][0-9A-Za-z.-]*$ ]]; then
+                    echo "❌ existing_tag must be a pre-release version (e.g., 1.2.0-beta.1)" >&2
+                    exit 1
+                fi
+                if ! [[ "$PROMOTE_TAG" =~ ^[vV]?[0-9]+(\.[0-9]+){0,2}$ ]]; then
+                    echo "❌ promote_to must be a stable version without suffix (e.g., 1.2.0)" >&2
+                    exit 1
+                fi
+                EXISTING_BASE="${EXISTING_TAG%%-*}"
+                EXISTING_BASE="${EXISTING_BASE#[vV]}"
+                PROMOTE_BASE="${PROMOTE_TAG#[vV]}"
+                if [ "$EXISTING_BASE" != "$PROMOTE_BASE" ]; then
+                    echo "❌ promote_to must match the pre-release base version: ${EXISTING_BASE} (got ${PROMOTE_TAG})" >&2
+                    exit 1
+                fi
+                echo "✅ Tag formats are valid: $EXISTING_TAG → $PROMOTE_TAG"
+
+            - name: 📦 Checkout
+              uses: actions/checkout@v4
+              with:
+                ref: ${{ inputs.existing_tag }}
+                fetch-tags: true
+                fetch-depth: 0
+
+            - name: 🔍 Verify release and target commit
+              env:
+                  EXISTING_TAG: ${{ inputs.existing_tag }}
+                  PROMOTE_TAG: ${{ inputs.promote_to }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                set -euo pipefail
+
+                if ! git rev-parse --verify "refs/tags/${EXISTING_TAG}^{commit}" >/dev/null 2>&1; then
+                    echo "❌ Existing tag does not exist: ${EXISTING_TAG}" >&2
+                    exit 1
+                fi
+                if git rev-parse --verify "refs/tags/${PROMOTE_TAG}^{commit}" >/dev/null 2>&1; then
+                    echo "❌ Stable tag already exists: ${PROMOTE_TAG}" >&2
+                    exit 1
+                fi
+
+                RELEASE_JSON=$(curl --fail --silent --show-error \
+                    -H "Authorization: Bearer ${GH_TOKEN}" \
+                    -H "Accept: application/vnd.github+json" \
+                    "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${EXISTING_TAG}")
+                if [ "$(jq -r '.prerelease' <<<"$RELEASE_JSON")" != "true" ]; then
+                    echo "❌ ${EXISTING_TAG} is not a GitHub pre-release" >&2
+                    exit 1
+                fi
+
+                TARGET_COMMIT=$(git rev-parse "refs/tags/${EXISTING_TAG}^{commit}")
+                printf 'TARGET_COMMIT=%s\n' "$TARGET_COMMIT" >> "$GITHUB_ENV"
+                echo "✅ Existing pre-release resolves to ${TARGET_COMMIT}"
+
+            - name: 🛠️ Set up registry tooling
+              uses: docker/setup-buildx-action@v3
+
+            - name: 🔑 Login to GHCR
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: 🔑 Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: 🐳 Promote ARM64 container images
+              env:
+                  EXISTING_TAG: ${{ inputs.existing_tag }}
+                  PROMOTE_TAG: ${{ inputs.promote_to }}
+                  GHCR_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                  DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_REPO }}
+              run: |
+                set -euo pipefail
+
+                promote_tag() {
+                    local target_ref="$1" source_ref="$2"
+                    local existing_digest
+                    existing_digest=$(docker buildx imagetools inspect "$target_ref" \
+                        --format '{{.Manifest.Digest}}' 2>/dev/null || true)
+                    if [ -n "$existing_digest" ]; then
+                        if [ "$existing_digest" != "$source_digest" ]; then
+                            echo "❌ Stable image tag points to a different digest: ${target_ref}" >&2
+                            echo "   source=${source_digest} existing=${existing_digest}" >&2
+                            exit 1
+                        fi
+                        echo "♻️ Stable image tag already matches source digest: ${target_ref}"
+                    else
+                        echo "🏷️ Retagging ${source_ref} → ${target_ref}"
+                        docker buildx imagetools create --tag "$target_ref" "$source_ref"
+                    fi
+                }
+
+                SOURCE_VERSION="${EXISTING_TAG#[vV]}"
+                TARGET_VERSION="${PROMOTE_TAG#[vV]}"
+                for image in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+                    source_arch="${image}:${SOURCE_VERSION}-arm64"
+                    target_arch="${image}:${TARGET_VERSION}-arm64"
+                    target_ver="${image}:${TARGET_VERSION}"
+                    latest_arch="${image}:latest-arm64"
+                    latest_ver="${image}:latest"
+
+                    echo "🔍 Resolving source image: ${source_arch}"
+                    source_digest=$(docker buildx imagetools inspect "$source_arch" \
+                        --format '{{.Manifest.Digest}}')
+                    [ -n "$source_digest" ] || {
+                        echo "❌ Source image has no digest: ${source_arch}" >&2
+                        exit 1
+                    }
+
+                    promote_tag "$target_arch" "$source_arch"
+                    promote_tag "$target_ver" "$source_arch"
+                    promote_tag "$latest_arch" "$target_arch"
+                    promote_tag "$latest_ver" "$target_ver"
+
+                    for ref in "$target_arch" "$target_ver" "$latest_arch" "$latest_ver"; do
+                        promoted_digest=$(docker buildx imagetools inspect "$ref" \
+                            --format '{{.Manifest.Digest}}')
+                        if [ "$promoted_digest" != "$source_digest" ]; then
+                            echo "❌ Digest mismatch after promotion: ${ref}" >&2
+                            echo "   source=${source_digest} got=${promoted_digest}" >&2
+                            exit 1
+                        fi
+                    done
+                    echo "✅ ${image} stable/latest tags match source digest ${source_digest}"
+                done
+
+            - name: 📥 Download pre-release digest asset
+              env:
+                  EXISTING_TAG: ${{ inputs.existing_tag }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                set -euo pipefail
+                rm -rf /tmp/release-digests
+                mkdir -p /tmp/release-digests
+                gh release download "$EXISTING_TAG" \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --pattern 'digest.txt' \
+                    --dir /tmp/release-digests \
+                    --clobber
+                if [ ! -f /tmp/release-digests/digest.txt ]; then
+                    echo "❌ Pre-release has no digest asset to carry forward" >&2
+                    exit 1
+                fi
+
+            - name: 🏷️ Create stable tag
+              env:
+                  EXISTING_TAG: ${{ inputs.existing_tag }}
+                  PROMOTE_TAG: ${{ inputs.promote_to }}
+              run: |
+                set -euo pipefail
+                git tag -a "$PROMOTE_TAG" "$TARGET_COMMIT" -m "Promote $EXISTING_TAG to stable $PROMOTE_TAG"
+                git push origin "$PROMOTE_TAG"
+
+            - name: 🔄 Update latest tag
+              env:
+                  PROMOTE_TAG: ${{ inputs.promote_to }}
+              run: |
+                set -euo pipefail
+                git tag -f latest "$TARGET_COMMIT"
+                git push origin -f latest
+
+            - name: 📝 Compose stable release notes from beta
+              env:
+                  EXISTING_TAG: ${{ inputs.existing_tag }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                set -euo pipefail
+                # The stable tag points at the exact beta commit, so the beta
+                # release notes already cover the full cycle — reuse them
+                # verbatim under a promotion header instead of regenerating.
+                BETA_BODY=$(gh release view "$EXISTING_TAG" \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --json body --jq '.body // ""')
+                {
+                  echo "**Promoted from:** $EXISTING_TAG"
+                  echo ""
+                  echo "This stable release corresponds to the previously published pre-release."
+                  echo ""
+                  echo "---"
+                  echo ""
+                  printf '%s\n' "$BETA_BODY"
+                } > /tmp/release-digests/stable-body.md
+                echo "✅ Stable release notes composed"
+
+            - name: 🚀 Create Stable GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ inputs.promote_to }}
+                  name: "Palworld Server ARM64 Release ${{ inputs.promote_to }}"
+                  body_path: /tmp/release-digests/stable-body.md
+                  files: /tmp/release-digests/digest.txt
+                  prerelease: false
+                  make_latest: true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

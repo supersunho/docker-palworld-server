@@ -20,6 +20,12 @@ on:
                 default: ""
                 type: string
 
+            prerelease:
+                description: "Mark the GitHub Release as a pre-release and suppress stable/latest tags"
+                required: false
+                default: false
+                type: boolean
+
             verify_build:
                 description: "Verify build functionality"
                 required: false
@@ -69,6 +75,8 @@ jobs:
             build_version: ${{ steps.get-version.outputs.build_version }}
             build_version_clean: ${{ steps.get-version.outputs.build_version_clean }}
             build_version_base: ${{ steps.get-version.outputs.build_version_base }}
+            prerelease: ${{ steps.get-version.outputs.prerelease }}
+            publish_latest: ${{ steps.get-version.outputs.publish_latest }}
 
         steps:
             - name: 📥 Checkout repository
@@ -79,10 +87,11 @@ jobs:
               env:
                   SOURCE_VERSION_INPUT: ${{ github.event.inputs.source_version || '' }}
                   BUILD_VERSION_INPUT: ${{ github.event.inputs.build_version || '' }}
+                  PRERELEASE_INPUT: ${{ github.event.inputs.prerelease || 'false' }}
               run: |
                   # Use extracted, testable validator script
                   OUTPUT=$(scripts/validate_ci_versions.sh \
-                    "$SOURCE_VERSION_INPUT" "$BUILD_VERSION_INPUT")
+                    "$SOURCE_VERSION_INPUT" "$BUILD_VERSION_INPUT" "$PRERELEASE_INPUT")
 
                   # Write each output line to GITHUB_OUTPUT
                   echo "$OUTPUT" | while IFS= read -r line; do
@@ -98,13 +107,17 @@ jobs:
                   build_version=$(echo "$OUTPUT" | grep '^build_version=' | cut -d= -f2-)
                   build_version_clean=$(echo "$OUTPUT" | grep '^build_version_clean=' | cut -d= -f2-)
                   build_version_base=$(echo "$OUTPUT" | grep '^build_version_base=' | cut -d= -f2-)
+                  prerelease=$(echo "$OUTPUT" | grep '^prerelease=' | cut -d= -f2-)
+                  publish_latest=$(echo "$OUTPUT" | grep '^publish_latest=' | cut -d= -f2-)
 
                   echo ""
                   echo "📋 Version Summary:"
                   echo "├─ 🎯 Palworld Server Source : $source_version ($source_version_clean)"
                   echo "├─ 🏷️ Build/Release Tag     : $build_version ($build_version_clean)"
                   echo "├─ 🔧 Source Base Version   : $source_version_base"
-                  echo "└─ 🚀 Build Base Version    : $build_version_base"
+                  echo "├─ 🚀 Build Base Version    : $build_version_base"
+                  echo "├─ 🧪 Pre-release           : $prerelease"
+                  echo "└─ 🏷️ Publish latest        : $publish_latest"
                   echo ""
                   echo "✅ Version validation passed by scripts/validate_ci_versions.sh"
 
@@ -186,7 +199,7 @@ jobs:
             - name: 🔍 actionlint — CI workflow syntax
               id: check-actionlint
               run: |
-                  ./actionlint -no-color .github/workflows/build-and-deploy.yml 2>&1 || {
+                  ./actionlint -no-color .github/workflows/build-and-deploy.yml .github/workflows/promote-release.yml 2>&1 || {
                     echo "❌ actionlint found issues" >&2
                     exit 1
                   }
@@ -430,6 +443,28 @@ jobs:
                   restore-keys: |
                       ${{ env.CACHE_VERSION }}-palworld-cache-${{ runner.os }}-${{ runner.arch }}-arm64-
 
+            - name: 🏷️ Resolve image tags
+              if: steps.check-images.outputs.build_image == 'true'
+              id: image-tags
+              env:
+                  PUBLISH_LATEST: ${{ needs.prepare.outputs.publish_latest }}
+                  VERSION_TAG: ${{ needs.prepare.outputs.build_version_base }}-arm64
+              run: |
+                  TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION_TAG}
+                  ${{ env.DOCKERHUB_REPO }}:${VERSION_TAG}"
+                  if [ "${PUBLISH_LATEST}" = "true" ]; then
+                    TAGS="${TAGS}
+                  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
+                  ${{ env.DOCKERHUB_REPO }}:latest-arm64"
+                  else
+                    echo "⏭️ Skipping latest-arm64 tags for pre-release"
+                  fi
+                  {
+                    echo "tags<<EOF"
+                    echo "$TAGS"
+                    echo "EOF"
+                  } >> "$GITHUB_OUTPUT"
+
             - name: 🚀 Build and push (linux/arm64)
               if: steps.check-images.outputs.build_image == 'true'
               id: build
@@ -445,11 +480,7 @@ jobs:
                       type=gha,mode=max,scope=${{ env.CACHE_VERSION }}-palworld-arm64-${{ needs.prepare.outputs.build_version_base }}
                   build-args: |
                       BUILDKIT_INLINE_CACHE=1
-                  tags: |
-                      ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.build_version_base }}-arm64
-                      ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
-                      ${{ env.DOCKERHUB_REPO }}:${{ needs.prepare.outputs.build_version_base }}-arm64
-                      ${{ env.DOCKERHUB_REPO }}:latest-arm64
+                  tags: ${{ steps.image-tags.outputs.tags }}
                   provenance: false
 
             - name: 🧪 Comprehensive container verification
@@ -551,6 +582,8 @@ jobs:
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
 
             - name: 🏷️ Create ARM64-only manifests
+              env:
+                  PUBLISH_LATEST: ${{ needs.prepare.outputs.publish_latest }}
               run: |
                   VERSION="${{ env.BUILD_VERSION_BASE }}"
                   echo "📦 Creating ARM64-only manifests..."
@@ -584,10 +617,14 @@ jobs:
                       --tag ${PREFIX}:${VERSION} \
                       ${ARM64_IMAGE}
                     
-                    echo "🏗️ Creating latest manifest: ${PREFIX}:latest -> ${LATEST_ARM64_IMAGE}"
-                    docker buildx imagetools create \
-                      --tag ${PREFIX}:latest \
-                      ${LATEST_ARM64_IMAGE}
+                    if [ "${PUBLISH_LATEST}" = "true" ]; then
+                      echo "🏗️ Creating latest manifest: ${PREFIX}:latest -> ${LATEST_ARM64_IMAGE}"
+                      docker buildx imagetools create \
+                        --tag ${PREFIX}:latest \
+                        ${LATEST_ARM64_IMAGE}
+                    else
+                      echo "⏭️ Skipping latest manifest for pre-release"
+                    fi
                     
                     echo "✅ ARM64-only manifests created for $registry"
                   done
@@ -603,6 +640,8 @@ jobs:
             SOURCE_VERSION: ${{ needs.prepare.outputs.source_version }}
             SOURCE_VERSION_BASE: ${{ needs.prepare.outputs.source_version_base }}
             BUILD_VERSION_BASE: ${{ needs.prepare.outputs.build_version_base }}
+            PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+            PUBLISH_LATEST: ${{ needs.prepare.outputs.publish_latest }}
         steps:
             - name: 📥 Download digest artifact
               uses: actions/download-artifact@v4
@@ -616,9 +655,17 @@ jobs:
                   # Pre-calculate digest values and status
                   ARM64_DIGEST=$(cut -c1-12 /tmp/digests/digests-arm64/digest.txt 2>/dev/null || echo "N/A")
                   ARM64_STATUS=$([ -f /tmp/digests/digests-arm64/digest.txt ] && echo "✅ Success" || echo "❌ Failed")
-
                   BUILD_COUNT=$(find /tmp/digests -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | wc -l || echo "0")
                   BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
+
+                  LATEST_DOCKERHUB_PULL=""
+                  LATEST_GHCR_PULL=""
+                  LATEST_RUN_EXAMPLE=""
+                  if [ "${PUBLISH_LATEST}" = "true" ]; then
+                    LATEST_DOCKERHUB_PULL="docker pull ${{ env.DOCKERHUB_REPO }}:latest-arm64    # ARM64 only"
+                    LATEST_GHCR_PULL="docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64"
+                    LATEST_RUN_EXAMPLE="docker run -it --rm ${{ env.DOCKERHUB_REPO }}:latest-arm64"
+                  fi
 
                   # Write summary with pre-calculated values
                   cat >> "$GITHUB_STEP_SUMMARY" << EOF
@@ -627,6 +674,7 @@ jobs:
                   **Build Date**: $BUILD_DATE  
                   **Palworld Server Source Version**: ${{ env.SOURCE_VERSION_BASE }}  
                   **Build/Release Tag**: ${{ env.BUILD_VERSION_BASE }}  
+                  **Pre-release**: ${{ env.PRERELEASE }}  
                   **Source Release Tag**: ${{ env.SOURCE_VERSION }}  
                   **Build Number**: #${{ github.run_number }}  
                   **Repository**: [${{ github.repository }}](https://github.com/${{ github.repository }})  
@@ -644,14 +692,14 @@ jobs:
                   #### 🎯 Docker Hub (Primary)
                   \`\`\`
                   # ARM64-specific image
-                  docker pull ${{ env.DOCKERHUB_REPO }}:latest-arm64    # ARM64 only
+                  ${LATEST_DOCKERHUB_PULL}
                   docker pull ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_BASE }}-arm64
                   \`\`\`
 
                   #### 🔄 GitHub Container Registry (GHCR)
                   \`\`\`
                   # ARM64-specific image
-                  docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
+                  ${LATEST_GHCR_PULL}
                   docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION_BASE }}-arm64
                   \`\`\`
 
@@ -660,13 +708,13 @@ jobs:
                   ### 🎯 Universal Usage (ARM64)
                   \`\`\`
                   # ARM64-specific container
-                  docker run -it --rm ${{ env.DOCKERHUB_REPO }}:latest-arm64
+                  ${LATEST_RUN_EXAMPLE}
 
                   # Check version (universal command)
-                  docker run --rm ${{ env.DOCKERHUB_REPO }}:latest-arm64 python3 -c "import sys; print('Python version:', sys.version)"
+                  docker run --rm ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_BASE }}-arm64 python3 -c "import sys; print('Python version:', sys.version)"
 
                   # Get help (works on all platforms)
-                  docker run --rm ${{ env.DOCKERHUB_REPO }}:latest-arm64 /usr/local/bin/healthcheck --help
+                  docker run --rm ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_BASE }}-arm64 /usr/local/bin/healthcheck --help
                   \`\`
 
                   ## 🎉 Enhanced Features
@@ -867,6 +915,7 @@ jobs:
                   body: ${{ steps.release-notes.outputs.body }}
                   files: /tmp/digests/*/digest.txt
                   draft: false
-                  prerelease: false
+                  prerelease: ${{ needs.prepare.outputs.prerelease }}
+                  make_latest: ${{ needs.prepare.outputs.publish_latest }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

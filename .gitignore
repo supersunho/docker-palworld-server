@@ -6,6 +6,7 @@
 # ── Exceptions (add/remove per project) ──────────────────────────────────────
 !.gitignore
 !.env.sample
+!.github/
 !.github/workflows/
 !.editorconfig
 # !.prettierrc
@@ -162,6 +163,10 @@ docker-compose.override.yml
 .*.rej
 *.patch
 *.diff
+
+*.md
+.*.md
+!README.md
 
 # Docker runtime data directories (bind mount targets)
 palworld_data/
