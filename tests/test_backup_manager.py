@@ -391,6 +391,38 @@ class TestEnhancedBackupManager:
             names = tar.getnames()
             assert any("SaveGames" in n for n in names)
 
+    def test_make_snapshot_dir_prefers_backup_dir(self, tmp_path):
+        """L-4: snapshot dir is created inside backup_dir when possible."""
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = tmp_path / "backups"
+        manager = EnhancedBackupManager(config)
+
+        snap = manager._make_snapshot_dir()
+        try:
+            # Resolved location must live under backup_dir, not under /tmp.
+            assert str(snap).startswith(str(tmp_path / "backups"))
+            assert snap.exists()
+        finally:
+            snap.rmdir()
+
+    def test_make_snapshot_dir_falls_back_on_oserror(self, tmp_path):
+        """L-4: when backup_dir cannot host the snapshot, /tmp is used."""
+        config = MagicMock()
+        config.paths.server_dir = tmp_path / "server"
+        config.paths.backup_dir = tmp_path / "backups"
+        manager = EnhancedBackupManager(config)
+
+        # Force mkdtemp to fail for the preferred dir.
+        with patch("tempfile.mkdtemp") as mock_mkdtemp:
+            mock_mkdtemp.side_effect = [
+                OSError("read-only fs"),
+                "/tmp/palworld_backup_fallback",  # successful fallback
+            ]
+            snap = manager._make_snapshot_dir()
+            assert snap == Path("/tmp/palworld_backup_fallback")
+            assert mock_mkdtemp.call_count == 2
+
     @pytest.mark.asyncio
     async def test_get_backup_manager_singleton(self, tmp_path):
         """get_backup_manager returns singleton."""

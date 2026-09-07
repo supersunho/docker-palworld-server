@@ -5,16 +5,19 @@ Automatic backup scheduling and cleanup system
 """
 
 import asyncio
+import json as _json
+import shutil
 import tarfile
+import tempfile
 import time
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Callable, Awaitable, Dict, Any, List, Optional
 from dataclasses import dataclass
 
 from ..config_loader import get_config, PalworldConfig
 from ..logging_setup import get_logger, log_backup_event
-from typing import Callable, Awaitable
 
 # Optional async callback for save-before-backup
 SaveWorldFn = Optional[Callable[[], Awaitable[bool]]]
@@ -406,6 +409,25 @@ class EnhancedBackupManager:
                 "duration_seconds": round(duration_seconds, 2),
             }
 
+    def _make_snapshot_dir(self) -> Path:
+        """Allocate the snapshot directory used during archive creation.
+
+        Prefers ``backup_dir`` so the snapshot, the tarfile write, and the
+        eventual cleanup all happen on the same filesystem. Falls back to the
+        system temp dir if the preferred location cannot be created or
+        written to.
+        """
+        prefix = "palworld_backup_"
+        try:
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            return Path(tempfile.mkdtemp(prefix=prefix, dir=str(self.backup_dir)))
+        except OSError as e:
+            self.logger.warning(
+                "Could not create snapshot on backup_dir (%s); falling back to /tmp",
+                e,
+            )
+            return Path(tempfile.mkdtemp(prefix=prefix))
+
     async def _create_archive(self, backup_path: Path, backup_type: str):
         """Create backup archive from a snapshot copy.
 
@@ -414,13 +436,16 @@ class EnhancedBackupManager:
         Copies the live source directory to a temp location, then
         archives the snapshot so the server can keep writing during
         the (relatively slow) compression phase.
+
+        The snapshot is created on the same filesystem as the backup directory
+        when possible (``backup_dir``), so ``copytree`` + ``tarfile`` stay on
+        one device instead of crossing into the container's ``/tmp``. The
+        fallback remains ``/tmp`` if the directory cannot be created.
         """
         async with self._storage_lock:
             loop = asyncio.get_event_loop()
-            import shutil
-            import tempfile
 
-            snapshot_dir = Path(tempfile.mkdtemp(prefix="palworld_backup_"))
+            snapshot_dir = self._make_snapshot_dir()
 
             try:
                 # Async snapshot — copy source to temp dir
@@ -534,8 +559,6 @@ class EnhancedBackupManager:
                 mode = "r:gz" if is_compressed else "r"
 
                 # Unique staging and recovery directories
-                import uuid
-
                 staging_suffix = f".restore_staging_{uuid.uuid4().hex[:8]}"
                 staging_dir = self.backup_dir / staging_suffix
                 recovery_suffix = f".restore_recovery_{uuid.uuid4().hex[:8]}"
@@ -621,8 +644,6 @@ class EnhancedBackupManager:
 
                         # 4. Clean staging directory
                         if staging_dir.exists():
-                            import shutil
-
                             shutil.rmtree(staging_dir)
                         staging_dir.mkdir(parents=True, exist_ok=True)
 
@@ -632,9 +653,6 @@ class EnhancedBackupManager:
                         # 6. Backup originals to recovery dir for rollback
                         # Build the manifest first, then move, so a failure during
                         # move still has a complete manifest for rollback.
-                        import shutil
-                        import json as _json
-
                         recovery_dir.mkdir(parents=True, exist_ok=True)
                         rollback_orig = {}  # str(dest) -> dest_rel
                         rollback_new = []   # str(dest) for files created by this restore
@@ -688,9 +706,6 @@ class EnhancedBackupManager:
                 # Rollback: restore originals from recovery dir
                 if recovery_dir is not None and recovery_dir.exists():
                     try:
-                        import shutil
-                        import json as _json
-
                         manifest_path = recovery_dir / "_manifest.json"
                         if manifest_path.exists():
                             with open(manifest_path) as _mf:
@@ -718,8 +733,6 @@ class EnhancedBackupManager:
                 # Clean up staging on failure
                 if staging_dir is not None:
                     try:
-                        import shutil
-
                         if staging_dir.exists():
                             shutil.rmtree(staging_dir)
                     except Exception:
