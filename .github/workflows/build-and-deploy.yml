@@ -712,7 +712,10 @@ jobs:
             - name: 📝 Generate release notes with categorized commit history
               id: release-notes
               run: |
-                  # Get the newest semver release tag before the current release.
+                  # Resolve PREV_TAG by semantic version, independently of commit ancestry.
+                  # See scripts/find_previous_release_tag.sh: Tier 1 walks the same-base
+                  # prerelease chain, Tier 2 picks the previous stable with a different
+                  # base, Tier 3 (no match) falls back to the initial commit below.
                   # Non-release tags (for example, latest) are ignored.
                   PREV_TAG=$(scripts/find_previous_release_tag.sh "${{ env.BUILD_VERSION }}")
 
@@ -731,6 +734,7 @@ jobs:
                   DOCS=""
                   PERF=""
                   REFACTOR=""
+                  TESTS=""
                   MAINTENANCE=""
                   OTHERS=""
 
@@ -741,23 +745,29 @@ jobs:
                       COMMIT_SUBJECT=$(echo "$line" | cut -d'|' -f2-)
                       
                       # Categorize commits based on conventional commit prefixes
-                      if [[ $COMMIT_SUBJECT =~ ^feat(\(.+\))?:[[:space:]]* ]]; then
+                      if [[ $COMMIT_SUBJECT =~ ^(feat|feature|enhance|add)(\(.+\))?:[[:space:]]* ]]; then
                         FEATURES="${FEATURES}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
-                      elif [[ $COMMIT_SUBJECT =~ ^fix(\(.+\))?:[[:space:]]* ]]; then
+                      elif [[ $COMMIT_SUBJECT =~ ^(fix|bug|patch)(\(.+\))?:[[:space:]]* ]]; then
                         BUG_FIXES="${BUG_FIXES}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
-                      elif [[ $COMMIT_SUBJECT =~ ^docs(\(.+\))?:[[:space:]]* ]]; then
+                      elif [[ $COMMIT_SUBJECT =~ ^(docs|doc)(\(.+\))?:[[:space:]]* ]]; then
                         DOCS="${DOCS}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
                       elif [[ $COMMIT_SUBJECT =~ ^perf(\(.+\))?:[[:space:]]* ]]; then
                         PERF="${PERF}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
                       elif [[ $COMMIT_SUBJECT =~ ^refactor(\(.+\))?:[[:space:]]* ]]; then
                         REFACTOR="${REFACTOR}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
-                      elif [[ $COMMIT_SUBJECT =~ ^(chore|build|ci|style|test)(\(.+\))?:[[:space:]]* ]]; then
+                      elif [[ $COMMIT_SUBJECT =~ ^test(\(.+\))?:[[:space:]]* ]]; then
+                        TESTS="${TESTS}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
+                      elif [[ $COMMIT_SUBJECT =~ ^(chore|build|ci|style)(\(.+\))?:[[:space:]]* ]]; then
                         MAINTENANCE="${MAINTENANCE}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
                       else
                         OTHERS="${OTHERS}- ${COMMIT_SUBJECT} (${COMMIT_HASH})"$'\n'
                       fi
                     fi
-                  done < <(git log --oneline "${PREV_TAG}..HEAD" --pretty=format:"%h|%s" | sort -k2)
+                  # Three-dot + --right-only lists changes introduced on the release side.
+                  # --cherry-pick removes patch-equivalent commits whose SHA changed after a
+                  # rebase/history rewrite, and --no-merges keeps PR merge noise out of notes.
+                  done < <(git log --right-only --cherry-pick --no-merges \
+                    --pretty=format:"%h|%s" "${PREV_TAG}...HEAD" | sort -k2)
 
                   # Create release notes body with categorized commits
                   RELEASE_NOTES="# 🚀 Palworld Server ARM64 Release ${{ env.BUILD_VERSION }}
@@ -797,6 +807,13 @@ jobs:
                   if [ -n "$REFACTOR" ]; then
                     RELEASE_NOTES="${RELEASE_NOTES}### ♻️ Refactoring
                   ${REFACTOR}
+
+                  "
+                  fi
+
+                  if [ -n "$TESTS" ]; then
+                    RELEASE_NOTES="${RELEASE_NOTES}### 🧪 Tests
+                  ${TESTS}
 
                   "
                   fi
