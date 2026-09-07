@@ -89,7 +89,13 @@ def format_duration(seconds: float) -> str:
 
 def retry_async(max_retries: int = 3, delay: float = 1.0):
     """
-    Decorator for async function retry logic
+    Decorator for async function retry logic.
+
+    On final failure the last exception is re-raised with the full attempt
+    chain attached via :class:`BaseExceptionGroup` (Python3.11+) so callers
+    can inspect every failure, not just the most recent one. On older
+    Python the chain is attached via ``raise ... from`` on the final
+    exception with the prior attempts appended to ``__cause_chain__``.
 
     Args:
         max_retries: Maximum number of retry attempts
@@ -99,19 +105,43 @@ def retry_async(max_retries: int = 3, delay: float = 1.0):
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            last_exception = None
+            exceptions: list[BaseException] = []
+            backoff_cap = 30.0  # matches RconClient; prevents unbounded growth
 
             for attempt in range(max_retries + 1):
                 try:
                     return await func(*args, **kwargs)
                 except Exception as e:
-                    last_exception = e
+                    exceptions.append(e)
                     if attempt < max_retries:
-                        await asyncio.sleep(delay * (2**attempt))  # Exponential backoff
+                        sleep_for = min(delay * (2**attempt), backoff_cap)
+                        await asyncio.sleep(sleep_for)
                     else:
                         break
 
-            # Re-raise the last exception
+            if not exceptions:
+                # Should not happen, but keep the type-checker honest.
+                raise RuntimeError("retry_async exhausted with no captured exception")
+
+            last_exception = exceptions[-1]
+            if len(exceptions) > 1:
+                # Attach the full chain for diagnostics. ``raise ... from``
+                # hides the last exception's implicit context, so prefer
+                # ExceptionGroup where available (3.11+).
+                try:
+                    raise BaseExceptionGroup(
+                        f"{func.__name__} failed after {len(exceptions)} attempts",
+                        exceptions,
+                    ) from last_exception
+                except NameError:
+                    # Python < 3.11 — fall back to manual chaining.
+                    chain = "\n".join(
+                        f"  attempt {i + 1}: {type(e).__name__}: {e}"
+                        for i, e in enumerate(exceptions)
+                    )
+                    raise RuntimeError(
+                        f"{func.__name__} failed after {len(exceptions)} attempts:\n{chain}"
+                    ) from last_exception
             raise last_exception
 
         return wrapper
