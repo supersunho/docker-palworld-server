@@ -51,6 +51,7 @@ class TestMonitoringManager:
             patch.object(manager.player_monitor, "start_monitoring", AsyncMock()),
             patch.object(manager.server_monitor, "start_monitoring", AsyncMock()),
             patch.object(manager.idle_restart_manager, "start_monitoring", AsyncMock()),
+            patch.object(manager, "_rcon_reachability_loop", AsyncMock()),
         ):
 
             await manager.start_monitoring()
@@ -63,9 +64,34 @@ class TestMonitoringManager:
             manager.player_monitor.start_monitoring.assert_called()
             manager.server_monitor.start_monitoring.assert_called()
             manager.idle_restart_manager.start_monitoring.assert_called()
+            manager._rcon_reachability_loop.assert_called()
 
             await manager.stop_monitoring()
             assert manager._monitoring_active is False
+
+    @pytest.mark.asyncio
+    async def test_rcon_reachability_loop_probes_and_exits(self, manager):
+        """FS-rc: _rcon_reachability_loop probes the RCON client and exits
+        cleanly when the shutdown event is set."""
+        mock_rcon = MagicMock()
+        mock_rcon.probe_reachable = AsyncMock(return_value=True)
+        manager.api_manager = MagicMock()
+        manager.api_manager.get_rcon_client = MagicMock(return_value=mock_rcon)
+        manager._monitoring_active = True
+        manager._shutdown_event.set()  # pre-set so the first wait_for returns
+
+        await manager._rcon_reachability_loop()
+        # Shutdown was already set, so the loop should not have probed.
+        mock_rcon.probe_reachable.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rcon_reachability_loop_handles_missing_client(self, manager):
+        """FS-rc: When api_manager has no RCON client, the probe loop is a no-op."""
+        manager.api_manager = None
+        manager._monitoring_active = True
+        manager._shutdown_event.set()
+        # Should return cleanly without raising.
+        await manager._rcon_reachability_loop()
 
     def test_is_monitoring_active(self, manager):
         """FS-13.2: Active state tracking."""

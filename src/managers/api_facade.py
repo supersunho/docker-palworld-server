@@ -87,8 +87,24 @@ class ServerAPIFacade(IServerAPI):
         )
 
     def _is_rcon_available(self) -> bool:
-        """Check if RCON client is available"""
-        return self._rcon is not None and self._rcon_available
+        """Check if RCON client is available and has a recent successful
+        reachability probe.
+
+        The previous implementation only checked that ``rcon-cli --help``
+        succeeded during ``__aenter__``, which does not guarantee the actual
+        RCON server is reachable. The probe result tracked on
+        :class:`RconClient` is consulted when present; until a probe has run
+        we fall back to the legacy ``_rcon_available`` flag for backward
+        compatibility.
+        """
+        if self._rcon is None or not self._rcon_available:
+            return False
+        last_probe = getattr(self._rcon, "_last_probe_at", 0.0)
+        if last_probe == 0.0:
+            # No probe yet — assume available so the first command attempt
+            # can populate the probe result.
+            return True
+        return bool(getattr(self._rcon, "last_probe_success", False))
 
     # --- Direct client access ---
 
@@ -353,15 +369,15 @@ class ServerAPIFacade(IServerAPI):
 
         return None
 
-    async def get_server_info_any(self) -> Optional[Dict]:
-        """Get server info using available API (REST first, then RCON)"""
-        info = await self.api_get_server_info()
-        if info:
-            return info
-        rcon_result = await self.rcon_get_server_info()
-        if rcon_result:
-            return {"source": "rcon", "info": rcon_result}
-        return None
+    async def get_server_info_any(self) -> Optional[ServerInfo]:
+        """Get server info using available API (REST first, then RCON).
+
+        Alias of :meth:`get_server_info` kept for backward compatibility with
+        external callers. Returns the same normalized dataclass instead of a
+        raw dict with ``{"source": "rcon", "info": ...}`` so callers do not
+        need to special-case the RCON path.
+        """
+        return await self.get_server_info()
 
     async def announce(self, message: str) -> bool:
         """Announce message using available API (REST first, then RCON)"""

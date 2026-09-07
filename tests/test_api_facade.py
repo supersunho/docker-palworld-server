@@ -125,10 +125,60 @@ class TestServerAPIFacade:
     async def test_fallback_any_methods(self, facade):
         """FS-10.3: _any fallback methods."""
         info = await facade.get_server_info_any()
-        assert info is not None
+        # get_server_info_any must return the same normalized dataclass
+        # as get_server_info, NOT a raw dict with a "source" key.
+        assert isinstance(info, ServerInfo)
+        assert not isinstance(info, dict)
 
         assert await facade.announce_message_any("Hello") is True
         assert await facade.save_world_any() is True
+
+    @pytest.mark.asyncio
+    async def test_get_server_info_any_matches_normalized_get_server_info(self, facade):
+        """FS-10.3: get_server_info_any and get_server_info return identical
+        normalized ServerInfo objects (REST path)."""
+        normal = await facade.get_server_info()
+        any_info = await facade.get_server_info_any()
+        assert isinstance(normal, ServerInfo)
+        assert isinstance(any_info, ServerInfo)
+        assert normal.name == any_info.name
+        assert normal.players == any_info.players
+        assert normal.max_players == any_info.max_players
+
+    @pytest.mark.asyncio
+    async def test_get_server_info_any_rcon_fallback_returns_server_info(self, facade):
+        """FS-10.3: get_server_info_any with REST failure still produces a
+        normalized ServerInfo from the RCON string (no raw {"source": ...}
+        dict leaking through)."""
+        facade._rest.get_server_info = AsyncMock(return_value=None)
+        any_info = await facade.get_server_info_any()
+        assert isinstance(any_info, ServerInfo)
+        assert any_info.info == "SERVER INFO: Test Server, Players: 3/16"
+
+    def test_is_rcon_available_with_no_probe_assumes_available(self, facade):
+        """FS-rc: When no probe has run yet (initial state), the facade
+        falls back to the legacy ``_rcon_available`` flag so the first
+        command attempt can populate the probe result."""
+        # Default fixture has _last_probe_at == 0.0
+        assert facade._is_rcon_available() is True
+
+    def test_is_rcon_available_respects_failed_probe(self, facade):
+        """FS-rc: A recent failed probe must mark RCON as unavailable
+        even if ``_rcon_available`` is still True."""
+        facade._rcon._last_probe_at = 1.0  # any non-zero timestamp
+        facade._rcon.last_probe_success = False
+        assert facade._is_rcon_available() is False
+
+    def test_is_rcon_available_respects_successful_probe(self, facade):
+        """FS-rc: A recent successful probe keeps RCON marked available."""
+        facade._rcon._last_probe_at = 1.0
+        facade._rcon.last_probe_success = True
+        assert facade._is_rcon_available() is True
+
+    def test_is_rcon_available_false_when_client_missing(self, facade):
+        """FS-rc: No RCON client at all -> unavailable."""
+        facade._rcon = None
+        assert facade._is_rcon_available() is False
 
     def test_client_accessors(self, facade):
         """FS-10.3: Direct client access."""

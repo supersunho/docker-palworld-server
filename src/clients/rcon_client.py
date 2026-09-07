@@ -16,6 +16,16 @@ from ..logging_setup import log_server_event, log_api_call
 class RconClient:
     """Palworld RCON client using rcon-cli binary"""
 
+    # Reachability probe cadence. The probe fires at most once per window to
+    # avoid hammering the server. Tuned for the typical monitor tick (30-60s)
+    # so the availability flag stays fresh without added RCON load.
+    _PROBE_INTERVAL_SECONDS = 60.0
+
+    # Maximum sleep between retry attempts. Caps the exponential backoff so
+    # a future tuning change (higher retry_count or _retry_delay) cannot
+    # cause a single command to block for an unbounded amount of time.
+    _MAX_BACKOFF_SECONDS = 30.0
+
     def __init__(self, config: PalworldConfig, logger):
         self.config = config
         self.logger = logger
@@ -25,6 +35,12 @@ class RconClient:
         self._retry_count = 3
         self._retry_delay = 2.0
         self._is_connected = False
+        # Reachability probe state. ``_last_probe_at`` is the wall-clock time
+        # of the most recent probe; ``_last_probe_success`` records whether
+        # that probe actually reached the RCON server (distinct from
+        # ``_is_connected`` which only reflects rcon-cli availability).
+        self._last_probe_at: float = 0.0
+        self._last_probe_success: bool = False
 
     async def __aenter__(self):
         """Test rcon-cli availability and initialize connection"""
@@ -46,6 +62,37 @@ class RconClient:
             self.logger.error("rcon-cli binary not found")
 
         return self
+
+    async def probe_reachable(self, force: bool = False) -> bool:
+        """Verify the RCON server is actually reachable, not just rcon-cli.
+
+        The probe sends a lightweight ``Info`` command at most once per
+        ``_PROBE_INTERVAL_SECONDS`` unless ``force=True``. Failures clear the
+        cached success so callers (e.g. ``_is_rcon_available``) stop treating
+        RCON as available until the next successful round-trip.
+        """
+        now = time.time()
+        if (
+            not force
+            and self._last_probe_at != 0.0
+            and (now - self._last_probe_at) < self._PROBE_INTERVAL_SECONDS
+        ):
+            return self._last_probe_success
+
+        if not self._is_connected:
+            return False
+
+        result = await self._execute_command_with_retry("Info", retry_count=0)
+        self._last_probe_at = now
+        self._last_probe_success = result is not None
+        if not self._last_probe_success:
+            self.logger.debug("RCON reachability probe failed")
+        return self._last_probe_success
+
+    @property
+    def last_probe_success(self) -> bool:
+        """Whether the most recent reachability probe succeeded."""
+        return self._last_probe_success
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Close RCON client context"""
@@ -100,20 +147,29 @@ class RconClient:
                     )
 
                     if attempt < retry_count:
-                        await asyncio.sleep(self._retry_delay * (2**attempt))
+                        await asyncio.sleep(self._backoff_for(attempt))
                         continue
                     else:
                         return None
 
             except Exception as e:
                 if attempt < retry_count:
-                    await asyncio.sleep(self._retry_delay * (2**attempt))
+                    await asyncio.sleep(self._backoff_for(attempt))
                     continue
                 else:
                     self.logger.error("RCON command final failure", command=command, error=str(e))
                     return None
 
         return None
+
+    def _backoff_for(self, attempt: int) -> float:
+        """Compute the sleep duration for retry ``attempt``.
+
+        Exponential growth (``_retry_delay * 2**attempt``) capped at
+        :attr:`_MAX_BACKOFF_SECONDS` so a single command cannot block
+        indefinitely even if a future tuning raises ``_retry_count``.
+        """
+        return min(self._retry_delay * (2**attempt), self._MAX_BACKOFF_SECONDS)
 
     async def get_server_info(self) -> Optional[str]:
         """Get server information"""
