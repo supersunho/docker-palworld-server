@@ -75,6 +75,7 @@ class TestIdleRestartManager:
         """FS-18.8: Pause mode calls pause_server."""
         manager.mode = "pause"
         manager.process_manager.pause_server = AsyncMock(return_value=True)
+        manager._verify_stopped_state = AsyncMock(return_value=True)
 
         success = await manager._perform_pause()
         assert success is True
@@ -148,6 +149,7 @@ class TestIdleRestartManager:
         """FS-18.15: Triggering pause action increments pause stats."""
         manager.mode = "pause"
         manager.process_manager.pause_server = AsyncMock(return_value=True)
+        manager._verify_stopped_state = AsyncMock(return_value=True)
         manager.player_monitor.get_current_player_count = MagicMock(return_value=0)
 
         with patch.object(manager, "_send_discord_notification", AsyncMock()):
