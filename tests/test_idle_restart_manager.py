@@ -293,6 +293,171 @@ class TestIdleRestartManagerEdgeCases:
                 assert manager.stats.last_restart_time is not None
 
     @pytest.mark.asyncio
+    async def test_safety_abort_players_none_notifies_and_resets(self, manager):
+        """FS-18.x: When the safety-check API returns None, idle action is
+        aborted AND a Discord safety-abort notification is emitted."""
+        manager.player_monitor.get_current_player_count = MagicMock(return_value=0)
+        manager.api_manager = MagicMock()
+        manager.api_manager.get_players = AsyncMock(return_value=None)
+        manager._idle_start = time.time() - manager.idle_seconds - 60
+        manager.stats.current_idle_duration = manager.idle_seconds * 60.0
+
+        with patch.object(
+            manager, "_send_safety_abort_notification", AsyncMock()
+        ) as mock_notify:
+            with patch.object(manager, "_perform_restart", AsyncMock()) as mock_pr:
+                await manager._trigger_idle_action()
+                mock_notify.assert_awaited_once()
+                mock_pr.assert_not_awaited()
+
+        # Idle state was reset so the next cycle can re-evaluate.
+        assert manager._idle_start is None
+        assert manager.stats.current_idle_duration == 0.0
+
+    @pytest.mark.asyncio
+    async def test_safety_abort_api_exception_notifies_and_resets(self, manager):
+        """FS-18.x: When the safety-check API raises, idle action is
+        aborted AND a Discord safety-abort notification is emitted."""
+        manager.player_monitor.get_current_player_count = MagicMock(return_value=0)
+        manager.api_manager = MagicMock()
+        manager.api_manager.get_players = AsyncMock(
+            side_effect=ConnectionError("boom")
+        )
+        manager._idle_start = time.time() - manager.idle_seconds - 60
+        manager.stats.current_idle_duration = manager.idle_seconds * 60.0
+
+        with patch.object(
+            manager, "_send_safety_abort_notification", AsyncMock()
+        ) as mock_notify:
+            with patch.object(manager, "_perform_restart", AsyncMock()) as mock_pr:
+                await manager._trigger_idle_action()
+                mock_notify.assert_awaited_once()
+                mock_pr.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_safety_abort_notification_disabled_returns_early(self, manager):
+        """FS-18.x: _send_safety_abort_notification returns early when
+        Discord is disabled (no exception, no notifier call)."""
+        manager.config.discord.enabled = False
+        # Even with discord disabled, the call should not raise.
+        await manager._send_safety_abort_notification("player count unknown")
+
+
+class TestIdlePauseVerification:
+    """L-6: SIGSTOP must be verified to take effect before the manager
+    trusts the paused state."""
+
+    @pytest.fixture
+    def manager(self, palworld_config, mock_player_monitor, mock_logger):
+        pm = MagicMock()
+        pm.is_server_running.return_value = True
+        return IdleRestartManager(palworld_config, mock_player_monitor, pm)
+
+    @pytest.mark.asyncio
+    async def test_verify_stopped_state_reads_proc_status(self, manager, tmp_path, monkeypatch):
+        """When /proc/<pid>/status reports the stopped state, verification
+        succeeds."""
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        manager.process_manager.server_process = mock_proc
+
+        # /proc read returns "T (stopped)"
+        status = "Name:\tpython\nState:\tT (stopped)\nPid:\t12345\n"
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+
+        fake_open = lambda *args, **kwargs: _FakeFile(status)
+        monkeypatch.setattr("builtins.open", fake_open)
+        # The first call wins; assert verification succeeds on the first try.
+        ok = await manager._verify_stopped_state(retries=2, delay_seconds=0)
+        assert ok is True
+
+    @pytest.mark.asyncio
+    async def test_verify_stopped_state_returns_false_for_running(self, manager, monkeypatch):
+        """A running (R) state must not be accepted as paused."""
+        mock_proc = MagicMock()
+        mock_proc.pid = 9999
+        manager.process_manager.server_process = mock_proc
+
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        status = "Name:\tpython\nState:\tR (running)\nPid:\t9999\n"
+        monkeypatch.setattr("builtins.open", lambda *a, **kwargs: _FakeFile(status))
+
+        ok = await manager._verify_stopped_state(retries=1, delay_seconds=0)
+        assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_verify_stopped_state_returns_false_on_missing_proc(
+        self, manager, monkeypatch
+    ):
+        """If /proc/<pid> is gone, the PID is not ours, return False."""
+        mock_proc = MagicMock()
+        mock_proc.pid = 5555
+        manager.process_manager.server_process = mock_proc
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+
+        def boom(*args, **kwargs):
+            raise FileNotFoundError("pid gone")
+
+        monkeypatch.setattr("builtins.open", boom)
+
+        ok = await manager._verify_stopped_state(retries=1, delay_seconds=0)
+        assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_verify_stopped_state_skipped_on_non_linux(self, manager, monkeypatch):
+        """When /proc is absent (non-Linux), verification trusts SIGSTOP."""
+        mock_proc = MagicMock()
+        mock_proc.pid = 7777
+        manager.process_manager.server_process = mock_proc
+        monkeypatch.setattr("os.path.isdir", lambda p: False)
+
+        ok = await manager._verify_stopped_state()
+        assert ok is True
+
+    @pytest.mark.asyncio
+    async def test_perform_pause_aborts_on_verification_failure(self, manager):
+        """When verification fails, the pause is rolled back and the
+        ``_paused`` flag is NOT set."""
+        manager.process_manager.pause_server = AsyncMock(return_value=True)
+        manager.process_manager.resume_server = AsyncMock(return_value=True)
+        manager._verify_stopped_state = AsyncMock(return_value=False)
+
+        ok = await manager._perform_pause()
+        assert ok is False
+        assert manager._paused is False
+        manager.process_manager.resume_server.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_perform_pause_marks_paused_on_verified_signal(self, manager):
+        """When the signal was verified, _paused is set and pause_start
+        is recorded."""
+        manager.process_manager.pause_server = AsyncMock(return_value=True)
+        manager._verify_stopped_state = AsyncMock(return_value=True)
+
+        before = time.time()
+        ok = await manager._perform_pause()
+        assert ok is True
+        assert manager._paused is True
+        assert manager._pause_start_time is not None
+        assert manager._pause_start_time >= before
+
+
+class _FakeFile:
+    """Minimal file-like context manager for monkeypatched open() calls."""
+
+    def __init__(self, content: str):
+        self.content = content
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def __iter__(self):
+        return iter(self.content.splitlines(True))
+
+    @pytest.mark.asyncio
     async def test_send_discord_notification_disabled(self, manager):
         """FS-18.x: _send_discord_notification returns early when discord disabled."""
         manager.config.discord.enabled = False

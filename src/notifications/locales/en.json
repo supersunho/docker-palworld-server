@@ -51,7 +51,8 @@
         "night": "Late night adventure! 🌙"
     },
     "idle": {
-        "restart": "⏰ No players for {minutes} minutes. Restarting server ({server})."
+        "restart": "⏰ No players for {minutes} minutes. Restarting server ({server}).",
+        "safety_abort": "⚠️ Idle action aborted on {server} — {reason}. Will retry on next idle check."
     },
     "update": {
         "available": [

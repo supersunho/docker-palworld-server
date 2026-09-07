@@ -23,6 +23,7 @@ class DiscordConfig:
             "backup_complete": True,
             "errors": True,
             "idle_restart": True,
+            "idle_safety_abort": False,  # Off by default — rare case, opt-in.
             "update": True,
         }
     )

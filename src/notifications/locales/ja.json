@@ -40,7 +40,8 @@
         "night": "深夜の冒険ですね！ 🌙"
     },
     "idle": {
-        "restart": "⏰ {minutes}分間プレイヤーがいなかったため、サーバー({server})を再起動します。"
+        "restart": "⏰ {minutes}分間プレイヤーがいなかったため、サーバー({server})を再起動します。",
+        "safety_abort": "⚠️ {server}の待機(idle)操作を中断しました — {reason}。次回のチェックで再試行します。"
     },
     "update": {
         "available": [
