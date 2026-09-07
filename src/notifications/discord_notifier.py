@@ -23,6 +23,25 @@ class NotificationLevel(Enum):
     CRITICAL = "critical"
 
 
+def _mask_webhook_url(url: str) -> str:
+    """Return a redacted form of a Discord webhook URL.
+
+    Discord webhook URLs look like ``https://discord.com/api/webhooks/<id>/<token>``.
+    The trailing token is a secret — never log it. Returns the URL with only
+    the webhook id (and a length hint) so operators can still identify which
+    webhook failed without the credential leaking.
+    """
+    if not url:
+        return ""
+    parts = url.rstrip("/").split("/")
+    if len(parts) < 2:
+        # Not the expected shape — return a coarse redacted form anyway.
+        return url.split("?")[0][:24] + "...(redacted)"
+    token = parts[-1]
+    webhook_id = parts[-2]
+    return f"{('/'.join(parts[:-2]))}/{webhook_id}/***({len(token)} chars)"
+
+
 class DiscordNotifier:
     """Discord webhook notification manager with multi-language support"""
 
@@ -118,13 +137,26 @@ class DiscordNotifier:
                     return True
                 else:
                     error_text = await response.text()
+                    # Defense-in-depth: strip any webhook URL that Discord may
+                    # have echoed back inside its error body.
+                    sanitized = error_text.replace(self.webhook_url, _mask_webhook_url(self.webhook_url))
                     self.logger.error(
-                        "Discord webhook failed", status_code=response.status, error=error_text
+                        "Discord webhook failed",
+                        status_code=response.status,
+                        webhook=_mask_webhook_url(self.webhook_url),
+                        error=sanitized,
                     )
                     return False
 
         except Exception as e:
-            self.logger.error("Discord notification error", error=str(e))
+            # The exception message can contain the request URL on some aiohttp
+            # failure modes. Redact defensively before logging.
+            sanitized = str(e).replace(self.webhook_url, _mask_webhook_url(self.webhook_url))
+            self.logger.error(
+                "Discord notification error",
+                webhook=_mask_webhook_url(self.webhook_url),
+                error=sanitized,
+            )
             return False
 
     async def _send_notification(
