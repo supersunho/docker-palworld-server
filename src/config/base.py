@@ -415,6 +415,12 @@ class ConfigLoader(IConfigProvider):
                 f"Invalid worker threads count: {config.server_startup.worker_threads_count}"
             )
 
+        if config.server_startup.startup_grace_seconds <= 0:
+            raise ValueError(
+                f"Invalid startup_grace_seconds: {config.server_startup.startup_grace_seconds}"
+                " (must be > 0)"
+            )
+
         valid_languages = ["ko", "en", "ja"]
         if config.language not in valid_languages:
             raise ValueError(f"Invalid language: {config.language}. Supported: {valid_languages}")
