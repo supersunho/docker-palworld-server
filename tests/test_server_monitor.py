@@ -504,7 +504,8 @@ class TestPerformHealthCheck:
         """Lines 284-285: response > 5000 ms flagged."""
         monitor.api_manager.api_get_server_info = AsyncMock(return_value={"ok": True})
         monitor._trigger_event_callbacks = AsyncMock()
-        import time as _t, unittest.mock as _m
+        import time as _t
+        import unittest.mock as _m
 
         with _m.patch("time.time", side_effect=[1000.0, 6001.0, 7000.0]):
             await monitor._perform_health_check(

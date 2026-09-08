@@ -386,7 +386,6 @@ class PalworldServerManager:
         else:
             return False, None, [], "snapshot creation failed: could not allocate a unique snapshot"
 
-
         moved: list[tuple[Path, Path]] = []
         try:
             for target in targets:
