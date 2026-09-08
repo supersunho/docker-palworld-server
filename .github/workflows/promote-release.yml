@@ -52,7 +52,7 @@ jobs:
                 echo "✅ Tag formats are valid: $EXISTING_TAG → $PROMOTE_TAG"
 
             - name: 📦 Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                 ref: ${{ inputs.existing_tag }}
                 fetch-tags: true
