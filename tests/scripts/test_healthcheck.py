@@ -4,10 +4,11 @@ Covers enums, dataclasses, status logic, report generation, and
 the sync entry point — without network/subprocess dependencies.
 """
 
+import asyncio
 import json
 import os
 import time
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -234,3 +235,76 @@ class TestMainEntryPoint:
         assert "usage:" in output
         assert "--json" in output
         mock_checker.assert_not_called()
+
+
+@pytest.mark.unit
+class TestRconCommandProbe:
+    """_test_rcon_command must not use --password-stdin (unsupported by the
+    bundled rcon-cli); the secret travels via RCON_PASSWORD env instead."""
+
+    def _checker(self):
+        with patch.dict(os.environ, {"ADMIN_PASSWORD": "probe-secret"}, clear=True):
+            return HealthChecker()
+
+    def _mock_process(self, returncode=0, stdout=b"", stderr=b""):
+        process = MagicMock()
+        process.returncode = returncode
+        process.communicate = AsyncMock(return_value=(stdout, stderr))
+        process.kill = MagicMock()
+        process.wait = AsyncMock(return_value=None)
+        return process
+
+    @pytest.mark.asyncio
+    async def test_success_passes_password_via_env(self):
+        checker = self._checker()
+        process = self._mock_process(returncode=0, stdout=b"Welcome to Pal Server")
+        with patch(
+            "asyncio.create_subprocess_exec", AsyncMock(return_value=process)
+        ) as mock_exec:
+            result = await checker._test_rcon_command()
+
+        assert result["success"] is True
+        assert result["error"] is None
+        argv = list(mock_exec.call_args[0])
+        assert "--password-stdin" not in argv
+        assert argv[-1] == "Info"
+        assert mock_exec.call_args[1]["env"]["RCON_PASSWORD"] == "probe-secret"
+        # Base environment is preserved, not replaced.
+        assert mock_exec.call_args[1]["env"]["PATH"] == os.environ["PATH"]
+
+    @pytest.mark.asyncio
+    async def test_failure_reports_stderr(self):
+        checker = self._checker()
+        process = self._mock_process(returncode=255, stderr=b"unknown flag")
+        with patch(
+            "asyncio.create_subprocess_exec", AsyncMock(return_value=process)
+        ):
+            result = await checker._test_rcon_command()
+
+        assert result["success"] is False
+        assert "unknown flag" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_timeout_kills_process(self):
+        checker = self._checker()
+        process = self._mock_process()
+        process.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
+        with patch(
+            "asyncio.create_subprocess_exec", AsyncMock(return_value=process)
+        ):
+            result = await checker._test_rcon_command()
+
+        assert result["success"] is False
+        assert result["error"] == "RCON command timeout"
+        process.kill.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_missing_binary_falls_back_to_port_check(self):
+        checker = self._checker()
+        with patch(
+            "asyncio.create_subprocess_exec", AsyncMock(side_effect=FileNotFoundError())
+        ):
+            result = await checker._test_rcon_command()
+
+        assert result["success"] is True
+        assert "port check only" in result["response"]
