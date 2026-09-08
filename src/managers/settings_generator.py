@@ -4,6 +4,7 @@ Settings generator for Palworld server
 Handles INI file generation from configuration objects
 """
 
+import os
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -44,6 +45,18 @@ class SettingsGenerator:
                 settings_file = self.config_dir / "PalWorldSettings.ini"
             else:
                 settings_file = output_path
+
+            if settings_file.exists() and os.environ.get(
+                "DISABLE_GENERATE_SETTINGS", "false"
+            ).lower() == "true":
+                log_server_event(
+                    self.logger,
+                    "config_generate_skip",
+                    "Skipping server settings generation: file already exists and "
+                    "DISABLE_GENERATE_SETTINGS=true",
+                    settings_file=str(settings_file),
+                )
+                return True
 
             self.config_dir.mkdir(parents=True, exist_ok=True)
 

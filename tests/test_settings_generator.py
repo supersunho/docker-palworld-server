@@ -99,6 +99,42 @@ class TestSettingsGenerator:
         assert result is True
         assert (tmp_path / "Engine.ini").exists()
 
+    def test_write_server_settings_disable_flag_ignored_when_file_missing(
+        self, generator, tmp_path
+    ):
+        """DISABLE_GENERATE_SETTINGS is ignored when the settings file does not exist yet."""
+        generator.config_dir = tmp_path
+        with patch.dict("os.environ", {"DISABLE_GENERATE_SETTINGS": "true"}):
+            result = generator.write_server_settings()
+        assert result is True
+        assert (tmp_path / "PalWorldSettings.ini").exists()
+
+    def test_write_server_settings_skipped_when_disabled_and_file_exists(
+        self, generator, tmp_path
+    ):
+        """DISABLE_GENERATE_SETTINGS=true preserves an existing, manually edited file."""
+        generator.config_dir = tmp_path
+        settings_file = tmp_path / "PalWorldSettings.ini"
+        settings_file.write_text("manually edited content", encoding="utf-8")
+
+        with patch.dict("os.environ", {"DISABLE_GENERATE_SETTINGS": "true"}):
+            result = generator.write_server_settings()
+
+        assert result is True
+        assert settings_file.read_text(encoding="utf-8") == "manually edited content"
+
+    def test_write_server_settings_not_skipped_when_flag_false(self, generator, tmp_path):
+        """DISABLE_GENERATE_SETTINGS=false (default) regenerates the file as before."""
+        generator.config_dir = tmp_path
+        settings_file = tmp_path / "PalWorldSettings.ini"
+        settings_file.write_text("manually edited content", encoding="utf-8")
+
+        with patch.dict("os.environ", {"DISABLE_GENERATE_SETTINGS": "false"}):
+            result = generator.write_server_settings()
+
+        assert result is True
+        assert settings_file.read_text(encoding="utf-8") != "manually edited content"
+
 
 class TestSettingsGeneratorEdgeCases:
     """Edge case tests for remaining settings_generator coverage."""
