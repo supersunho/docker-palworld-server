@@ -351,17 +351,18 @@ jobs:
         env:
             BUILD_VERSION_BASE: ${{ needs.prepare.outputs.build_version_base }}
             SOURCE_VERSION_BASE: ${{ needs.prepare.outputs.source_version_base }}
+            BUILD_VERSION_CLEAN: ${{ needs.prepare.outputs.build_version_clean }}
         steps:
             - name: 🎯 Display build target information
               run: |
                   echo "🎯 Building Palworld Server container for: linux/arm64"
                   echo "📦 Palworld Server Source: ${{ env.SOURCE_VERSION_BASE }}"
-                  echo "🏷️ Build Tag: ${{ env.BUILD_VERSION_BASE }}"
+                  echo "🏷️ Build Tag: ${{ env.BUILD_VERSION_CLEAN }}"
 
             - name: 🔍 Check existing images via registry API
               id: check-images
               run: |
-                  IMAGE_TAG="${{ env.BUILD_VERSION_BASE }}-arm64"
+                  IMAGE_TAG="${{ env.BUILD_VERSION_CLEAN }}-arm64"
                   echo "🔍 Checking if image exists: $IMAGE_TAG"
 
                   # Always build on workflow_dispatch with force_rebuild
@@ -448,7 +449,7 @@ jobs:
               id: image-tags
               env:
                   PUBLISH_LATEST: ${{ needs.prepare.outputs.publish_latest }}
-                  VERSION_TAG: ${{ needs.prepare.outputs.build_version_base }}-arm64
+                  VERSION_TAG: ${{ needs.prepare.outputs.build_version_clean }}-arm64
               run: |
                   TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION_TAG}
                   ${{ env.DOCKERHUB_REPO }}:${VERSION_TAG}"
@@ -486,7 +487,7 @@ jobs:
             - name: 🧪 Comprehensive container verification
               if: steps.check-images.outputs.build_image == 'true' && github.event.inputs.verify_build == 'true'
               run: |
-                  IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION_BASE }}-arm64"
+                  IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION_CLEAN }}-arm64"
                   echo "🔍 Starting verification suite for arm64..."
 
                   echo "📋 Test 1: Binary Verification"
@@ -540,6 +541,7 @@ jobs:
         env:
             BUILD_VERSION_BASE: ${{ needs.prepare.outputs.build_version_base }}
             SOURCE_VERSION_BASE: ${{ needs.prepare.outputs.source_version_base }}
+            BUILD_VERSION_CLEAN: ${{ needs.prepare.outputs.build_version_clean }}
         steps:
             - name: 📥 Download digest artifact
               uses: actions/download-artifact@v4
@@ -585,7 +587,7 @@ jobs:
               env:
                   PUBLISH_LATEST: ${{ needs.prepare.outputs.publish_latest }}
               run: |
-                  VERSION="${{ env.BUILD_VERSION_BASE }}"
+                  VERSION="${{ env.BUILD_VERSION_CLEAN }}"
                   echo "📦 Creating ARM64-only manifests..."
                   echo "🎯 Target version: $VERSION"
 
@@ -640,6 +642,7 @@ jobs:
             SOURCE_VERSION: ${{ needs.prepare.outputs.source_version }}
             SOURCE_VERSION_BASE: ${{ needs.prepare.outputs.source_version_base }}
             BUILD_VERSION_BASE: ${{ needs.prepare.outputs.build_version_base }}
+            BUILD_VERSION_CLEAN: ${{ needs.prepare.outputs.build_version_clean }}
             PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
             PUBLISH_LATEST: ${{ needs.prepare.outputs.publish_latest }}
         steps:
@@ -673,7 +676,7 @@ jobs:
 
                   **Build Date**: $BUILD_DATE  
                   **Palworld Server Source Version**: ${{ env.SOURCE_VERSION_BASE }}  
-                  **Build/Release Tag**: ${{ env.BUILD_VERSION_BASE }}  
+                  **Build/Release Tag**: ${{ env.BUILD_VERSION_CLEAN }}  
                   **Pre-release**: ${{ env.PRERELEASE }}  
                   **Source Release Tag**: ${{ env.SOURCE_VERSION }}  
                   **Build Number**: #${{ github.run_number }}  
@@ -693,14 +696,14 @@ jobs:
                   \`\`\`
                   # ARM64-specific image
                   ${LATEST_DOCKERHUB_PULL}
-                  docker pull ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_BASE }}-arm64
+                  docker pull ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_CLEAN }}-arm64
                   \`\`\`
 
                   #### 🔄 GitHub Container Registry (GHCR)
                   \`\`\`
                   # ARM64-specific image
                   ${LATEST_GHCR_PULL}
-                  docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION_BASE }}-arm64
+                  docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION_CLEAN }}-arm64
                   \`\`\`
 
                   ## 🚀 Quick Start Commands (ARM64)
@@ -711,10 +714,10 @@ jobs:
                   ${LATEST_RUN_EXAMPLE}
 
                   # Check version (universal command)
-                  docker run --rm ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_BASE }}-arm64 python3 -c "import sys; print('Python version:', sys.version)"
+                  docker run --rm ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_CLEAN }}-arm64 python3 -c "import sys; print('Python version:', sys.version)"
 
                   # Get help (works on all platforms)
-                  docker run --rm ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_BASE }}-arm64 /usr/local/bin/healthcheck --help
+                  docker run --rm ${{ env.DOCKERHUB_REPO }}:${{ env.BUILD_VERSION_CLEAN }}-arm64 /usr/local/bin/healthcheck --help
                   \`\`
 
                   ## 🎉 Enhanced Features
@@ -742,6 +745,7 @@ jobs:
         env:
             BUILD_VERSION: ${{ needs.prepare.outputs.build_version }}
             BUILD_VERSION_BASE: ${{ needs.prepare.outputs.build_version_base }}
+            BUILD_VERSION_CLEAN: ${{ needs.prepare.outputs.build_version_clean }}
             SOURCE_VERSION: ${{ needs.prepare.outputs.source_version }}
             SOURCE_VERSION_BASE: ${{ needs.prepare.outputs.source_version_base }}
         steps:
@@ -822,7 +826,7 @@ jobs:
 
                   **Build Date**: ${{ env.BUILD_DATE }}  
                   **Palworld Server Source Version**: ${{ env.SOURCE_VERSION_BASE }}  
-                  **Build/Release Version**: ${{ env.BUILD_VERSION_BASE }}  
+                  **Build/Release Version**: ${{ env.BUILD_VERSION_CLEAN }}  
                   **Platform**: ARM64 optimized  
                   **Build Workflow**: #${{ github.run_number }}
 
