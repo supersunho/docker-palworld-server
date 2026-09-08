@@ -260,3 +260,74 @@ class TestRconClient:
             mock_exec.return_value = process
             result = await rcon_client.execute_custom_command("my_command")
             assert result == "custom result"
+
+
+class TestRconReachabilityProbe:
+    """FS-rc: Reachability probe tracks whether the RCON server is reachable."""
+
+    @pytest.mark.asyncio
+    async def test_probe_reachable_success_updates_state(self, rcon_client):
+        rcon_client._is_connected = True
+        rcon_client._execute_command_with_retry = AsyncMock(return_value="server info")
+        ok = await rcon_client.probe_reachable(force=True)
+        assert ok is True
+        assert rcon_client.last_probe_success is True
+        assert rcon_client._last_probe_at > 0
+
+    @pytest.mark.asyncio
+    async def test_probe_reachable_failure_clears_state(self, rcon_client):
+        rcon_client._is_connected = True
+        rcon_client._execute_command_with_retry = AsyncMock(return_value=None)
+        ok = await rcon_client.probe_reachable(force=True)
+        assert ok is False
+        assert rcon_client.last_probe_success is False
+        assert rcon_client._last_probe_at > 0
+
+    @pytest.mark.asyncio
+    async def test_probe_reachable_short_circuits_within_window(self, rcon_client):
+        rcon_client._is_connected = True
+        rcon_client._execute_command_with_retry = AsyncMock(return_value="info")
+        await rcon_client.probe_reachable(force=True)
+        # Second call without force must NOT issue another command.
+        rcon_client._execute_command_with_retry.reset_mock()
+        cached_ok = await rcon_client.probe_reachable(force=False)
+        assert cached_ok is True
+        rcon_client._execute_command_with_retry.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_probe_reachable_force_overrides_cache(self, rcon_client):
+        rcon_client._is_connected = True
+        rcon_client._execute_command_with_retry = AsyncMock(return_value="info")
+        await rcon_client.probe_reachable(force=True)
+        rcon_client._execute_command_with_retry.reset_mock()
+        await rcon_client.probe_reachable(force=True)
+        rcon_client._execute_command_with_retry.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_probe_reachable_returns_false_when_not_connected(self, rcon_client):
+        rcon_client._is_connected = False
+        rcon_client._execute_command_with_retry = AsyncMock(return_value="info")
+        ok = await rcon_client.probe_reachable(force=True)
+        assert ok is False
+        rcon_client._execute_command_with_retry.assert_not_awaited()
+
+
+class TestRconBackoff:
+    """FS-rc: Exponential backoff is bounded by _MAX_BACKOFF_SECONDS."""
+
+    def test_backoff_grows_then_caps(self, rcon_client):
+        rcon_client._retry_delay = 2.0
+        rcon_client._MAX_BACKOFF_SECONDS = 10.0
+        # Exponential growth up to cap, then plateau.
+        assert rcon_client._backoff_for(0) == 2.0   # 2 * 1
+        assert rcon_client._backoff_for(1) == 4.0   # 2 * 2
+        assert rcon_client._backoff_for(2) == 8.0   # 2 * 4
+        assert rcon_client._backoff_for(3) == 10.0  # would be 16, capped
+        assert rcon_client._backoff_for(10) == 10.0
+
+    def test_backoff_unaffected_by_very_high_attempt(self, rcon_client):
+        """Sanity: extremely high attempts must not overflow or unbounded-grow."""
+        rcon_client._MAX_BACKOFF_SECONDS = 30.0
+        # Without cap, attempt=20 would be 2*2**20 ≈ 2M seconds.
+        assert rcon_client._backoff_for(20) == 30.0
+        assert rcon_client._backoff_for(100) == 30.0

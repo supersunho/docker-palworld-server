@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from src.notifications.discord_notifier import DiscordNotifier, NotificationLevel
+from src.notifications.discord_notifier import DiscordNotifier, NotificationLevel, _mask_webhook_url
 
 pytestmark = pytest.mark.unit
 
@@ -192,3 +192,87 @@ class TestDiscordNotifier:
         notifier.session.post = MagicMock(return_value=cm)
         result = await notifier._send_webhook("Critical error", NotificationLevel.CRITICAL)
         assert result is True
+
+
+class TestWebhookRedaction:
+    """FS-19.x: Webhook URLs must never appear in logs or error messages."""
+
+    @pytest.fixture
+    def notifier(self, palworld_config):
+        n = DiscordNotifier(palworld_config)
+        n.session = MagicMock()
+        n.enabled = True
+        n.webhook_url = "https://discord.com/api/webhooks/test"
+        return n
+
+    def test_mask_webhook_url_redacts_token(self):
+        """Standard Discord webhook shape is redacted; token is not exposed."""
+        url = "https://discord.com/api/webhooks/1234567890/abcdefSECRET_TOKEN_xyz"
+        masked = _mask_webhook_url(url)
+        assert "SECRET_TOKEN" not in masked
+        assert "abcdef" not in masked
+        assert "1234567890" in masked  # webhook id retained for debug context
+        assert "***" in masked
+
+    def test_mask_webhook_url_handles_unexpected_shapes(self):
+        """Unrecognized URLs still get a redacted form."""
+        masked = _mask_webhook_url("https://example.com/short")
+        assert "secret" not in masked.lower()
+        # Should not raise
+        masked_empty = _mask_webhook_url("")
+        assert masked_empty == ""
+
+    @pytest.mark.asyncio
+    async def test_webhook_failure_redacts_url_in_error_log(self, notifier):
+        """When Discord echoes back the webhook URL in its error body, the
+        token must not appear in any value passed to logger.error."""
+        secret = "https://discord.com/api/webhooks/9999/SECRET_TOKEN_VALUE"
+        notifier.webhook_url = secret
+
+        # Simulate Discord's response containing the URL inside the error.
+        mock_response = MagicMock()
+        mock_response.status = 400
+        mock_response.text = AsyncMock(
+            return_value=f"Webhook {secret} returned 400: invalid"
+        )
+
+        cm = MagicMock()
+        cm.__aenter__ = AsyncMock(return_value=mock_response)
+        cm.__aexit__ = AsyncMock(return_value=None)
+        notifier.session.post = MagicMock(return_value=cm)
+
+        error_logger = MagicMock()
+        notifier.logger.error = error_logger
+        result = await notifier._send_webhook("desc", NotificationLevel.ERROR)
+
+        assert result is False
+        error_logger.assert_called_once()
+        call_kwargs = error_logger.call_args.kwargs
+        # webhook + error fields must be redacted
+        for key in ("webhook", "error"):
+            assert key in call_kwargs, f"missing field {key}"
+            assert "SECRET_TOKEN_VALUE" not in str(call_kwargs[key]), (
+                f"webhook token leaked via {key}: {call_kwargs[key]}"
+            )
+            assert "***" in str(call_kwargs[key])
+
+    @pytest.mark.asyncio
+    async def test_webhook_exception_redacts_url(self, notifier):
+        """If an exception carries the URL inside its message, the redacted
+        webhook id replaces the token before logging."""
+        secret = "https://discord.com/api/webhooks/7777/ANOTHER_SECRET_TOKEN"
+        notifier.webhook_url = secret
+        notifier.session.post = MagicMock(
+            side_effect=RuntimeError(f"POST to {secret} failed: timeout")
+        )
+
+        error_logger = MagicMock()
+        notifier.logger.error = error_logger
+        result = await notifier._send_webhook("desc")
+
+        assert result is False
+        error_logger.assert_called_once()
+        call_kwargs = error_logger.call_args.kwargs
+        assert "ANOTHER_SECRET_TOKEN" not in str(call_kwargs.get("error", ""))
+        assert "7777" in str(call_kwargs.get("webhook", ""))  # webhook id retained
+        assert "***" in str(call_kwargs.get("webhook", ""))

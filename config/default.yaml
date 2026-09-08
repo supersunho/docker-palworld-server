@@ -28,6 +28,7 @@ server_startup:
     log_format: ${LOG_FORMAT:text}
     worker_threads_count: ${WORKER_THREADS_COUNT:0}
     additional_options: "${ADDITIONAL_SERVER_OPTIONS:}"
+    startup_grace_seconds: ${SERVER_STARTUP_GRACE_SECONDS:10.0}
 
 palworld_settings:
     AdminPassword: "${ADMIN_PASSWORD}"

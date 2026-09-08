@@ -78,12 +78,30 @@ class TestHelpers:
 
     @pytest.mark.asyncio
     async def test_retry_async_exhausted(self):
-        """FS-22: Retry exhausts and raises."""
+        """FS-22: Retry exhausts and raises the full attempt chain."""
         mock_fn = AsyncMock(side_effect=ValueError("always fail"))
         decorated = retry_async(max_retries=2, delay=0.01)(mock_fn)
-        with pytest.raises(ValueError):
+        with pytest.raises(BaseExceptionGroup) as exc_info:
             await decorated()
         assert mock_fn.call_count == 3  # max_retries + 1
+        # Every attempt's exception is captured for diagnostics.
+        assert len(exc_info.value.exceptions) == 3
+        assert all(isinstance(e, ValueError) for e in exc_info.value.exceptions)
+
+    @pytest.mark.asyncio
+    async def test_retry_async_chains_exceptions_via_cause(self):
+        """L-10: When the function fails on every attempt, the final
+        exception's ``__cause__`` points to the most recent failure (the
+        ones before it remain reachable via the ExceptionGroup)."""
+        mock_fn = AsyncMock(
+            side_effect=[RuntimeError("first"), RuntimeError("second"), RuntimeError("third")]
+        )
+        decorated = retry_async(max_retries=2, delay=0.01)(mock_fn)
+        with pytest.raises(BaseExceptionGroup) as exc_info:
+            await decorated()
+        # The BaseExceptionGroup preserves the order of exceptions.
+        messages = [str(e) for e in exc_info.value.exceptions]
+        assert messages == ["first", "second", "third"]
 
     # ---- Additional helpers coverage ----
 

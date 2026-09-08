@@ -437,20 +437,18 @@ class TestConfigLoaderEdgeCases:
             with pytest.raises(RuntimeError, match="Configuration loader not initialized"):
                 reload_config()
 
-    def test_convert_types_bool_edge_cases(self):
-        loader = ConfigLoader.__new__(ConfigLoader)
-        assert loader._convert_types("yes") is True
-        assert loader._convert_types("on") is True
-        assert loader._convert_types("1") is True
-        assert loader._convert_types("no") is False
-        assert loader._convert_types("off") is False
-        assert loader._convert_types("0") is False
+    def test_convert_value_bool_lexicals(self):
+        """FS-config: field-aware _convert_value handles yes/no/on/off/1/0 lexicals.
 
-    def test_convert_types_int_negative(self):
+        The legacy global ``_convert_types`` helper was removed; its boolean
+        and int behavior is now covered by ``_convert_value`` which is
+        type-aware per dataclass field.
+        """
         loader = ConfigLoader.__new__(ConfigLoader)
-        assert loader._convert_types("-5") == -5
-
-    def test_convert_types_float_value_error(self):
-        loader = ConfigLoader.__new__(ConfigLoader)
-        result = loader._convert_types("not.a.float")
-        assert result == "not.a.float"
+        loader._raw_config = {}
+        loader._processed_config = {}
+        # bool lexical -> bool
+        assert loader._convert_value("yes", bool, "test.bool") is True
+        assert loader._convert_value("off", bool, "test.bool") is False
+        # int lexical -> int
+        assert loader._convert_value("-5", int, "test.int") == -5

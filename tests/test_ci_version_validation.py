@@ -16,10 +16,10 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 VALIDATOR = SCRIPTS_DIR / "validate_ci_versions.sh"
 
 
-def _run_validator(source_version="latest", build_version=""):
+def _run_validator(source_version="latest", build_version="", prerelease="auto"):
     """Run the validator and return (returncode, stdout, stderr)."""
     proc = subprocess.run(
-        [str(VALIDATOR), source_version, build_version],
+        [str(VALIDATOR), source_version, build_version, prerelease],
         capture_output=True,
         text=True,
         timeout=10,
@@ -152,8 +152,8 @@ class TestInvalidVersions:
 
 
 class TestOutputFormat:
-    def test_all_six_keys_present(self):
-        """Stdout contains exactly the 6 expected keys."""
+    def test_all_eight_keys_present(self):
+        """Stdout contains exactly the 8 expected keys."""
         rc, out, err = _run_validator("v1.2.3", "v2.0")
         assert rc == 0, f"expected 0, got {rc}: {err}"
         expected_keys = {
@@ -163,6 +163,8 @@ class TestOutputFormat:
             "build_version",
             "build_version_clean",
             "build_version_base",
+            "prerelease",
+            "publish_latest",
         }
         parsed = _parse_output(out)
         assert (
@@ -176,3 +178,51 @@ class TestOutputFormat:
         for line in out.strip().splitlines():
             _, _, value = line.partition("=")
             assert "\n" not in value, f"multi-line value in: {line}"
+
+
+# ------------------------------------------------------------------
+# Prerelease flag — beta line support
+# ------------------------------------------------------------------
+
+
+class TestPrerelease:
+    def test_dotted_suffix_accepted(self):
+        """1.2.0-beta.1 validates with clean/base split on the suffix."""
+        rc, out, err = _run_validator("1.2.0", "1.2.0-beta.1")
+        assert rc == 0, f"expected 0, got {rc}: {err}"
+        parsed = _parse_output(out)
+        assert parsed.get("build_version_clean") == "1.2.0-beta.1"
+        assert parsed.get("build_version_base") == "1.2.0"
+
+    def test_auto_detects_prerelease_suffix(self):
+        """auto → prerelease=true, publish_latest=false for suffixed builds."""
+        rc, out, err = _run_validator("1.2.0", "1.2.0-beta.1")
+        assert rc == 0, f"expected 0, got {rc}: {err}"
+        parsed = _parse_output(out)
+        assert parsed.get("prerelease") == "true"
+        assert parsed.get("publish_latest") == "false"
+
+    def test_auto_detects_stable(self):
+        """auto → prerelease=false, publish_latest=true for plain builds."""
+        rc, out, err = _run_validator("1.2.0", "1.2.0")
+        assert rc == 0, f"expected 0, got {rc}: {err}"
+        parsed = _parse_output(out)
+        assert parsed.get("prerelease") == "false"
+        assert parsed.get("publish_latest") == "true"
+
+    def test_explicit_true_with_beta_build(self):
+        rc, out, err = _run_validator("1.2.0", "1.2.0-beta.1", "true")
+        assert rc == 0, f"expected 0, got {rc}: {err}"
+        assert _parse_output(out).get("prerelease") == "true"
+
+    def test_explicit_true_with_stable_build_rejected(self):
+        rc, out, err = _run_validator("1.2.0", "1.2.0", "true")
+        assert rc != 0, "expected non-zero exit for prerelease=true on stable build"
+
+    def test_explicit_false_with_beta_build_rejected(self):
+        rc, out, err = _run_validator("1.2.0", "1.2.0-beta.1", "false")
+        assert rc != 0, "expected non-zero exit for prerelease=false on beta build"
+
+    def test_invalid_prerelease_value_rejected(self):
+        rc, out, err = _run_validator("1.2.0", "1.2.0", "maybe")
+        assert rc != 0, "expected non-zero exit for invalid prerelease value"

@@ -107,9 +107,13 @@ class MetricsCollector:
         self._prometheus_server_started = False
         self._running = False
 
-        # Track last collection time to manage psutil resources
-        self._last_collection_time = 0
-        self._collection_interval = config.monitoring.metrics_interval
+        # Track last garbage-collection time so the periodic gc.collect() in
+        # the collection loop is gated independently from the metrics
+        # collection cadence. The previous _last_collection_time name shadowed
+        # its real meaning and made the gate confusing to read.
+        self._last_gc_time = 0.0
+        # Cadence (seconds) for the periodic gc.collect() call.
+        self._gc_interval_seconds = 300.0
 
         # Event counters
         self._total_joins = 0
@@ -170,11 +174,13 @@ class MetricsCollector:
                 if self.enable_prometheus:
                     self._update_prometheus_system(system_metrics)
 
-                # Perform garbage collection periodically to prevent memory accumulation
+                # Periodic garbage collection: gated by a dedicated timestamp
+                # so it runs every ``_gc_interval_seconds`` regardless of the
+                # metrics cadence.
                 current_time = time.time()
-                if current_time - self._last_collection_time > 300:  # Every 5 minutes
+                if current_time - self._last_gc_time > self._gc_interval_seconds:
                     gc.collect()
-                    self._last_collection_time = current_time
+                    self._last_gc_time = current_time
 
                 await asyncio.sleep(interval)
 
@@ -211,31 +217,39 @@ class MetricsCollector:
             pass
 
     async def _collect_system_metrics(self) -> SystemMetrics:
-        """Collect system metrics"""
-        cpu_percent = psutil.cpu_percent(interval=1)
+        """Collect system metrics.
 
-        memory = psutil.virtual_memory()
-        memory_usage_gb = memory.used / (1024**3)
-        memory_percent = memory.percent
+        All psutil calls are dispatched to the default thread executor so the
+        event loop is not blocked by syscalls or the 1-second CPU sampling
+        window. Without this, the metrics loop would stall for at least one
+        second per tick and a stalled bind-mount on ``server_dir`` would
+        freeze the entire monitoring pipeline.
+        """
+        loop = asyncio.get_running_loop()
+        server_dir_str = str(self.config.paths.server_dir)
 
-        disk = psutil.disk_usage(str(self.config.paths.server_dir))
-        disk_usage_gb = disk.used / (1024**3)
-        disk_percent = (disk.used / disk.total) * 100
+        def _collect_blocking() -> tuple:
+            cpu = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage(server_dir_str)
+            net = psutil.net_io_counters()
+            load: list[float] = []
+            try:
+                load = list(psutil.getloadavg())
+            except AttributeError:
+                pass
+            return cpu, memory, disk, net, load
 
-        net_io = psutil.net_io_counters()
-
-        load_avg = []
-        try:
-            load_avg = list(psutil.getloadavg())
-        except AttributeError:
-            pass
+        cpu_percent, memory, disk, net_io, load_avg = await loop.run_in_executor(
+            None, _collect_blocking
+        )
 
         return SystemMetrics(
             cpu_percent=cpu_percent,
-            memory_usage_gb=memory_usage_gb,
-            memory_percent=memory_percent,
-            disk_usage_gb=disk_usage_gb,
-            disk_percent=disk_percent,
+            memory_usage_gb=memory.used / (1024**3),
+            memory_percent=memory.percent,
+            disk_usage_gb=disk.used / (1024**3),
+            disk_percent=(disk.used / disk.total) * 100 if disk.total else 0.0,
             network_bytes_sent=net_io.bytes_sent,
             network_bytes_recv=net_io.bytes_recv,
             load_average=load_avg,

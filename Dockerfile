@@ -53,6 +53,14 @@ COPY scripts/ ./scripts/
 RUN /opt/venv/bin/pip install --no-deps --no-build-isolation . && \
     /opt/venv/bin/pip wheel --no-deps --no-build-isolation -w /opt/wheels .
 
+# Belt-and-braces cleanup of the builder layer so the COPY --from=builder
+# statements below cannot accidentally pull in /tmp residue (downloaded
+# archives, unzipped binaries, pip caches). Anything genuinely needed by
+# the runtime image has been copied to /usr/local/bin or /opt/wheels by now.
+RUN rm -rf /tmp/rcon-cli* /tmp/LICENSE /tmp/README.md /tmp/*.tar.gz \
+              /root/.cache \
+    && find /tmp -mindepth 1 -delete 2>/dev/null || true
+
 # ============================================================
 # Stage 2: Runtime — minimal production image
 # ============================================================

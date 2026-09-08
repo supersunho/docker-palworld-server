@@ -104,6 +104,14 @@ class MonitoringManager:
             idle_restart_task.add_done_callback(self._background_tasks.discard)
             self.logger.info("Idle restart monitoring started")
 
+            # Periodic RCON reachability probe keeps ``_is_rcon_available``
+            # in ServerAPIFacade honest about whether the server is actually
+            # accepting commands (the rcon-cli --help check at startup only
+            # verifies the binary exists).
+            rcon_probe_task = asyncio.create_task(self._rcon_reachability_loop())
+            self._background_tasks.add(rcon_probe_task)
+            rcon_probe_task.add_done_callback(self._background_tasks.discard)
+
             # Start metrics collection (only when Prometheus or logs mode is active)
             if self.config.monitoring.mode in ("prometheus", "both", "logs"):
                 await self.metrics_collector.start_collection()
@@ -113,6 +121,30 @@ class MonitoringManager:
             self.logger.error(f"Failed to start monitoring: {e}")
             await self.stop_monitoring()
             raise
+
+    async def _rcon_reachability_loop(self) -> None:
+        """Periodically probe RCON server reachability.
+
+        Reads the cadence from :attr:`RconClient._PROBE_INTERVAL_SECONDS` so
+        the probe rate is owned by the client itself. The loop exits cleanly
+        when the shutdown event is set.
+        """
+        from ..clients import RconClient  # local import to avoid cycles
+
+        probe_interval = getattr(RconClient, "_PROBE_INTERVAL_SECONDS", 60.0)
+        while self._monitoring_active and not self._shutdown_event.is_set():
+            try:
+                rcon = self.api_manager.get_rcon_client() if self.api_manager else None
+                if rcon is not None:
+                    await rcon.probe_reachable(force=True)
+            except Exception as e:
+                self.logger.debug("RCON reachability probe loop error: %s", e)
+            try:
+                await asyncio.wait_for(
+                    self._shutdown_event.wait(), timeout=probe_interval
+                )
+            except asyncio.TimeoutError:
+                continue
 
     async def stop_monitoring(self) -> None:
         """Stop all monitoring components"""

@@ -506,6 +506,69 @@ class TestProcessManagerEdgeCases:
         assert result is False
 
     @pytest.mark.asyncio
+    async def test_start_server_uses_configured_grace_period(self, manager):
+        """FS-10.x: start_server honors startup_grace_seconds from config."""
+        # Configure a tiny grace period for the test
+        manager.config.server_startup.startup_grace_seconds = 3.0
+
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None  # still running
+        mock_proc.pid = 9999
+
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("subprocess.Popen", return_value=mock_proc):
+                with patch("asyncio.sleep", AsyncMock(return_value=None)) as mock_sleep:
+                    result = await manager.start_server()
+
+        assert result is True
+        # 3.0s grace / 1.0s poll interval = 3 sleep calls (poll once per second)
+        assert mock_sleep.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_start_server_default_grace_when_unset(self, manager):
+        """FS-10.x: start_server falls back to 10.0s when grace is not configured."""
+        # Use the default grace period (10.0s)
+        manager.config.server_startup.startup_grace_seconds = 10.0
+
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 9999
+
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("subprocess.Popen", return_value=mock_proc):
+                with patch("asyncio.sleep", AsyncMock(return_value=None)) as mock_sleep:
+                    result = await manager.start_server()
+
+        assert result is True
+        assert mock_sleep.call_count == 10
+
+    @pytest.mark.asyncio
+    async def test_start_server_fast_fail_when_process_dies_in_grace(self, manager):
+        """FS-10.x: start_server fast-fails when process exits mid-grace."""
+        manager.config.server_startup.startup_grace_seconds = 5.0
+
+        mock_proc = MagicMock()
+        # Track poll calls; return None for the first few, then "exited" code.
+        poll_state = {"calls": 0}
+
+        def poll_then_die():
+            poll_state["calls"] += 1
+            if poll_state["calls"] >= 2:
+                return 1  # process exited on second check
+            return None  # still alive
+
+        mock_proc.poll.side_effect = poll_then_die
+
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("subprocess.Popen", return_value=mock_proc):
+                with patch("asyncio.sleep", AsyncMock(return_value=None)) as mock_sleep:
+                    result = await manager.start_server()
+
+        # Should exit after 2 polls, not wait the full 5 seconds
+        assert result is False
+        assert mock_sleep.call_count < 5
+
+    @pytest.mark.asyncio
     async def test_stop_server_with_api_client_error(self, manager):
         """FS-10.x: stop_server handles api_client gracefully."""
         mock_proc = MagicMock()

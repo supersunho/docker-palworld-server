@@ -134,14 +134,26 @@ class ProcessManager(IProcessManager):
                 log_server_event(self.logger, "server_start_fail", f"Server start error: {e}")
                 return False
 
-        # Lock released — wait for startup without holding the lock so
-        # concurrent stop_server can still stop the process on startup failure.
-        await asyncio.sleep(10)
+        # Lock released — poll the process during the configured grace period
+        # without holding the lock so a concurrent stop_server can still
+        # stop the process on startup failure. Poll every second so a fast
+        # crash is detected immediately rather than waiting the full grace.
+        grace = getattr(self.config.server_startup, "startup_grace_seconds", 10.0)
+        poll_interval = 1.0
+        elapsed = 0.0
+        while elapsed < grace:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+            if not self.is_server_running():
+                # Process exited before the grace period ended — fast-fail.
+                break
 
         if not self.is_server_running():
             self._process_start_time = None
             log_server_event(
-                self.logger, "server_start_fail", "Server start failed - check logs for details"
+                self.logger,
+                "server_start_fail",
+                f"Server start failed - process exited within {grace:.1f}s grace period",
             )
             return False
 
@@ -150,6 +162,7 @@ class ProcessManager(IProcessManager):
             "server_start_complete",
             "Server started successfully with configured options",
             pid=self.server_process.pid,
+            grace_seconds=grace,
         )
         return True
 

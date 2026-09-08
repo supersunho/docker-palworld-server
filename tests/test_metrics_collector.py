@@ -391,6 +391,82 @@ class TestMetricsCollectorEdgeCases:
 
     @pytest.mark.asyncio
     @pytest.mark.slow
+    async def test_collection_loop_gc_gate_initial_run(self, collector):
+        """FS-17.x: gc.collect() runs on the first collection iteration because
+        ``_last_gc_time`` starts at 0.0.
+
+        We exit the loop deterministically by setting ``_running = False`` from
+        inside a hooked ``_collect_system_metrics`` after one iteration.
+        """
+        collector.config.monitoring.metrics_interval = 0.01
+        collector._last_gc_time = 0.0
+        collector._running = True
+
+        call_count = {"n": 0}
+
+        async def mock_collect():
+            call_count["n"] += 1
+            if call_count["n"] >= 1:
+                collector._running = False
+            return SystemMetrics(
+                cpu_percent=10.0,
+                memory_usage_gb=1.0,
+                memory_percent=20.0,
+                disk_usage_gb=10.0,
+                disk_percent=10.0,
+                network_bytes_sent=0,
+                network_bytes_recv=0,
+            )
+
+        collector._collect_system_metrics = mock_collect
+        collector._process_system_metrics = AsyncMock()
+
+        with patch("src.monitoring.metrics_collector.gc.collect") as mock_gc:
+            with patch("asyncio.sleep", AsyncMock(return_value=None)):
+                await collector._collection_loop()
+                # First iteration: gate opens (0 -> now), gc ran at least once.
+                assert mock_gc.call_count >= 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.slow
+    async def test_collection_loop_gc_respects_interval(self, collector):
+        """FS-17.x: gc.collect() does NOT run on every iteration; it is
+        gated by ``_gc_interval_seconds`` and updates ``_last_gc_time``.
+        """
+        collector.config.monitoring.metrics_interval = 0.01
+        # Pretend gc ran "just now" so the gate stays closed.
+        collector._last_gc_time = time.time()
+        collector._gc_interval_seconds = 600.0
+        collector._running = True
+
+        call_count = {"n": 0}
+
+        async def mock_collect():
+            call_count["n"] += 1
+            if call_count["n"] >= 3:
+                collector._running = False
+            return SystemMetrics(
+                cpu_percent=10.0,
+                memory_usage_gb=1.0,
+                memory_percent=20.0,
+                disk_usage_gb=10.0,
+                disk_percent=10.0,
+                network_bytes_sent=0,
+                network_bytes_recv=0,
+            )
+
+        collector._collect_system_metrics = mock_collect
+        collector._process_system_metrics = AsyncMock()
+
+        with patch("src.monitoring.metrics_collector.gc.collect") as mock_gc:
+            with patch("asyncio.sleep", AsyncMock(return_value=None)):
+                await collector._collection_loop()
+                # Gate was closed across all iterations -> gc never ran.
+                assert mock_gc.call_count == 0
+                assert call_count["n"] >= 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.slow
     async def test_collection_loop_cancellation(self, collector):
         """FS-17.x: _collection_loop handles CancelledError cleanly."""
         collector.config.monitoring.metrics_interval = 9999

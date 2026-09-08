@@ -6,6 +6,7 @@ are online for a configurable duration.
 """
 
 import asyncio
+import os
 import time
 from typing import Optional
 from dataclasses import dataclass
@@ -253,8 +254,6 @@ class IdleRestartManager:
         current_count = self.player_monitor.get_current_player_count()
         if current_count == 0 and self.api_manager is not None:
             try:
-                import asyncio
-
                 players = await asyncio.wait_for(self.api_manager.get_players(), timeout=10)
                 if isinstance(players, list):
                     current_count = len(players)
@@ -264,13 +263,19 @@ class IdleRestartManager:
                     )
                     self._idle_start = None
                     self.stats.current_idle_duration = 0.0
+                    await self._send_safety_abort_notification(
+                        "Player count unknown (REST and RCON both failed)"
+                    )
                     return
-            except Exception:
+            except Exception as e:
                 self.logger.warning(
                     "Player count unknown — API call failed during safety check, aborting idle action"
                 )
                 self._idle_start = None
                 self.stats.current_idle_duration = 0.0
+                await self._send_safety_abort_notification(
+                    f"Player count unknown (API call failed: {e})"
+                )
                 return
 
         if current_count > 0:
@@ -321,14 +326,74 @@ class IdleRestartManager:
             self.stats.current_idle_duration = 0.0
 
     async def _perform_pause(self) -> bool:
-        """Pause the server via SIGSTOP"""
+        """Pause the server via SIGSTOP.
+
+        Beyond asking the process manager to send the signal, this method
+        performs a lightweight post-check so a recycled PID (where the new
+        owner happens to accept SIGSTOP too) cannot silently flip our
+        ``_paused`` flag and mislead ``_handle_paused_state``.
+
+        The check reads ``/proc/<pid>/status`` on Linux, which reports the
+        kernel task state as ``T (stopped)`` when SIGSTOP has taken effect.
+        On non-Linux platforms (or when the file is unreadable) the check
+        is skipped and the signal-level success is trusted.
+        """
         self.logger.info("Pausing server (SIGSTOP)...")
-        success = await self.process_manager.pause_server()
-        if success:
-            self._paused = True
-            self._pause_start_time = time.time()
-            self.logger.info("Server paused — CPU usage will be 0%")
-        return success
+        signal_ok = await self.process_manager.pause_server()
+        if not signal_ok:
+            return False
+
+        verified = await self._verify_stopped_state()
+        if not verified:
+            self.logger.error(
+                "SIGSTOP sent but process did not enter stopped state "
+                "within the verification window — aborting pause"
+            )
+            # Best-effort: undo the pause so the server keeps running.
+            await self.process_manager.resume_server()
+            return False
+
+        self._paused = True
+        self._pause_start_time = time.time()
+        self.logger.info("Server paused — CPU usage will be 0%")
+        return True
+
+    async def _verify_stopped_state(
+        self, retries: int = 5, delay_seconds: float = 0.05
+    ) -> bool:
+        """Confirm the server process actually entered the T (stopped) state.
+
+        Returns True if /proc/<pid>/status shows ``State:	T (stopped)``
+        within ``retries`` attempts. Returns False on permission errors,
+        missing files (PID already exited/recycled), or timeout. Skips
+        the check entirely on non-Linux platforms where /proc is absent.
+        """
+        proc = self.process_manager.server_process
+        if proc is None or proc.pid is None:
+            return False
+        if not hasattr(os, "pid_exists") and not os.path.isdir("/proc"):
+            # No /proc on this platform — trust the signal-level success.
+            return True
+
+        status_path = f"/proc/{proc.pid}/status"
+        for _ in range(retries):
+            try:
+                with open(status_path, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        if line.startswith("State:"):
+                            # Examples: "State:\tT (stopped)" / "State:\tR (running)"
+                            if "(stopped)" in line:
+                                return True
+                            break
+            except (FileNotFoundError, ProcessLookupError):
+                # PID gone — definitely not stopped by us.
+                return False
+            except PermissionError:
+                # Cannot inspect; do not claim verification succeeded.
+                return False
+            await asyncio.sleep(delay_seconds)
+
+        return False
 
     async def _perform_restart(self) -> bool:
         """Perform the actual server restart"""
@@ -370,6 +435,32 @@ class IdleRestartManager:
                 self.logger.info(f"Discord notification sent for idle {action}")
         except Exception as e:
             self.logger.error(f"Failed to send Discord notification: {e}")
+
+    async def _send_safety_abort_notification(self, reason: str) -> None:
+        """Notify Discord when an idle action is aborted by the safety check.
+
+        Distinct from ``_send_discord_notification`` (which reports a completed
+        action) so operators can see the rare case where the safety re-check
+        failed and no action was taken.
+        """
+        if not self.config.discord.enabled:
+            return
+
+        try:
+            notifier = get_discord_notifier(self.config)
+            async with notifier:
+                await notifier._send_notification(
+                    "idle_safety_abort",
+                    "idle.safety_abort",
+                    level=NotificationLevel.WARNING,
+                    language=self.config.language,
+                    minutes=self.idle_minutes,
+                    server=self.config.server.name,
+                    reason=reason,
+                )
+                self.logger.info("Discord notification sent for idle safety abort")
+        except Exception as e:
+            self.logger.error(f"Failed to send safety abort Discord notification: {e}")
 
     def get_idle_status(self) -> dict:
         """Get current idle status information"""

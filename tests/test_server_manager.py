@@ -990,17 +990,21 @@ class TestSteamcmdRecoveryTransaction:
 
     @pytest.mark.asyncio
     async def test_update_loop_fallback_defers_without_restart_or_announce(
-        self, monkeypatch, capsys
+        self, monkeypatch, caplog
     ):
         """BOOT-04/D-09..D-11: periodic loop on fallback_used=True logs the
-        exact warning, does NOT announce an update or restart, and reschedules
-        at the normal 6h interval."""
+        exact warning via the structured logger, does NOT announce an update
+        or restart, and reschedules at the normal 6h interval."""
+        import logging
+
         import src.server_manager as sm
 
         real_sleep = asyncio.sleep
         manager = MagicMock()
         manager.__aenter__ = AsyncMock(return_value=manager)
         manager.__aexit__ = AsyncMock(return_value=False)
+        # Real logger instance so caplog can capture fallback warning text.
+        manager.logger = logging.getLogger("palworld.test.server")
         manager.config.monitoring.mode = "none"
         manager.config.steamcmd.check_version_update = True
         manager.config.steamcmd.update_on_start = True
@@ -1057,30 +1061,42 @@ class TestSteamcmdRecoveryTransaction:
         monkeypatch.setattr(sm, "setup_logging", lambda **kwargs: None)
         monkeypatch.setattr(sm, "PalworldServerManager", lambda cfg: manager)
 
-        task = asyncio.create_task(sm._async_main())
-        observed = False
-        try:
-            deadline = asyncio.get_event_loop().time() + 5
-            while not observed:
-                if asyncio.get_event_loop().time() > deadline:
-                    raise AssertionError(
-                        "update loop never reached the fallback reschedule"
-                    )
-                # Startup download (call 1) + at least one periodic download
-                # (call 2), and the normal-6h reschedule sleep recorded.
-                if fallback_calls["n"] >= 2 and (6 * 3600) in sleep_durations:
-                    observed = True
-                    break
-                await real_sleep(0.01)
-        finally:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+        with caplog.at_level(logging.INFO, logger="palworld.test.server"):
+            task = asyncio.create_task(sm._async_main())
+            observed = False
+            try:
+                deadline = asyncio.get_event_loop().time() + 5
+                while not observed:
+                    if asyncio.get_event_loop().time() > deadline:
+                        raise AssertionError(
+                            "update loop never reached the fallback reschedule"
+                        )
+                    # Startup download (call 1) + at least one periodic download
+                    # (call 2), and the normal-6h reschedule sleep recorded.
+                    if fallback_calls["n"] >= 2 and (6 * 3600) in sleep_durations:
+                        observed = True
+                        break
+                    await real_sleep(0.01)
+            finally:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
-        out = capsys.readouterr().out
+        # BOOT-04 contract: the exact fallback warning must be emitted through
+        # the structured logger (no longer stdout).
+        # Caplog captures both formatter output and the raw logger record.
+        # Match against either the record's message or the rendered text so
+        # structlog processors (or the absence thereof) don't hide it.
+        all_text = "\n".join(
+            [r.getMessage() for r in caplog.records]
+            + [r.formatted if hasattr(r, "formatted") else "" for r in caplog.records]
+        )
         assert (
             "UPDATE DEFERRED: SteamCMD recovery failed; "
-            "starting existing server build (may be older)" in out
+            "starting existing server build (may be older)" in all_text
+        ), (
+            f"Expected FALLBACK_WARNING not found. Got records: "
+            f"{[(r.levelname, r.getMessage()) for r in caplog.records]}"
         )
         # Pre-check announcement is kept, but the update/restart notify is NOT
         # issued for a deferred fallback.

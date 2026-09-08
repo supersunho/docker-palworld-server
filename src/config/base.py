@@ -183,41 +183,6 @@ class ConfigLoader(IConfigProvider):
 
         return value
 
-    def _convert_types(self, value: Any) -> Any:
-        """Legacy recursive lexical conversion helper.
-
-        Configuration loading no longer calls this global pass because it cannot
-        distinguish lexical strings from values that belong to numeric fields.
-        It remains available for backwards compatibility with callers that use
-        this private helper directly.
-        """
-        if isinstance(value, str):
-            if value.lower() in ("true", "yes", "1", "on"):
-                return True
-            elif value.lower() in ("false", "no", "0", "off"):
-                return False
-
-            if value.isdigit():
-                return int(value)
-
-            # 음수 처리 추가
-            if value.startswith("-") and value[1:].isdigit():
-                return int(value)
-
-            try:
-                if "." in value:
-                    return float(value)
-            except ValueError:
-                pass
-
-        elif isinstance(value, dict):
-            return {k: self._convert_types(v) for k, v in value.items()}
-
-        elif isinstance(value, list):
-            return [self._convert_types(item) for item in value]
-
-        return value
-
     def load_config(self):
         """Load configuration file and apply environment variables"""
         if not self.config_path.exists():
@@ -448,6 +413,12 @@ class ConfigLoader(IConfigProvider):
         if config.server_startup.worker_threads_count < 0:
             raise ValueError(
                 f"Invalid worker threads count: {config.server_startup.worker_threads_count}"
+            )
+
+        if config.server_startup.startup_grace_seconds <= 0:
+            raise ValueError(
+                f"Invalid startup_grace_seconds: {config.server_startup.startup_grace_seconds}"
+                " (must be > 0)"
             )
 
         valid_languages = ["ko", "en", "ja"]

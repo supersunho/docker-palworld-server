@@ -417,26 +417,31 @@ class HealthChecker:
     async def _test_rcon_command(self) -> Dict[str, Any]:
         """Test RCON command execution using rcon-cli"""
         try:
+            # rcon-cli has no --password-stdin flag (only --password). Pass the
+            # secret via RCON_PASSWORD in a copied env so it never lands in
+            # argv where `ps` could expose it.
             cmd = [
                 "rcon-cli",
                 "--host",
                 self.rcon_host,
                 "--port",
                 str(self.rcon_port),
-                "--password-stdin",
                 "Info",
             ]
 
+            env = os.environ.copy()
+            env["RCON_PASSWORD"] = self.rcon_password
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
 
             try:
                 stdout, stderr = await asyncio.wait_for(
-                    process.communicate(input=self.rcon_password.encode("utf-8")), timeout=10
+                    process.communicate(), timeout=10
                 )
 
                 if process.returncode == 0:

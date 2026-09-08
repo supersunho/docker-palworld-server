@@ -96,8 +96,6 @@ def setup_logging(
 
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
 
-    logging.basicConfig(level=numeric_level, format="%(message)s", handlers=[])
-
     handlers = []
 
     if enable_console:
@@ -168,7 +166,14 @@ def log_server_event(
     logger: structlog.BoundLogger, event_type: str, message: str, **kwargs
 ) -> None:
     """Log server event"""
-    logger.info(message, event_type=event_type, **kwargs)
+    try:
+        logger.info(message, event_type=event_type, **kwargs)
+    except TypeError:
+        # Standard logging.Logger (e.g. in tests where setup_logging was
+        # mocked) rejects unknown kwargs. Fall back to a plain message so the
+        # event is still emitted through the configured handlers.
+        suffix = f" [{event_type}]" if event_type else ""
+        logger.info(message + suffix)
 
 
 def log_player_event(

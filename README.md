@@ -342,6 +342,7 @@ The variables in this section configure the image’s manager layer, not
 | `ADDITIONAL_SERVER_OPTIONS` | empty | Space-separated option string | Extra command-line arguments for the server process. Verify arguments against the current Palworld version. |
 | `ENABLE_PUBLIC_LOBBY` | `false` | Boolean | Enables the public-lobby startup option. |
 | `LOG_FORMAT` | `text` | `text` or `json` | Format emitted by the manager/application logs. |
+| `SERVER_STARTUP_GRACE_SECONDS` | `10.0` | Positive seconds | Grace period after launching `PalServer.sh` before the process is considered stable. Raise for slow ARM64/FEX hosts where the engine takes longer to initialize. |
 
 ### Monitoring and idle restart
 
